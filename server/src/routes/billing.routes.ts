@@ -25,9 +25,9 @@ export async function billingRoutes(app: FastifyInstance) {
         LEFT JOIN (SELECT document_id, COUNT(*) as item_count FROM document_items GROUP BY document_id) di_count
         ON d.id = di_count.document_id WHERE 1=1`;
       const params: any[] = [];
-      if (type) { sql += ' AND d.doc_type = ?'; params.push(type); }
-      if (status) { sql += ' AND d.payment_status = ?'; params.push(status); }
-      if (search) { sql += ' AND (d.doc_number LIKE ? OR d.customer_snapshot LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
+      if (type && type !== 'undefined') { sql += ' AND d.doc_type = ?'; params.push(type); }
+      if (status && status !== 'undefined') { sql += ' AND d.payment_status = ?'; params.push(status); }
+      if (search && search.trim() && search !== 'undefined') { sql += ' AND (d.doc_number LIKE ? OR d.customer_snapshot LIKE ?)'; params.push(`%${search.trim()}%`, `%${search.trim()}%`); }
       sql += ' ORDER BY d.doc_date DESC, d.created_at DESC';
       sql += ` LIMIT ${parseInt(limit || '100')}`;
       return reply.send(getDb().prepare(sql).all(...params));

@@ -25,7 +25,11 @@ export const api = {
   // ── Documents ─────────────────────────────────────────────────────────────
   documents: {
     list: (params?: { type?: string; status?: string; search?: string }) => {
-      const q = new URLSearchParams(params as any).toString()
+      const cleanParams: Record<string, string> = {}
+      if (params?.type) cleanParams.type = params.type
+      if (params?.status) cleanParams.status = params.status
+      if (params?.search) cleanParams.search = params.search
+      const q = new URLSearchParams(cleanParams).toString()
       return req<any[]>(`/documents${q ? '?' + q : ''}`)
     },
     get: (id: string) => req<any>(`/documents/${id}`),

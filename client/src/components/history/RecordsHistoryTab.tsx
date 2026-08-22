@@ -1,6 +1,6 @@
-// components/history/RecordsHistoryTab.tsx — Invoice/Quotation history table
+// components/history/RecordsHistoryTab.tsx — Invoice/Quotation history table with View & Print
 import { useEffect, useState } from 'react'
-import { Search, Eye, Edit, XCircle, Printer, ChevronDown } from 'lucide-react'
+import { Search, Eye, Edit, XCircle, Printer, X } from 'lucide-react'
 import { api } from '../../utils/api'
 import { formatINR, formatDate } from '../../utils/upiHelper'
 import { useBillingStore } from '../../store/useBillingStore'
@@ -20,19 +20,36 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
   const [statusFilter, setStatusFilter] = useState('')
   const [loading, setLoading] = useState(false)
   const [printDoc, setPrintDoc] = useState<any>(null)
+  const [viewDoc, setViewDoc] = useState<any>(null)
   const [profile, setProfile] = useState<any>(null)
   const store = useBillingStore()
 
   const load = async () => {
     setLoading(true)
-    const [d, p] = await Promise.all([
-      api.documents.list({ type: typeFilter || undefined, status: statusFilter || undefined, search: search || undefined }),
-      api.settings.getProfile()
-    ])
-    setDocs(d); setProfile(p.profile); setLoading(false)
+    try {
+      const [d, p] = await Promise.all([
+        api.documents.list({
+          type: typeFilter || undefined,
+          status: statusFilter || undefined,
+          search: search || undefined
+        }),
+        api.settings.getProfile()
+      ])
+      setDocs(d || [])
+      setProfile(p?.profile || null)
+    } catch (e) {
+      console.error('Error loading documents:', e)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { load() }, [search, typeFilter, statusFilter])
+
+  const handleView = async (doc: any) => {
+    const full = await api.documents.get(doc.id)
+    setViewDoc(full)
+  }
 
   const handleEdit = async (doc: any) => {
     const full = await api.documents.get(doc.id)
@@ -109,7 +126,8 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
                     <td className="td text-center text-gray-500 text-xs">v{doc.revision_number}</td>
                     <td className="td">
                       <div className="flex items-center gap-1">
-                        <button onClick={() => handlePrint(doc)} className="btn-ghost p-1.5" title="Print"><Printer size={14} /></button>
+                        <button onClick={() => handleView(doc)} className="btn-ghost p-1.5 text-blue-400" title="View Document"><Eye size={14} /></button>
+                        <button onClick={() => handlePrint(doc)} className="btn-ghost p-1.5 text-gray-300" title="Print"><Printer size={14} /></button>
                         {doc.payment_status !== 'CANCELLED' && (
                           <button onClick={() => handleEdit(doc)} className="btn-ghost p-1.5 text-brand-400" title="Edit"><Edit size={14} /></button>
                         )}
@@ -125,6 +143,29 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
           </table>
         </div>
       </div>
+
+      {/* View Document Modal */}
+      {viewDoc && (
+        <div className="modal-backdrop" onClick={() => setViewDoc(null)}>
+          <div className="w-full max-w-3xl max-h-[95vh] overflow-y-auto bg-white rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="no-print flex items-center justify-between p-4 border-b bg-gray-900 text-white rounded-t-2xl">
+              <div>
+                <span className="font-semibold text-lg">{viewDoc.doc_number}</span>
+                <span className="ml-2 text-xs text-gray-400">({viewDoc.doc_type})</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => { setPrintDoc(viewDoc); setTimeout(() => window.print(), 300) }} className="btn-primary text-xs py-1.5">
+                  <Printer size={14} /> Print
+                </button>
+                <button onClick={() => setViewDoc(null)} className="btn-ghost text-gray-400 hover:text-white p-1">
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+            <A4InvoiceTemplate doc={viewDoc} profile={profile} />
+          </div>
+        </div>
+      )}
 
       {/* Hidden print target */}
       {printDoc && (
