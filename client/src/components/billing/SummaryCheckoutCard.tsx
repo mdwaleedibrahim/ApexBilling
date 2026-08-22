@@ -111,15 +111,15 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
       {/* Payment Mode */}
       <div>
         <label className="label">Payment Mode</label>
-        <div className="grid grid-cols-5 gap-1">
-          {(['CASH','UPI','CARD','BANK_TRANSFER','CREDIT'] as const).map(m => {
-            const Icon = MODE_ICONS[m]
+        <div className="grid grid-cols-3 gap-1.5">
+          {(['CASH','UPI','CREDIT'] as const).map(m => {
+            const Icon = MODE_ICONS[m] || Banknote
             return (
               <button key={m} onClick={() => setPaymentMode(m)} title={m}
-                className={`flex flex-col items-center gap-1 py-2 rounded-xl text-xs transition-all
-                  ${paymentMode === m ? 'bg-brand-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
-                <Icon size={14} />
-                <span className="text-[10px]">{m === 'BANK_TRANSFER' ? 'BANK' : m}</span>
+                className={`flex flex-col items-center gap-1 py-2.5 rounded-xl text-xs transition-all font-medium
+                  ${paymentMode === m ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/30' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+                <Icon size={16} />
+                <span className="text-[11px]">{m}</span>
               </button>
             )
           })}

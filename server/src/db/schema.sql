@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS documents (
     sgst_total DECIMAL(12,2) NOT NULL,
     round_off DECIMAL(4,2) DEFAULT 0.00,
     grand_total DECIMAL(12,2) NOT NULL,
-    payment_mode TEXT CHECK (payment_mode IN ('CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CREDIT')),
+    payment_mode TEXT CHECK (payment_mode IN ('CASH', 'UPI', 'CREDIT')),
     payment_status TEXT CHECK (payment_status IN ('PAID', 'PARTIAL', 'UNPAID', 'CANCELLED')) DEFAULT 'PAID',
     selected_upi_id TEXT,
     notes TEXT,

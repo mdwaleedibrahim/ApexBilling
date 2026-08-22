@@ -6,8 +6,9 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
   if (!doc || !profile) return null
   const items = doc.items || []
   const snap = (() => { try { return JSON.parse(doc.customer_snapshot) } catch { return {} } })()
-  const upiLink = profile?.active_upi_id
-    ? buildUpiLink({ upiId: profile.active_upi_id, payeeName: profile.business_name, amount: doc.grand_total, docNumber: doc.doc_number })
+  const upiId = profile?.active_upi_id || (profile?.phone ? `${profile.phone}@upi` : null)
+  const upiLink = upiId
+    ? buildUpiLink({ upiId, payeeName: profile.business_name || 'Merchant', amount: doc.grand_total, docNumber: doc.doc_number })
     : null
   const isPaid = doc.payment_status === 'PAID'
   const isOverdue = doc.payment_status === 'UNPAID'
@@ -116,12 +117,15 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
             <span>Grand Total</span><span style={{ color: '#4338ca' }}>{formatINR(doc.grand_total)}</span>
           </div>
 
-          {/* UPI QR */}
+          {/* UPI QR Code */}
           {upiLink && (
-            <div style={{ textAlign: 'center', marginTop: 12 }}>
-              <QRCodeSVG value={upiLink} size={100} />
-              <p style={{ fontSize: 10, color: '#6b7280', marginTop: 4 }}>Scan to Pay via UPI</p>
-              <p style={{ fontSize: 10, color: '#4338ca' }}>{profile.active_upi_id}</p>
+            <div style={{ textAlign: 'center', marginTop: 14, padding: 12, border: '1px solid #e5e7eb', borderRadius: 8, background: '#fafafa' }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#4338ca', margin: '0 0 6px 0', textTransform: 'uppercase', tracking: '0.05em' }}>Scan to Pay</p>
+              <div style={{ display: 'flex', justifyContent: 'center', margin: '4px 0' }}>
+                <QRCodeSVG value={upiLink} size={110} />
+              </div>
+              <p style={{ fontSize: 10, fontWeight: 600, color: '#111827', margin: '6px 0 2px 0' }}>{upiId}</p>
+              <p style={{ fontSize: 9, color: '#6b7280', margin: 0 }}>GPay · PhonePe · Paytm · BHIM</p>
             </div>
           )}
         </div>

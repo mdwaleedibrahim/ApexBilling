@@ -84,7 +84,7 @@ export function calcTotals(items: LineItem[], discountPct = 0): InvoiceTotals {
 
 export const GST_RATES = [0, 5, 12, 18, 28]
 
-export const PAYMENT_MODES = ['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CREDIT'] as const
+export const PAYMENT_MODES = ['CASH', 'UPI', 'CREDIT'] as const
 export type PaymentMode = typeof PAYMENT_MODES[number]
 
 export const PAYMENT_STATUSES = ['PAID', 'PARTIAL', 'UNPAID', 'CANCELLED'] as const
