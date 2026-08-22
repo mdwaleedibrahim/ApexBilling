@@ -1,0 +1,174 @@
+// components/billing/SummaryCheckoutCard.tsx — Totals + Checkout panel
+import { useState } from 'react'
+import { CreditCard, Banknote, QrCode, Landmark, Clock } from 'lucide-react'
+import { useBillingStore } from '../../store/useBillingStore'
+import { formatINR } from '../../utils/upiHelper'
+import { api } from '../../utils/api'
+
+const MODE_ICONS: Record<string, any> = {
+  CASH: Banknote, UPI: QrCode, CARD: CreditCard, BANK_TRANSFER: Landmark, CREDIT: Clock
+}
+
+interface Props {
+  onSuccess: (doc: any) => void
+  sellerProfile: any
+}
+
+export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props) {
+  const store = useBillingStore()
+  const { totals, discountPct, setDiscountPct, paymentMode, setPaymentMode,
+          paymentStatus, setPaymentStatus, docType, setDocType, notes, setNotes,
+          items, customer, docDate, setDocDate, editingDocId, editingDocNumber } = store
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (mode?: string, status?: string) => {
+    if (!items.length) { setError('Add at least one item'); return }
+    setLoading(true); setError('')
+    try {
+      const pm = mode || paymentMode
+      const ps = status || paymentStatus
+      const body = {
+        doc_type: docType,
+        doc_date: docDate,
+        customer_phone: customer?.phone || null,
+        customer_snapshot: JSON.stringify(customer || {}),
+        items: items.map(i => ({
+          productId: i.productId, productName: i.productName, hsnSac: i.hsnSac,
+          quantity: i.quantity, unitPrice: i.unitPrice, gstRate: i.gstRate,
+        })),
+        discount_pct: discountPct,
+        payment_mode: pm,
+        payment_status: ps,
+        notes,
+        selected_upi_id: store.selectedUpiId,
+      }
+      const doc = editingDocId
+        ? await api.documents.update(editingDocId, body)
+        : await api.documents.create(body)
+      store.clearCart()
+      onSuccess(doc)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const row = (label: string, value: string, cls = '') => (
+    <div className={`flex items-center justify-between text-sm ${cls}`}>
+      <span className="text-gray-400">{label}</span>
+      <span className="font-medium text-gray-200">{value}</span>
+    </div>
+  )
+
+  return (
+    <div className="glass-card p-5 space-y-4 sticky top-4">
+      {editingDocNumber && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-400">
+          ✏️ Editing {editingDocNumber} (Rev {store.revisionNumber + 1})
+        </div>
+      )}
+
+      {/* Doc type toggle */}
+      <div className="flex rounded-xl overflow-hidden border border-white/10">
+        {(['INVOICE','QUOTATION'] as const).map(t => (
+          <button key={t} onClick={() => setDocType(t)}
+            className={`flex-1 py-2 text-xs font-semibold transition-colors
+              ${docType === t ? 'bg-brand-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}>
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* Date */}
+      <div>
+        <label className="label">Date</label>
+        <input type="date" className="input" value={docDate} onChange={e => setDocDate(e.target.value)} />
+      </div>
+
+      {/* Discount */}
+      <div>
+        <label className="label">Discount %</label>
+        <input type="number" min={0} max={100} step={0.5} className="input"
+          value={discountPct} onChange={e => setDiscountPct(parseFloat(e.target.value) || 0)} />
+      </div>
+
+      {/* Totals */}
+      <div className="space-y-2 py-3 border-y border-white/10">
+        {row('Subtotal',       formatINR(totals.grossSubtotal))}
+        {discountPct > 0 && row(`Discount (${discountPct}%)`, `− ${formatINR(totals.discountAmount)}`, 'text-amber-400')}
+        {row('Taxable Amount', formatINR(totals.taxableAmount))}
+        {row(`CGST`,           formatINR(totals.cgstTotal))}
+        {row(`SGST`,           formatINR(totals.sgstTotal))}
+        {totals.roundOff !== 0 && row('Round Off', (totals.roundOff >= 0 ? '+' : '') + formatINR(Math.abs(totals.roundOff)))}
+        <div className="flex items-center justify-between pt-2 border-t border-white/10">
+          <span className="text-base font-bold text-white">Total</span>
+          <span className="text-xl font-bold text-emerald-400">{formatINR(totals.grandTotal)}</span>
+        </div>
+      </div>
+
+      {/* Payment Mode */}
+      <div>
+        <label className="label">Payment Mode</label>
+        <div className="grid grid-cols-5 gap-1">
+          {(['CASH','UPI','CARD','BANK_TRANSFER','CREDIT'] as const).map(m => {
+            const Icon = MODE_ICONS[m]
+            return (
+              <button key={m} onClick={() => setPaymentMode(m)} title={m}
+                className={`flex flex-col items-center gap-1 py-2 rounded-xl text-xs transition-all
+                  ${paymentMode === m ? 'bg-brand-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+                <Icon size={14} />
+                <span className="text-[10px]">{m === 'BANK_TRANSFER' ? 'BANK' : m}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Status (for quotations or credit) */}
+      {(docType === 'QUOTATION' || paymentMode === 'CREDIT') && (
+        <div>
+          <label className="label">Payment Status</label>
+          <select className="input" value={paymentStatus} onChange={e => setPaymentStatus(e.target.value)}>
+            <option value="PAID">Paid</option>
+            <option value="UNPAID">Unpaid</option>
+            <option value="PARTIAL">Partial</option>
+          </select>
+        </div>
+      )}
+
+      {/* Notes */}
+      <div>
+        <label className="label">Notes</label>
+        <textarea className="input resize-none h-16" placeholder="Payment terms, remarks…"
+          value={notes} onChange={e => setNotes(e.target.value)} />
+      </div>
+
+      {error && <p className="text-xs text-red-400 bg-red-500/10 rounded-xl px-3 py-2">{error}</p>}
+
+      {/* Action Buttons */}
+      <div className="space-y-2">
+        {/* F7: Cash Checkout */}
+        <button onClick={() => handleSubmit('CASH', 'PAID')} disabled={loading}
+          className="btn-primary w-full justify-center py-3 text-base font-semibold">
+          <Banknote size={18} /> {loading ? 'Saving…' : (editingDocId ? 'Update Invoice' : '⚡ Cash Checkout (F7)')}
+        </button>
+        {/* F8: UPI Checkout */}
+        {!editingDocId && (
+          <button onClick={() => handleSubmit('UPI', 'PAID')} disabled={loading}
+            className="btn-secondary w-full justify-center py-2.5">
+            <QrCode size={16} /> UPI / QR Checkout (F8)
+          </button>
+        )}
+        {/* F4: Save as Quotation */}
+        {!editingDocId && (
+          <button onClick={() => { setDocType('QUOTATION'); handleSubmit(paymentMode, 'UNPAID') }} disabled={loading}
+            className="btn-ghost w-full justify-center py-2 text-xs">
+            💾 Save as Quotation (F4)
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
