@@ -17,6 +17,7 @@ const SCHEMA_PATH = path.join(__dirname, 'schema.sql')
 if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true })
 
 let _db: DatabaseSync | null = null
+let _inTransaction = false
 
 export function getDb(): DatabaseSync {
   if (!_db) {
@@ -32,10 +33,15 @@ export function getDb(): DatabaseSync {
 }
 
 /**
- * Atomic transaction wrapper.
+ * Re-entrant atomic transaction wrapper.
+ * Reuses existing transaction if already inside one.
  */
 export function withTransaction<T>(fn: () => T): T {
   const db = getDb()
+  if (_inTransaction) {
+    return fn()
+  }
+  _inTransaction = true
   db.exec('BEGIN')
   try {
     const result = fn()
@@ -44,6 +50,8 @@ export function withTransaction<T>(fn: () => T): T {
   } catch (err) {
     db.exec('ROLLBACK')
     throw err
+  } finally {
+    _inTransaction = false
   }
 }
 
