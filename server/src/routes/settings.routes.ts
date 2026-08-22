@@ -30,7 +30,7 @@ export async function settingsRoutes(app: FastifyInstance) {
     const {
       business_name, trade_name, gstin, pan, phone, email,
       address_line1, address_line2, city, state_code, pincode,
-      bank_name, bank_account_no, bank_ifsc, bank_branch, active_upi_id
+      bank_name, bank_account_no, bank_ifsc, bank_branch, active_upi_id, enable_scan_to_pay
     } = req.body;
 
     db.prepare(`
@@ -38,11 +38,12 @@ export async function settingsRoutes(app: FastifyInstance) {
         business_name=?, trade_name=?, gstin=?, pan=?, phone=?, email=?,
         address_line1=?, address_line2=?, city=?, state_code=?, pincode=?,
         bank_name=?, bank_account_no=?, bank_ifsc=?, bank_branch=?, active_upi_id=?,
-        updated_at=CURRENT_TIMESTAMP
+        enable_scan_to_pay=?, updated_at=CURRENT_TIMESTAMP
       WHERE id=1
     `).run(business_name, trade_name||null, gstin, pan||null, phone, email||null,
       address_line1, address_line2||null, city, state_code, pincode,
-      bank_name||null, bank_account_no||null, bank_ifsc||null, bank_branch||null, active_upi_id||null);
+      bank_name||null, bank_account_no||null, bank_ifsc||null, bank_branch||null,
+      active_upi_id||null, enable_scan_to_pay !== undefined ? (enable_scan_to_pay ? 1 : 0) : 1);
 
     return reply.send(db.prepare(`SELECT * FROM seller_profile WHERE id=1`).get());
   });
@@ -87,7 +88,7 @@ export async function settingsRoutes(app: FastifyInstance) {
   // DELETE /api/settings/upi/:id
   app.delete<{ Params: { id: string } }>('/api/settings/upi/:id', (req, reply) => {
     const db = getDb();
-    db.prepare(`DELETE FROM seller_upi_accounts WHERE id=?`).run(req.params.id);
+    db.prepare(`DELETE FROM seller_upi_accounts WHERE id=? OR upi_id=?`).run(req.params.id, req.params.id);
 
     // Fallback active_upi_id to remaining default or first account
     const remaining: any = db.prepare(`SELECT upi_id FROM seller_upi_accounts ORDER BY is_default DESC LIMIT 1`).get();

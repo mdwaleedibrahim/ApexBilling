@@ -3,9 +3,13 @@
 const BASE = '/api'
 
 async function req<T>(url: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {}
+  if (options?.body) {
+    headers['Content-Type'] = 'application/json'
+  }
   const res = await fetch(BASE + url, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
     ...options,
+    headers: { ...headers, ...options?.headers },
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
@@ -36,6 +40,7 @@ export const api = {
     create: (body: any) => req<any>('/documents', { method: 'POST', body: JSON.stringify(body) }),
     update: (id: string, body: any) => req<any>(`/documents/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     cancel: (id: string) => req<any>(`/documents/${id}/cancel`, { method: 'PATCH' }),
+    convert: (id: string, body?: any) => req<any>(`/documents/${id}/convert`, { method: 'POST', body: JSON.stringify(body || {}) }),
     setStatus: (id: string, payment_status: string, payment_mode?: string) =>
       req<any>(`/documents/${id}/status`, { method: 'PATCH', body: JSON.stringify({ payment_status, payment_mode }) }),
   },

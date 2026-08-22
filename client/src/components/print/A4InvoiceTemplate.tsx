@@ -6,12 +6,14 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
   if (!doc || !profile) return null
   const items = doc.items || []
   const snap = (() => { try { return JSON.parse(doc.customer_snapshot) } catch { return {} } })()
-  const upiId = doc.selected_upi_id || profile?.active_upi_id || (profile?.phone ? `${profile.phone}@upi` : null)
+  const defaultUpiAcc = profile?.upiAccounts?.find((a: any) => a.is_default) || profile?.upiAccounts?.[0]
+  const upiId = doc.selected_upi_id || profile?.active_upi_id || defaultUpiAcc?.upi_id || (profile?.phone ? `${profile.phone}@upi` : null)
+  const payeeName = defaultUpiAcc?.payee_name || profile?.business_name || 'Merchant'
   const upiLink = upiId
-    ? buildUpiLink({ upiId, payeeName: profile?.business_name || 'Merchant', amount: doc.grand_total, docNumber: doc.doc_number })
+    ? buildUpiLink({ upiId, payeeName, amount: doc.grand_total, docNumber: doc.doc_number })
     : null
-  const isPaid = doc.payment_status === 'PAID'
-  const isOverdue = doc.payment_status === 'UNPAID'
+  const isPaid = doc.doc_type !== 'QUOTATION' && doc.payment_status === 'PAID'
+  const isOverdue = doc.doc_type !== 'QUOTATION' && doc.payment_status === 'UNPAID'
 
   return (
     <div className="bg-white text-gray-900 p-8 font-sans text-sm relative" style={{ fontFamily: 'Arial, sans-serif', minHeight: '297mm' }}>
@@ -43,20 +45,22 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
         </div>
       </div>
 
-      {/* Bill To */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+      {/* Bill To / Quotation Details */}
+      <div style={{ display: 'grid', gridTemplateColumns: doc.doc_type === 'QUOTATION' ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 20 }}>
         <div style={{ padding: 12, border: '1px solid #e5e7eb', borderRadius: 8 }}>
-          <p style={{ fontWeight: 700, marginBottom: 4, color: '#374151' }}>Bill To:</p>
+          <p style={{ fontWeight: 700, marginBottom: 4, color: '#374151' }}>{doc.doc_type === 'QUOTATION' ? 'Quotation For:' : 'Bill To:'}</p>
           <p style={{ fontWeight: 600 }}>{snap.name || 'Walk-in Customer'}</p>
           {snap.phone && <p style={{ color: '#6b7280' }}>Ph: {snap.phone}</p>}
           {snap.billing_address && <p style={{ color: '#6b7280' }}>{snap.billing_address}</p>}
           {snap.gstin && <p style={{ color: '#6b7280' }}>GSTIN: {snap.gstin}</p>}
         </div>
-        <div style={{ padding: 12, border: '1px solid #e5e7eb', borderRadius: 8 }}>
-          <p style={{ fontWeight: 700, marginBottom: 4, color: '#374151' }}>Payment:</p>
-          <p>Mode: <strong>{doc.payment_mode}</strong></p>
-          <p>Status: <strong style={{ color: isPaid ? '#16a34a' : '#dc2626' }}>{doc.payment_status}</strong></p>
-        </div>
+        {doc.doc_type !== 'QUOTATION' && (
+          <div style={{ padding: 12, border: '1px solid #e5e7eb', borderRadius: 8 }}>
+            <p style={{ fontWeight: 700, marginBottom: 4, color: '#374151' }}>Payment:</p>
+            <p>Mode: <strong>{doc.payment_mode}</strong></p>
+            <p>Status: <strong style={{ color: isPaid ? '#16a34a' : '#dc2626' }}>{doc.payment_status}</strong></p>
+          </div>
+        )}
       </div>
 
       {/* Items Table */}
@@ -117,8 +121,8 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
             <span>Grand Total</span><span style={{ color: '#4338ca' }}>{formatINR(doc.grand_total)}</span>
           </div>
 
-          {/* UPI QR Code */}
-          {upiLink && (
+          {/* UPI QR Code (Invoices only) */}
+          {(profile?.enable_scan_to_pay !== 0 && profile?.enable_scan_to_pay !== false) && doc.doc_type !== 'QUOTATION' && upiLink && (
             <div style={{ textAlign: 'center', marginTop: 14, padding: 12, border: '1px solid #e5e7eb', borderRadius: 8, background: '#fafafa' }}>
               <p style={{ fontSize: 11, fontWeight: 700, color: '#4338ca', margin: '0 0 6px 0', textTransform: 'uppercase', tracking: '0.05em' }}>Scan to Pay</p>
               <div style={{ display: 'flex', justifyContent: 'center', margin: '4px 0' }}>
@@ -132,7 +136,15 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
       </div>
 
       {doc.notes && <p style={{ marginTop: 16, fontSize: 11, color: '#6b7280', borderTop: '1px solid #e5e7eb', paddingTop: 8 }}>Notes: {doc.notes}</p>}
-      <p style={{ marginTop: 24, textAlign: 'center', fontSize: 10, color: '#9ca3af' }}>Thank you for your business!</p>
+      <p style={{ marginTop: 20, textAlign: 'center', fontSize: 10, color: '#9ca3af' }}>
+        {doc.doc_type === 'QUOTATION' ? 'Looking forward to doing business!' : 'Thank you for your business!'}
+      </p>
+
+      {/* Printable Page Footer (Clean page number, no localhost URL) */}
+      <div style={{ marginTop: 24, paddingTop: 8, borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#9ca3af' }}>
+        <span>{doc.doc_type === 'QUOTATION' ? `Quotation Ref: ${doc.doc_number}` : `Tax Invoice: ${doc.doc_number}`}</span>
+        <span>Page 1 of 1</span>
+      </div>
     </div>
   )
 }

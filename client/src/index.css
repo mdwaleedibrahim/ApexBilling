@@ -79,9 +79,27 @@
   }
 }
 
-/* Print styles */
+/* Print styles — Retain top header & page numbers, suppress browser URL (localhost:5173) */
 @media print {
-  body { background: white !important; color: black !important; }
+  @page {
+    margin: 8mm 10mm 12mm 10mm;
+    size: A4 portrait;
+    @bottom-left {
+      content: none !important;
+    }
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-size: 9pt;
+      color: #6b7280;
+    }
+  }
+  html, body {
+    background: white !important;
+    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
   .no-print { display: none !important; }
   .print-only { display: block !important; }
 }

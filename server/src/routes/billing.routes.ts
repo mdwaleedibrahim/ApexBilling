@@ -161,6 +161,63 @@ export async function billingRoutes(app: FastifyInstance) {
     }
   );
 
+  // POST /api/documents/:id/convert - Convert Quotation to Invoice
+  app.post<{ Params: { id: string }; Body: { payment_mode?: string; payment_status?: string } }>(
+    '/api/documents/:id/convert', (req, reply) => {
+      const db = getDb();
+      const quo: any = db.prepare(`SELECT * FROM documents WHERE id = ?`).get(req.params.id);
+      if (!quo) return reply.status(404).send({ error: 'Quotation not found' });
+      if (quo.doc_type !== 'QUOTATION') return reply.status(400).send({ error: 'Document is not a quotation' });
+
+      const items: any[] = db.prepare(`SELECT * FROM document_items WHERE document_id = ?`).all(req.params.id) as any[];
+      const payment_mode = req.body?.payment_mode || 'CASH';
+      const payment_status = req.body?.payment_status || 'PAID';
+
+      const invoiceId = randomUUID();
+      const invoiceNum = generateDocNumber(db, 'INVOICE');
+
+      withTransaction(() => {
+        deductStockForNewInvoice(items.map(i => ({
+          productId: i.product_id,
+          quantity: i.quantity,
+          productName: i.product_name
+        })));
+
+        db.prepare(`
+          INSERT INTO documents (
+            id, doc_type, doc_number, parent_doc_id, revision_number, doc_date,
+            customer_phone, customer_snapshot, gross_subtotal, discount_pct, discount_amount,
+            taxable_amount, cgst_total, sgst_total, round_off, grand_total,
+            payment_mode, payment_status, selected_upi_id, notes
+          ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        `).run(
+          invoiceId, 'INVOICE', invoiceNum, quo.id, 1, new Date().toISOString().split('T')[0],
+          quo.customer_phone, quo.customer_snapshot, quo.gross_subtotal, quo.discount_pct, quo.discount_amount,
+          quo.taxable_amount, quo.cgst_total, quo.sgst_total, quo.round_off, quo.grand_total,
+          payment_mode, payment_status, quo.selected_upi_id, quo.notes
+        );
+
+        const insertItem = db.prepare(`
+          INSERT INTO document_items (id, document_id, product_id, product_name, hsn_sac, quantity, unit_price,
+            gross_amount, taxable_value, gst_rate, cgst_rate, cgst_amount, sgst_rate, sgst_amount, total_amount)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        `);
+
+        for (const item of items) {
+          insertItem.run(
+            randomUUID(), invoiceId, item.product_id, item.product_name, item.hsn_sac,
+            item.quantity, item.unit_price, item.gross_amount, item.taxable_value,
+            item.gst_rate, item.cgst_rate, item.cgst_amount, item.sgst_rate, item.sgst_amount, item.total_amount
+          );
+        }
+      });
+
+      const newInvoice = db.prepare(`SELECT * FROM documents WHERE id = ?`).get(invoiceId);
+      const newItems = db.prepare(`SELECT * FROM document_items WHERE document_id = ?`).all(invoiceId);
+      return reply.status(201).send({ ...newInvoice as any, items: newItems });
+    }
+  );
+
   // ── POS Memory Slots ───────────────────────────────────────────────────────
 
   // GET /api/pos/slots - all 5 slots

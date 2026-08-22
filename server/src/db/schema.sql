@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS seller_profile (
     bank_ifsc TEXT,
     bank_branch TEXT,
     active_upi_id TEXT,
+    enable_scan_to_pay INTEGER DEFAULT 1,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

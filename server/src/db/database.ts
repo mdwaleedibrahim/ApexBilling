@@ -27,6 +27,7 @@ export function getDb(): DatabaseSync {
     _db.exec('PRAGMA synchronous = NORMAL')
     const schema = fs.readFileSync(SCHEMA_PATH, 'utf-8')
     _db.exec(schema)
+    try { _db.exec('ALTER TABLE seller_profile ADD COLUMN enable_scan_to_pay INTEGER DEFAULT 1') } catch {}
     console.log(`[DB] SQLite connected → ${DB_PATH}`)
   }
   return _db

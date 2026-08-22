@@ -29,21 +29,40 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
     }
   }
 
-  const addUpi = async () => {
+  const addUpi = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
     if (!upiForm.upi_id || !upiForm.payee_name || !upiForm.label) return
-    await api.settings.addUpi(upiForm)
-    setUpiForm({ upi_id: '', payee_name: '', label: '', is_default: false })
-    load()
+    try {
+      await api.settings.addUpi(upiForm)
+      setUpiForm({ upi_id: '', payee_name: '', label: '', is_default: false })
+      await load()
+    } catch (err) {
+      console.error('Error adding UPI account:', err)
+    }
   }
 
-  const deleteUpi = async (id: string) => {
-    await api.settings.deleteUpi(id)
-    load()
+  const deleteUpi = async (id: string, e?: React.MouseEvent) => {
+    if (e) { e.preventDefault(); e.stopPropagation() }
+    setUpiAccounts(prev => prev.filter(a => a.id !== id && a.upi_id !== id))
+    try {
+      await api.settings.deleteUpi(id)
+      const r = await api.settings.getProfile()
+      setProfile(r.profile)
+      setUpiAccounts(r.upiAccounts || [])
+    } catch (err) {
+      console.error('Error deleting UPI account:', err)
+      await load()
+    }
   }
 
-  const setDefault = async (acc: any) => {
-    await api.settings.updateUpi(acc.id, { ...acc, is_default: true })
-    load()
+  const setDefault = async (acc: any, e?: React.MouseEvent) => {
+    if (e) { e.preventDefault(); e.stopPropagation() }
+    try {
+      await api.settings.updateUpi(acc.id, { ...acc, is_default: true })
+      await load()
+    } catch (err) {
+      console.error('Error setting default UPI account:', err)
+    }
   }
 
   const fp = (k: string, v: any) => setProfile((p: any) => ({ ...p, [k]: v }))
@@ -89,25 +108,24 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
               <div><label className="label">Pincode</label><input className="input" value={profile.pincode || ''} onChange={e => fp('pincode', e.target.value)} /></div>
             </div>
 
-            {/* Configurable Scan to Pay UPI Selector */}
-            <div className="p-3 bg-brand-600/10 border border-brand-500/30 rounded-xl space-y-2">
-              <div className="flex items-center gap-2">
-                <QrCode size={16} className="text-brand-400" />
-                <span className="text-xs font-semibold text-brand-300 uppercase tracking-wider">Scan to Pay UPI Configuration</span>
+            {/* Scan to Pay Toggle */}
+            <div className="p-3.5 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <QrCode size={18} className="text-brand-400" />
+                <div>
+                  <p className="text-sm font-medium text-gray-200">Scan to Pay QR Code</p>
+                  <p className="text-xs text-gray-400">Uses default account configured in the UPI Accounts tab</p>
+                </div>
               </div>
-              <div>
-                <label className="label">Active Scan to Pay UPI ID</label>
-                {upiAccounts.length > 0 ? (
-                  <select className="input" value={profile.active_upi_id || ''} onChange={e => fp('active_upi_id', e.target.value)}>
-                    <option value="">-- Select Saved UPI ID --</option>
-                    {upiAccounts.map(a => (
-                      <option key={a.id} value={a.upi_id}>{a.label} ({a.upi_id}) {a.is_default ? '★ Default' : ''}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <input className="input" placeholder="e.g. merchant@upi" value={profile.active_upi_id || ''} onChange={e => fp('active_upi_id', e.target.value)} />
-                )}
-              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={profile.enable_scan_to_pay !== 0 && profile.enable_scan_to_pay !== false}
+                  onChange={e => fp('enable_scan_to_pay', e.target.checked ? 1 : 0)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div>
+              </label>
             </div>
 
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider pt-2">Bank Details</p>
@@ -138,11 +156,13 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
                 </div>
                 <div className="flex gap-1">
                   {!acc.is_default && (
-                    <button onClick={() => setDefault(acc)} className="btn-ghost p-1.5 text-amber-400" title="Set Default for Scan to Pay">
+                    <button type="button" onClick={(e) => setDefault(acc, e)} className="btn-ghost p-1.5 text-amber-400" title="Set Default for Scan to Pay">
                       <Star size={14} /> Set Default
                     </button>
                   )}
-                  <button onClick={() => deleteUpi(acc.id)} className="btn-ghost p-1.5 text-red-400"><Trash2 size={14} /></button>
+                  <button type="button" onClick={(e) => deleteUpi(acc.id, e)} className="btn-ghost p-1.5 text-red-400 hover:bg-red-500/20" title="Delete UPI Account">
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               </div>
             ))}

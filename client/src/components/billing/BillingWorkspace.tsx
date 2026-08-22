@@ -15,8 +15,14 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
   const [showPrint, setShowPrint] = useState(false)
   const store = useBillingStore()
 
+  const loadProfile = () => {
+    api.settings.getProfile().then(r => setProfile({ ...r?.profile, upiAccounts: r?.upiAccounts || [] }))
+  }
+
   useEffect(() => {
-    api.settings.getProfile().then(r => setProfile(r.profile))
+    loadProfile()
+    window.addEventListener('focus', loadProfile)
+    return () => window.removeEventListener('focus', loadProfile)
   }, [])
 
   // F2 focuses item search, F4 saves quotation, F7 cash checkout, F8 UPI

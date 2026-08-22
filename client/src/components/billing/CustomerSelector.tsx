@@ -1,5 +1,5 @@
 // components/billing/CustomerSelector.tsx
-// Debounced phone/name search with keyboard navigation
+// Displays all customers on focus/click and dynamically filters as user types name/phone
 import { useState, useEffect, useRef } from 'react'
 import { Search, UserPlus, X } from 'lucide-react'
 import { api } from '../../utils/api'
@@ -9,22 +9,49 @@ export default function CustomerSelector() {
   const { customer, setCustomer } = useBillingStore()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<any[]>([])
+  const [allCustomers, setAllCustomers] = useState<any[]>([])
   const [open, setOpen] = useState(false)
   const [highlighted, setHighlighted] = useState(0)
   const [addMode, setAddMode] = useState(false)
   const [form, setForm] = useState({ phone: '', name: '', email: '', gstin: '', billing_address: '', state_code: '36' })
   const inputRef = useRef<HTMLInputElement>(null)
-  const timer = useRef<ReturnType<typeof setTimeout>>()
 
-  useEffect(() => {
-    if (!query || query.length < 2) { setResults([]); setOpen(false); return }
-    clearTimeout(timer.current)
-    timer.current = setTimeout(async () => {
-      const r = await api.customers.search(query)
-      setResults(r); setOpen(true); setHighlighted(0)
-    }, 250)
-    return () => clearTimeout(timer.current)
-  }, [query])
+  const loadAll = async () => {
+    try {
+      const list = await api.customers.list()
+      setAllCustomers(list || [])
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  useEffect(() => { loadAll() }, [])
+
+  const filterCustomers = (q: string) => {
+    setQuery(q)
+    setOpen(true)
+    setHighlighted(0)
+    if (!q.trim()) {
+      setResults(allCustomers)
+    } else {
+      const lower = q.toLowerCase()
+      setResults(allCustomers.filter(c =>
+        c.phone.toLowerCase().includes(lower) ||
+        (c.name && c.name.toLowerCase().includes(lower))
+      ))
+    }
+  }
+
+  const handleFocus = async () => {
+    const list = await api.customers.list()
+    setAllCustomers(list || [])
+    if (!query.trim()) {
+      setResults(list || [])
+    } else {
+      filterCustomers(query)
+    }
+    setOpen(true)
+  }
 
   const select = (c: any) => {
     setCustomer({ phone: c.phone, name: c.name, email: c.email, gstin: c.gstin, billing_address: c.billing_address, state_code: c.state_code })
@@ -79,25 +106,27 @@ export default function CustomerSelector() {
           <input
             ref={inputRef}
             className="input pl-8"
-            placeholder="Search customer by phone or name…"
+            placeholder="Click to view all customers or search by name/phone…"
             value={query}
-            onChange={e => setQuery(e.target.value)}
+            onChange={e => filterCustomers(e.target.value)}
             onKeyDown={handleKey}
-            onFocus={() => query.length >= 2 && setOpen(true)}
-            onBlur={() => setTimeout(() => setOpen(false), 150)}
+            onFocus={handleFocus}
+            onBlur={() => setTimeout(() => setOpen(false), 200)}
           />
         </div>
         <button onClick={() => setAddMode(true)} className="btn-secondary px-3" title="New Customer"><UserPlus size={16} /></button>
       </div>
       {open && results.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-1 glass-card z-30 overflow-hidden">
+        <div className="absolute top-full left-0 right-0 mt-1 glass-card z-30 overflow-hidden max-h-60 overflow-y-auto">
           {results.map((r, i) => (
             <div key={r.phone}
-              className={`px-4 py-2.5 cursor-pointer text-sm transition-colors ${i === highlighted ? 'bg-brand-600/30 text-brand-300' : 'hover:bg-white/5 text-gray-200'}`}
+              className={`px-4 py-2.5 cursor-pointer text-sm transition-colors border-b border-white/5 last:border-0 ${i === highlighted ? 'bg-brand-600/30 text-brand-300' : 'hover:bg-white/5 text-gray-200'}`}
               onMouseDown={() => select(r)}>
-              <span className="font-medium">{r.name}</span>
-              <span className="ml-2 text-gray-400 text-xs">{r.phone}</span>
-              {r.gstin && <span className="ml-2 text-gray-500 text-xs">GST: {r.gstin}</span>}
+              <div className="flex items-center justify-between">
+                <span className="font-medium">{r.name}</span>
+                <span className="text-gray-400 text-xs font-mono">{r.phone}</span>
+              </div>
+              {r.billing_address && <p className="text-xs text-gray-500 truncate">{r.billing_address}</p>}
             </div>
           ))}
         </div>

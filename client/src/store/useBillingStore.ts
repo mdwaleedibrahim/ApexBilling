@@ -119,5 +119,23 @@ export const useBillingStore = create<BillingState>((set, get) => ({
       totals: calcTotals(items, doc.discount_pct || 0),
     })
   },
+  convertQuotationToInvoice: (doc) => {
+    const items: CartItem[] = (doc.items || []).map((i: any) => ({
+      id: uuid(), productId: i.product_id, productName: i.product_name,
+      hsnSac: i.hsn_sac, quantity: i.quantity, unitPrice: i.unit_price, gstRate: i.gst_rate,
+    }))
+    const customer = doc.customer_phone ? (() => {
+      try { return JSON.parse(doc.customer_snapshot) } catch { return null }
+    })() : null
+    set({
+      items, customer, discountPct: doc.discount_pct || 0,
+      paymentMode: 'CASH', paymentStatus: 'PAID',
+      docDate: todayIso(), notes: doc.notes || '', docType: 'INVOICE',
+      selectedUpiId: doc.selected_upi_id || null,
+      editingDocId: null,
+      editingDocNumber: `Converting ${doc.doc_number}`, revisionNumber: 1,
+      totals: calcTotals(items, doc.discount_pct || 0),
+    })
+  },
   resetEdit: () => set({ editingDocId: null, editingDocNumber: null, revisionNumber: 1 }),
 }))

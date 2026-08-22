@@ -1,6 +1,6 @@
 // components/history/RecordsHistoryTab.tsx — Invoice/Quotation history table with View & Print
 import { useEffect, useState } from 'react'
-import { Search, Eye, Edit, XCircle, Printer, X } from 'lucide-react'
+import { Search, Eye, Edit, XCircle, Printer, X, FileCheck } from 'lucide-react'
 import { api } from '../../utils/api'
 import { formatINR, formatDate } from '../../utils/upiHelper'
 import { useBillingStore } from '../../store/useBillingStore'
@@ -36,7 +36,7 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
         api.settings.getProfile()
       ])
       setDocs(d || [])
-      setProfile(p?.profile || null)
+      setProfile(p?.profile ? { ...p.profile, upiAccounts: p.upiAccounts || [] } : null)
     } catch (e) {
       console.error('Error loading documents:', e)
     } finally {
@@ -61,6 +61,13 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
     if (!confirm(`Cancel ${doc.doc_number}? Stock will be restored.`)) return
     await api.documents.cancel(doc.id)
     load()
+  }
+
+  const handleConvert = async (doc: any) => {
+    const full = await api.documents.get(doc.id)
+    store.convertQuotationToInvoice(full)
+    if (viewDoc) setViewDoc(null)
+    onEdit(full)
   }
 
   const handlePrint = async (doc: any) => {
@@ -128,6 +135,11 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
                       <div className="flex items-center gap-1">
                         <button onClick={() => handleView(doc)} className="btn-ghost p-1.5 text-blue-400" title="View Document"><Eye size={14} /></button>
                         <button onClick={() => handlePrint(doc)} className="btn-ghost p-1.5 text-gray-300" title="Print"><Printer size={14} /></button>
+                        {doc.doc_type === 'QUOTATION' && doc.payment_status !== 'CANCELLED' && (
+                          <button onClick={() => handleConvert(doc)} className="btn-ghost p-1.5 text-emerald-400 hover:bg-emerald-500/20" title="Convert to Tax Invoice">
+                            <FileCheck size={14} />
+                          </button>
+                        )}
                         {doc.payment_status !== 'CANCELLED' && (
                           <button onClick={() => handleEdit(doc)} className="btn-ghost p-1.5 text-brand-400" title="Edit"><Edit size={14} /></button>
                         )}
@@ -154,6 +166,11 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
                 <span className="ml-2 text-xs text-gray-400">({viewDoc.doc_type})</span>
               </div>
               <div className="flex items-center gap-2">
+                {viewDoc.doc_type === 'QUOTATION' && viewDoc.payment_status !== 'CANCELLED' && (
+                  <button onClick={() => handleConvert(viewDoc)} className="btn-primary text-xs py-1.5 bg-emerald-600 hover:bg-emerald-500 border-0">
+                    <FileCheck size={14} /> Convert to Invoice
+                  </button>
+                )}
                 <button onClick={() => { setPrintDoc(viewDoc); setTimeout(() => window.print(), 300) }} className="btn-primary text-xs py-1.5">
                   <Printer size={14} /> Print
                 </button>

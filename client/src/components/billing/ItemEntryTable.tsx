@@ -1,5 +1,5 @@
-// components/billing/ItemEntryTable.tsx — Dynamic line items with product search
-import { useRef, useState } from 'react'
+// components/billing/ItemEntryTable.tsx — Dynamic line items with product search (display all on focus)
+import { useRef, useState, useEffect } from 'react'
 import { Plus, Trash2, Search } from 'lucide-react'
 import { useBillingStore } from '../../store/useBillingStore'
 import { api } from '../../utils/api'
@@ -10,18 +10,45 @@ export default function ItemEntryTable() {
   const { items, addItem, updateItem, removeItem } = useBillingStore()
   const [search, setSearch] = useState('')
   const [results, setResults] = useState<any[]>([])
+  const [allProducts, setAllProducts] = useState<any[]>([])
   const [searchOpen, setSearchOpen] = useState(false)
-  const timer = useRef<ReturnType<typeof setTimeout>>()
   const searchRef = useRef<HTMLInputElement>(null)
 
-  const doSearch = (q: string) => {
+  const loadAll = async () => {
+    try {
+      const list = await api.inventory.list()
+      setAllProducts(list || [])
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  useEffect(() => { loadAll() }, [])
+
+  const filterProducts = (q: string) => {
     setSearch(q)
-    clearTimeout(timer.current)
-    if (!q) { setResults([]); setSearchOpen(false); return }
-    timer.current = setTimeout(async () => {
-      const r = await api.inventory.search(q)
-      setResults(r); setSearchOpen(true)
-    }, 200)
+    setSearchOpen(true)
+    if (!q.trim()) {
+      setResults(allProducts)
+    } else {
+      const lower = q.toLowerCase()
+      setResults(allProducts.filter(p =>
+        p.name.toLowerCase().includes(lower) ||
+        (p.sku && p.sku.toLowerCase().includes(lower)) ||
+        (p.hsn_sac && p.hsn_sac.toLowerCase().includes(lower))
+      ))
+    }
+  }
+
+  const handleFocus = async () => {
+    const list = await api.inventory.list()
+    setAllProducts(list || [])
+    if (!search.trim()) {
+      setResults(list || [])
+    } else {
+      filterProducts(search)
+    }
+    setSearchOpen(true)
   }
 
   const selectProduct = (p: any) => {
@@ -44,30 +71,33 @@ export default function ItemEntryTable() {
             ref={searchRef}
             id="item-search"
             className="input pl-8 flex-1"
-            placeholder="Search product by name or SKU… (F2)"
+            placeholder="Click to view all products or search by name/SKU… (F2)"
             value={search}
-            onChange={e => doSearch(e.target.value)}
-            onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
-            onFocus={() => results.length > 0 && setSearchOpen(true)}
+            onChange={e => filterProducts(e.target.value)}
+            onFocus={handleFocus}
+            onBlur={() => setTimeout(() => setSearchOpen(false), 200)}
           />
           <button onClick={addBlank} className="btn-secondary px-3 flex-shrink-0" title="Add blank row"><Plus size={16} /></button>
         </div>
         {searchOpen && results.length > 0 && (
-          <div className="absolute top-full left-0 right-12 mt-1 glass-card z-30 overflow-hidden max-h-52 overflow-y-auto">
+          <div className="absolute top-full left-0 right-12 mt-1 glass-card z-30 overflow-hidden max-h-60 overflow-y-auto">
             {results.map(p => (
-              <div key={p.id} className="px-4 py-2.5 cursor-pointer hover:bg-white/5 transition-colors"
+              <div key={p.id} className="px-4 py-2.5 cursor-pointer hover:bg-white/5 transition-colors border-b border-white/5 last:border-0"
                 onMouseDown={() => selectProduct(p)}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-sm text-gray-100">{p.name}</span>
-                    <span className="ml-2 text-xs text-gray-500">{p.sku}</span>
+                    <span className="text-sm font-medium text-gray-100">{p.name}</span>
+                    {p.sku && <span className="ml-2 text-xs text-gray-500 font-mono">SKU: {p.sku}</span>}
                   </div>
                   <div className="text-right">
                     <span className="text-sm font-medium text-emerald-400">{formatINR(p.selling_price)}</span>
                     <span className="ml-2 text-xs text-gray-500">GST {p.tax_rate}%</span>
                   </div>
                 </div>
-                <span className="text-xs text-gray-500">Stock: {p.stock_qty} {p.unit}</span>
+                <div className="flex items-center justify-between text-xs text-gray-500 mt-0.5">
+                  <span>HSN: {p.hsn_sac || '—'}</span>
+                  <span>Stock: {p.stock_qty} {p.unit}</span>
+                </div>
               </div>
             ))}
           </div>
@@ -113,7 +143,7 @@ export default function ItemEntryTable() {
                       onChange={e => updateItem(item.id, { quantity: Math.max(1, parseInt(e.target.value) || 1) })} />
                   </td>
                   <td className="td">
-                    <input type="number" min={0} step={0.01} className="input !bg-transparent !border-transparent !rounded-none w-full focus:!border-brand-500 focus:!bg-white/5 !px-0"
+                    <input type="number" min={0} step={1} className="input !bg-transparent !border-transparent !rounded-none w-full focus:!border-brand-500 focus:!bg-white/5 !px-0"
                       value={item.unitPrice}
                       onChange={e => updateItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })} />
                   </td>
