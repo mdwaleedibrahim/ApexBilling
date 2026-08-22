@@ -16,6 +16,25 @@ const SCHEMA_PATH = path.join(__dirname, 'schema.sql')
 
 if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true })
 
+// Auto-migrate database from legacy or portable path if main DB does not exist
+if (!fs.existsSync(DB_PATH)) {
+  const possibleLegacyPaths = [
+    path.join(process.cwd(), 'billing_app.db'),
+    path.join(process.cwd(), 'data', 'billing_app.db'),
+    path.join(__dirname, '..', 'billing_app.db'),
+    path.join(__dirname, '..', 'data', 'billing_app.db'),
+  ]
+  for (const legacyPath of possibleLegacyPaths) {
+    if (fs.existsSync(legacyPath) && fs.statSync(legacyPath).size > 0) {
+      try {
+        fs.copyFileSync(legacyPath, DB_PATH)
+        console.log(`[DB] Migrated previous version database from ${legacyPath} → ${DB_PATH}`)
+        break
+      } catch {}
+    }
+  }
+}
+
 let _db: DatabaseSync | null = null
 let _inTransaction = false
 

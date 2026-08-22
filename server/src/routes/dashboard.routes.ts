@@ -24,16 +24,36 @@ export async function dashboardRoutes(app: FastifyInstance) {
       return to ? db.prepare(sql).get(from, to) : db.prepare(sql).get(from);
     };
 
-    // 12-month breakdown
-    const monthly = db.prepare(`
-      SELECT strftime('%Y-%m', doc_date) as month,
+    // Generate last 12 months list: ['2025-09', ..., '2026-08']
+    const last12Months: { month: string; label: string; revenue: number; count: number }[] = [];
+    const now = new Date();
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const mStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      last12Months.push({ month: mStr, label, revenue: 0, count: 0 });
+    }
+
+    const dbMonthly = db.prepare(`
+      SELECT substr(doc_date, 1, 7) as month,
              COALESCE(SUM(grand_total),0) as revenue,
              COUNT(*) as count
       FROM documents
       WHERE doc_type='INVOICE' AND payment_status != 'CANCELLED'
-        AND doc_date >= date('now', '-11 months', 'start of month')
-      GROUP BY month ORDER BY month
-    `).all();
+      GROUP BY month
+    `).all() as any[];
+
+    const monthlyMap = new Map(dbMonthly.map((r: any) => [r.month, r]));
+
+    const monthly = last12Months.map(m => {
+      const found = monthlyMap.get(m.month);
+      return {
+        month: m.month,
+        label: m.label,
+        revenue: found ? found.revenue : 0,
+        count: found ? found.count : 0,
+      };
+    });
 
     // Outstanding balance
     const outstanding = (db.prepare(
@@ -44,11 +64,54 @@ export async function dashboardRoutes(app: FastifyInstance) {
       `SELECT COALESCE(SUM(grand_total),0) as total FROM documents WHERE doc_type='INVOICE' AND payment_status IN ('UNPAID','PARTIAL')`
     ).get() as any).total;
 
+    const pnlQuery = (from: string, to?: string) => {
+      const filter = to ? `doc_date BETWEEN ? AND ?` : `doc_date = ?`;
+      const params = to ? [from, to] : [from];
+      
+      const docTotals = db.prepare(`
+        SELECT
+          COALESCE(SUM(grand_total), 0) as gross_revenue,
+          COALESCE(SUM(taxable_amount), 0) as taxable_revenue,
+          COALESCE(SUM(cgst_total + sgst_total), 0) as total_gst
+        FROM documents
+        WHERE doc_type='INVOICE' AND payment_status != 'CANCELLED' AND ${filter}
+      `).get(...params) as any;
+
+      const cogsRow = db.prepare(`
+        SELECT COALESCE(SUM(di.quantity * COALESCE(p.purchase_price, 0)), 0) as cogs
+        FROM document_items di
+        JOIN documents d ON d.id = di.document_id
+        LEFT JOIN products p ON p.id = di.product_id
+        WHERE d.doc_type='INVOICE' AND d.payment_status != 'CANCELLED' AND ${filter.replace(/doc_date/g, 'd.doc_date')}
+      `).get(...params) as any;
+
+      const grossRevenue = docTotals?.gross_revenue || 0;
+      const taxableRevenue = docTotals?.taxable_revenue || 0;
+      const cogs = cogsRow?.cogs || 0;
+      const grossProfit = taxableRevenue - cogs;
+      const profitMarginPct = taxableRevenue > 0 ? (grossProfit / taxableRevenue) * 100 : 0;
+
+      return {
+        grossRevenue,
+        taxableRevenue,
+        totalGst: docTotals?.total_gst || 0,
+        cogs,
+        grossProfit,
+        profitMarginPct,
+      };
+    };
+
     return reply.send({
       today: metricQuery(today),
       thisWeek: metricQuery(weekStart, today),
       thisMonth: metricQuery(monthStart, today),
       thisYear: metricQuery(yearStart, today),
+      pnl: {
+        today: pnlQuery(today),
+        thisWeek: pnlQuery(weekStart, today),
+        thisMonth: pnlQuery(monthStart, today),
+        thisYear: pnlQuery(yearStart, today),
+      },
       monthly,
       outstandingBalance: outstanding,
       unpaidInvoicesTotal: unpaidTotal,

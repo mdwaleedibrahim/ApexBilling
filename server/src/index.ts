@@ -12,6 +12,7 @@ import { customerRoutes } from './routes/customer.routes.js';
 import { inventoryRoutes } from './routes/inventory.routes.js';
 import { dashboardRoutes } from './routes/dashboard.routes.js';
 import { settingsRoutes } from './routes/settings.routes.js';
+import { adminRoutes } from './routes/admin.routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = 54321;
@@ -31,6 +32,7 @@ await app.register(customerRoutes);
 await app.register(inventoryRoutes);
 await app.register(dashboardRoutes);
 await app.register(settingsRoutes);
+await app.register(adminRoutes);
 
 // Health check
 app.get('/api/health', () => ({ status: 'ok', timestamp: new Date().toISOString() }));

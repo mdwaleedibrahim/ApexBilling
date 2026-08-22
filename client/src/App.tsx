@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, Receipt, Users, Package,
-  Settings, ChevronRight, Zap, Menu, X
+  Settings, ChevronRight, Zap, Menu, X, Clock
 } from 'lucide-react'
 import SalesDashboard from './components/dashboard/SalesDashboard'
 import BillingWorkspace from './components/billing/BillingWorkspace'
@@ -19,6 +19,25 @@ const NAV = [
   { id: 'customers',  label: 'Customers',   icon: Users },
   { id: 'inventory',  label: 'Inventory',   icon: Package },
 ] as const
+
+function TopHeaderClock() {
+  const [now, setNow] = useState(new Date())
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const dateStr = now.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
+  const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-1 bg-brand-600/10 border border-brand-500/30 rounded-xl text-xs text-brand-300 font-mono shadow-sm">
+      <Clock size={13} className="text-brand-400 animate-pulse" />
+      <span>{dateStr} · {timeStr}</span>
+    </div>
+  )
+}
 
 export default function App() {
   const [tab, setTab]           = useState<Tab>('dashboard')
@@ -86,9 +105,12 @@ export default function App() {
           <h1 className="text-sm font-semibold text-gray-300 capitalize">
             {NAV.find(n => n.id === tab)?.label ?? tab}
           </h1>
-          <div className="ml-auto flex items-center gap-2 text-xs text-gray-500">
-            <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-gray-400">Alt+B</kbd> Billing
-            <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-gray-400">Alt+D</kbd> Dashboard
+          <div className="ml-auto flex items-center gap-3 text-xs text-gray-500">
+            <div className="hidden sm:flex items-center gap-2">
+              <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-gray-400">Alt+B</kbd> Billing
+              <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-gray-400">Alt+D</kbd> Dashboard
+            </div>
+            <TopHeaderClock />
           </div>
         </header>
 

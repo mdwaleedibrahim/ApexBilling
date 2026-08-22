@@ -1,4 +1,4 @@
-﻿Set WshShell = CreateObject("WScript.Shell")
+Set WshShell = CreateObject("WScript.Shell")
 strPath = WshShell.CurrentDirectory
 WshShell.Run """" & strPath & "\runtime\node.exe"" --experimental-sqlite """ & strPath & "\app\dist\index.js""", 0, False
 WScript.Sleep 1500

@@ -16,7 +16,7 @@ npm run build
 
 # 2. Prepare Release Directory
 if (Test-Path $BUNDLE_DIR) {
-    Remove-Item -Path $BUNDLE_DIR -Recurse -Force
+    try { Remove-Item -Path $BUNDLE_DIR -Recurse -Force -ErrorAction SilentlyContinue } catch {}
 }
 New-Item -ItemType Directory -Path $BUNDLE_DIR -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $BUNDLE_DIR "runtime") -Force | Out-Null
@@ -66,7 +66,7 @@ $vbsLines = @(
   '    WshShell.Run "http://localhost:54321", 1, False',
   'End If'
 )
-$vbsLines | Set-Content -Path (Join-Path $BUNDLE_DIR "Launch-ApexBill.vbs") -Encoding UTF8
+$vbsLines | Set-Content -Path (Join-Path $BUNDLE_DIR "Launch-ApexBill.vbs") -Encoding ASCII
 
 # ApexBill.cmd — Command Batch Launcher
 $cmdLines = @(

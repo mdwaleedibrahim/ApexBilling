@@ -39,6 +39,17 @@ export function formatDate(dateStr: string): string {
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
+/** Format date and time to DD/MM/YYYY hh:mm AM/PM */
+export function formatDateTime(dateStr: string, createdAtStr?: string): string {
+  if (!dateStr && !createdAtStr) return ''
+  const str = createdAtStr || dateStr
+  const d = new Date(str)
+  if (isNaN(d.getTime())) return formatDate(dateStr)
+  const dateFormatted = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+  const timeFormatted = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+  return `${dateFormatted}, ${timeFormatted}`
+}
+
 /** Today's date as YYYY-MM-DD */
 export function todayIso(): string {
   return new Date().toISOString().slice(0, 10)

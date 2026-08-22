@@ -82,4 +82,12 @@ export const api = {
     save: (slotId: number, cart_state: any, slot_label?: string) =>
       req<any>(`/pos/slots/${slotId}`, { method: 'PUT', body: JSON.stringify({ cart_state, slot_label }) }),
   },
+
+  // ── Admin & Maintenance ───────────────────────────────────────────────────
+  admin: {
+    getSystemInfo: () => req<any>('/admin/system-info'),
+    exportBackup: () => req<any>('/admin/backup/export'),
+    restoreBackup: (payload: any) => req<any>('/admin/backup/restore', { method: 'POST', body: JSON.stringify(payload) }),
+    createSnapshot: () => req<any>('/admin/backup/snapshot'),
+  },
 }

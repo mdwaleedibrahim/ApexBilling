@@ -1,6 +1,6 @@
 // components/print/A4InvoiceTemplate.tsx — Ultra-modern, sleek GST A4 print & view layout
 import { QRCodeSVG } from 'qrcode.react'
-import { buildUpiLink, formatINR, formatDate, amountInWords } from '../../utils/upiHelper'
+import { buildUpiLink, formatINR, formatDate, formatDateTime, amountInWords } from '../../utils/upiHelper'
 
 export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile: any }) {
   if (!doc || !profile) return null
@@ -66,7 +66,7 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
               {doc.doc_number}
             </p>
             <p style={{ margin: '4px 0 0 0', fontSize: 11, color: '#64748b' }}>
-              Date: <strong style={{ color: '#334155' }}>{formatDate(doc.doc_date)}</strong>
+              Date & Time: <strong style={{ color: '#334155' }}>{formatDateTime(doc.doc_date, doc.created_at)}</strong>
             </p>
             {doc.revision_number > 1 && (
               <span style={{ display: 'inline-block', marginTop: 4, fontSize: 10, fontWeight: 700, color: '#d97706', background: '#fef3c7', padding: '1px 6px', borderRadius: 4 }}>
