@@ -1,6 +1,7 @@
 /**
  * calculation.service.ts
- * Phase 2: Dual Tax & Proportionate Discount Engine (CGST + SGST)
+ * Dual Tax & Proportionate Discount Engine (CGST + SGST)
+ * TAX INCLUSIVE PRICING ENGINE
  */
 
 export interface LineItemInput {
@@ -8,18 +9,18 @@ export interface LineItemInput {
   productName: string;
   hsnSac?: string;
   quantity: number;
-  unitPrice: number;  // Pre-tax unit selling price
+  unitPrice: number;  // Tax-inclusive unit selling price
   gstRate: number;    // Total GST % (e.g. 18 → CGST 9% + SGST 9%)
 }
 
 export interface CalculatedLineItem extends LineItemInput {
-  grossAmount: number;     // qty * unitPrice (before discount)
-  taxableValue: number;    // grossAmount * (1 - discountPct/100)
+  grossAmount: number;     // qty * unitPrice (tax inclusive, before discount)
+  taxableValue: number;    // base price excluding tax
   cgstRate: number;
   cgstAmount: number;
   sgstRate: number;
   sgstAmount: number;
-  totalAmount: number;     // taxableValue + cgst + sgst
+  totalAmount: number;     // final line item amount (tax inclusive)
 }
 
 export interface InvoiceTotals {
@@ -37,8 +38,9 @@ export interface InvoiceTotals {
 
 /**
  * Core calculation engine.
- * Applies proportional discount per-line before computing GST.
- * CGST = SGST = GST/2 (intra-state supply assumed).
+ * Tax is ALWAYS INCLUSIVE of selling price.
+ * Applies proportional discount per-line before computing GST split.
+ * CGST = SGST = GST / 2.
  */
 export function calculateInvoiceTotals(
   items: LineItemInput[],
@@ -53,13 +55,18 @@ export function calculateInvoiceTotals(
 
   const calculatedItems: CalculatedLineItem[] = items.map((item) => {
     const grossAmount = round2(item.quantity * item.unitPrice);
-    const taxableValue = round2(grossAmount * (1 - clampedDiscount / 100));
+    const grossAfterDiscount = round2(grossAmount * (1 - clampedDiscount / 100));
 
-    const cgstRate = round2(item.gstRate / 2);
-    const sgstRate = round2(item.gstRate / 2);
-    const cgstAmount = round2(taxableValue * (cgstRate / 100));
-    const sgstAmount = round2(taxableValue * (sgstRate / 100));
-    const totalAmount = round2(taxableValue + cgstAmount + sgstAmount);
+    // Extract taxable base value from tax-inclusive total
+    const gstFactor = 1 + (item.gstRate || 0) / 100;
+    const taxableValue = round2(grossAfterDiscount / gstFactor);
+
+    const totalGst = round2(grossAfterDiscount - taxableValue);
+    const cgstRate = round2((item.gstRate || 0) / 2);
+    const sgstRate = round2((item.gstRate || 0) / 2);
+    const cgstAmount = round2(totalGst / 2);
+    const sgstAmount = round2(totalGst - cgstAmount);
+    const totalAmount = grossAfterDiscount;
 
     grossSubtotal += grossAmount;
     taxableAmount += taxableValue;
@@ -83,8 +90,8 @@ export function calculateInvoiceTotals(
   cgstTotal = round2(cgstTotal);
   sgstTotal = round2(sgstTotal);
 
-  const discountAmount = round2(grossSubtotal - taxableAmount);
-  const rawGrandTotal = taxableAmount + cgstTotal + sgstTotal;
+  const rawGrandTotal = round2(grossSubtotal * (1 - clampedDiscount / 100));
+  const discountAmount = round2(grossSubtotal - rawGrandTotal);
   const roundedGrandTotal = Math.round(rawGrandTotal);
   const roundOff = round2(roundedGrandTotal - rawGrandTotal);
   const grandTotal = roundedGrandTotal;

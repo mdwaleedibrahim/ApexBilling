@@ -13,7 +13,7 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
   const isOverdue = doc.payment_status === 'UNPAID'
 
   return (
-    <div className="print-only bg-white text-gray-900 p-8 font-sans text-sm" style={{ fontFamily: 'Arial, sans-serif', minHeight: '297mm' }}>
+    <div className="bg-white text-gray-900 p-8 font-sans text-sm relative" style={{ fontFamily: 'Arial, sans-serif', minHeight: '297mm' }}>
       {/* Watermark */}
       {isPaid && (
         <div style={{ position: 'absolute', top: '40%', left: '20%', opacity: 0.08, transform: 'rotate(-30deg)', fontSize: 96, fontWeight: 900, color: '#16a34a', pointerEvents: 'none', zIndex: 0 }}>PAID</div>

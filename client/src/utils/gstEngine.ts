@@ -1,11 +1,11 @@
-// utils/gstEngine.ts — Client-side GST calculation mirror of server engine
+// utils/gstEngine.ts — Client-side Tax INCLUSIVE GST calculation engine
 
 export interface LineItem {
   productId?: string
   productName: string
   hsnSac?: string
   quantity: number
-  unitPrice: number
+  unitPrice: number // Tax inclusive unit price
   gstRate: number
 }
 
@@ -39,31 +39,47 @@ export function calcTotals(items: LineItem[], discountPct = 0): InvoiceTotals {
   let grossSubtotal = 0, taxableAmount = 0, cgstTotal = 0, sgstTotal = 0
 
   const calcItems: CalcLineItem[] = items.map(item => {
-    const grossAmount   = r2(item.quantity * item.unitPrice)
-    const taxableValue  = r2(grossAmount * (1 - d / 100))
-    const cgstRate      = r2(item.gstRate / 2)
-    const sgstRate      = r2(item.gstRate / 2)
-    const cgstAmount    = r2(taxableValue * cgstRate / 100)
-    const sgstAmount    = r2(taxableValue * sgstRate / 100)
-    const totalAmount   = r2(taxableValue + cgstAmount + sgstAmount)
+    const grossAmount = r2(item.quantity * item.unitPrice)
+    const grossAfterDiscount = r2(grossAmount * (1 - d / 100))
+    const gstFactor = 1 + (item.gstRate || 0) / 100
+    const taxableValue = r2(grossAfterDiscount / gstFactor)
+    const totalGst = r2(grossAfterDiscount - taxableValue)
+    const cgstRate = r2((item.gstRate || 0) / 2)
+    const sgstRate = r2((item.gstRate || 0) / 2)
+    const cgstAmount = r2(totalGst / 2)
+    const sgstAmount = r2(totalGst - cgstAmount)
+    const totalAmount = grossAfterDiscount
+
     grossSubtotal += grossAmount
     taxableAmount += taxableValue
-    cgstTotal     += cgstAmount
-    sgstTotal     += sgstAmount
+    cgstTotal += cgstAmount
+    sgstTotal += sgstAmount
+
     return { ...item, grossAmount, taxableValue, cgstRate, cgstAmount, sgstRate, sgstAmount, totalAmount }
   })
 
-  grossSubtotal  = r2(grossSubtotal)
-  taxableAmount  = r2(taxableAmount)
-  cgstTotal      = r2(cgstTotal)
-  sgstTotal      = r2(sgstTotal)
-  const discountAmount  = r2(grossSubtotal - taxableAmount)
-  const rawGrandTotal   = taxableAmount + cgstTotal + sgstTotal
-  const grandTotal      = Math.round(rawGrandTotal)
-  const roundOff        = r2(grandTotal - rawGrandTotal)
+  grossSubtotal = r2(grossSubtotal)
+  taxableAmount = r2(taxableAmount)
+  cgstTotal = r2(cgstTotal)
+  sgstTotal = r2(sgstTotal)
 
-  return { items: calcItems, grossSubtotal, discountPct: d, discountAmount, taxableAmount,
-           cgstTotal, sgstTotal, rawGrandTotal: r2(rawGrandTotal), roundOff, grandTotal }
+  const rawGrandTotal = r2(grossSubtotal * (1 - d / 100))
+  const discountAmount = r2(grossSubtotal - rawGrandTotal)
+  const grandTotal = Math.round(rawGrandTotal)
+  const roundOff = r2(grandTotal - rawGrandTotal)
+
+  return {
+    items: calcItems,
+    grossSubtotal,
+    discountPct: d,
+    discountAmount,
+    taxableAmount,
+    cgstTotal,
+    sgstTotal,
+    rawGrandTotal: r2(rawGrandTotal),
+    roundOff,
+    grandTotal
+  }
 }
 
 export const GST_RATES = [0, 5, 12, 18, 28]
