@@ -68,7 +68,7 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
         <thead>
           <tr style={{ background: '#4338ca', color: 'white' }}>
             {['#','Item','HSN/SAC','Qty','Unit Price','Taxable','CGST','SGST','Total'].map(h => (
-              <th key={h} style={{ padding: '8px 10px', textAlign: h === '#' || h === 'Qty' ? 'center' : 'right', fontSize: 11, fontWeight: 600, textAlign: h === 'Item' || h === 'HSN/SAC' ? 'left' : 'right' as any }}>{h}</th>
+              <th key={h} style={{ padding: '8px 10px', fontSize: 11, fontWeight: 600, textAlign: (h === '#' || h === 'Qty') ? 'center' : (h === 'Item' || h === 'HSN/SAC') ? 'left' : 'right' }}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -124,7 +124,7 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
           {/* UPI QR Code (Invoices only) */}
           {(profile?.enable_scan_to_pay !== 0 && profile?.enable_scan_to_pay !== false) && doc.doc_type !== 'QUOTATION' && upiLink && (
             <div style={{ textAlign: 'center', marginTop: 14, padding: 12, border: '1px solid #e5e7eb', borderRadius: 8, background: '#fafafa' }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#4338ca', margin: '0 0 6px 0', textTransform: 'uppercase', tracking: '0.05em' }}>Scan to Pay</p>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#4338ca', margin: '0 0 6px 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Scan to Pay</p>
               <div style={{ display: 'flex', justifyContent: 'center', margin: '4px 0' }}>
                 <QRCodeSVG value={upiLink} size={110} />
               </div>

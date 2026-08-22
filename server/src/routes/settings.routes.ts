@@ -31,7 +31,7 @@ export async function settingsRoutes(app: FastifyInstance) {
       business_name, trade_name, gstin, pan, phone, email,
       address_line1, address_line2, city, state_code, pincode,
       bank_name, bank_account_no, bank_ifsc, bank_branch, active_upi_id, enable_scan_to_pay
-    } = req.body;
+    } = (req.body || {}) as any;
 
     db.prepare(`
       UPDATE seller_profile SET
@@ -51,7 +51,7 @@ export async function settingsRoutes(app: FastifyInstance) {
   // POST /api/settings/upi - add UPI account
   app.post<{ Body: any }>('/api/settings/upi', (req, reply) => {
     const db = getDb();
-    const { upi_id, payee_name, label, is_default } = req.body;
+    const { upi_id, payee_name, label, is_default } = (req.body || {}) as any;
     if (!upi_id || !payee_name || !label) return reply.status(400).send({ error: 'upi_id, payee_name, label required' });
 
     const id = randomUUID();
@@ -72,7 +72,7 @@ export async function settingsRoutes(app: FastifyInstance) {
   // PUT /api/settings/upi/:id
   app.put<{ Params: { id: string }; Body: any }>('/api/settings/upi/:id', (req, reply) => {
     const db = getDb();
-    const { upi_id, payee_name, label, is_default } = req.body;
+    const { upi_id, payee_name, label, is_default } = (req.body || {}) as any;
 
     if (is_default) {
       db.prepare(`UPDATE seller_upi_accounts SET is_default=0`).run();

@@ -10,6 +10,7 @@
     "build:server": "cd server && npm run build",
     "build:client": "cd client && npm run build",
     "build": "npm run build:client && npm run build:server",
+    "package": "powershell -ExecutionPolicy Bypass -File ./scripts/package-release.ps1",
     "start": "cd server && npm start"
   },
   "devDependencies": {

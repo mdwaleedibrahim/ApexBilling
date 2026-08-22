@@ -37,7 +37,7 @@ export async function customerRoutes(app: FastifyInstance) {
   // POST /api/customers - Create or upsert
   app.post<{ Body: any }>('/api/customers', (req, reply) => {
     const db = getDb();
-    const { phone, name, email, gstin, billing_address, state_code } = req.body;
+    const { phone, name, email, gstin, billing_address, state_code } = (req.body || {}) as any;
     if (!phone || !name) return reply.status(400).send({ error: 'phone and name are required' });
     db.prepare(`
       INSERT INTO customers (phone, name, email, gstin, billing_address, state_code)
@@ -54,7 +54,7 @@ export async function customerRoutes(app: FastifyInstance) {
   // PUT /api/customers/:phone
   app.put<{ Params: { phone: string }; Body: any }>('/api/customers/:phone', (req, reply) => {
     const db = getDb();
-    const { name, email, gstin, billing_address, state_code } = req.body;
+    const { name, email, gstin, billing_address, state_code } = (req.body || {}) as any;
     db.prepare(`
       UPDATE customers SET name=?, email=?, gstin=?, billing_address=?, state_code=?, updated_at=CURRENT_TIMESTAMP
       WHERE phone=?

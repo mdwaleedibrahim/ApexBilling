@@ -52,6 +52,7 @@ export interface BillingState {
   clearCart: () => void
 
   loadFromDoc: (doc: any) => void
+  convertQuotationToInvoice: (doc: any) => void
   resetEdit: () => void
 }
 

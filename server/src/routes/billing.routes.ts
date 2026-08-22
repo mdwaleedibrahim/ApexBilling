@@ -47,7 +47,7 @@ export async function billingRoutes(app: FastifyInstance) {
   app.post<{ Body: any }>('/api/documents', (req, reply) => {
     const db = getDb();
     const { doc_type = 'INVOICE', doc_date, customer_phone, customer_snapshot, items: rawItems,
-      discount_pct = 0, payment_mode = 'CASH', payment_status = 'PAID', selected_upi_id, notes } = req.body;
+      discount_pct = 0, payment_mode = 'CASH', payment_status = 'PAID', selected_upi_id, notes } = (req.body || {}) as any;
 
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
 
@@ -96,7 +96,7 @@ export async function billingRoutes(app: FastifyInstance) {
     if (!existing) return reply.status(404).send({ error: 'Document not found' });
     if (existing.payment_status === 'CANCELLED') return reply.status(400).send({ error: 'Cannot edit cancelled document' });
 
-    const { items: rawItems, discount_pct = 0, payment_mode, payment_status, notes, customer_phone, customer_snapshot } = req.body;
+    const { items: rawItems, discount_pct = 0, payment_mode, payment_status, notes, customer_phone, customer_snapshot } = (req.body || {}) as any;
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
 
     const totals = calculateInvoiceTotals(rawItems, discount_pct);

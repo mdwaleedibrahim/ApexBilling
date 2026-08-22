@@ -33,7 +33,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
   // POST /api/inventory - create product
   app.post<{ Body: any }>('/api/inventory', (req, reply) => {
     const db = getDb();
-    const { sku, name, hsn_sac, unit, purchase_price, selling_price, tax_rate, stock_qty } = req.body;
+    const { sku, name, hsn_sac, unit, purchase_price, selling_price, tax_rate, stock_qty } = (req.body || {}) as any;
     if (!sku || !name || selling_price == null) return reply.status(400).send({ error: 'sku, name, selling_price required' });
     const id = randomUUID();
     db.prepare(`
@@ -46,7 +46,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
   // PUT /api/inventory/:id - update product
   app.put<{ Params: { id: string }; Body: any }>('/api/inventory/:id', (req, reply) => {
     const db = getDb();
-    const { sku, name, hsn_sac, unit, purchase_price, selling_price, tax_rate, stock_qty } = req.body;
+    const { sku, name, hsn_sac, unit, purchase_price, selling_price, tax_rate, stock_qty } = (req.body || {}) as any;
     db.prepare(`
       UPDATE products SET sku=?, name=?, hsn_sac=?, unit=?, purchase_price=?, selling_price=?, tax_rate=?, stock_qty=?, updated_at=CURRENT_TIMESTAMP
       WHERE id=?
