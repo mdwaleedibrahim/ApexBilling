@@ -6,9 +6,9 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
   if (!doc || !profile) return null
   const items = doc.items || []
   const snap = (() => { try { return JSON.parse(doc.customer_snapshot) } catch { return {} } })()
-  const upiId = profile?.active_upi_id || (profile?.phone ? `${profile.phone}@upi` : null)
+  const upiId = doc.selected_upi_id || profile?.active_upi_id || (profile?.phone ? `${profile.phone}@upi` : null)
   const upiLink = upiId
-    ? buildUpiLink({ upiId, payeeName: profile.business_name || 'Merchant', amount: doc.grand_total, docNumber: doc.doc_number })
+    ? buildUpiLink({ upiId, payeeName: profile?.business_name || 'Merchant', amount: doc.grand_total, docNumber: doc.doc_number })
     : null
   const isPaid = doc.payment_status === 'PAID'
   const isOverdue = doc.payment_status === 'UNPAID'

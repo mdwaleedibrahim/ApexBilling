@@ -126,6 +126,15 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
         </div>
       </div>
 
+      {paymentMode === 'UPI' && (
+        <div className="text-xs text-brand-300 bg-brand-600/10 border border-brand-500/30 rounded-xl p-2.5 flex items-center justify-between">
+          <span>Scan to Pay UPI:</span>
+          <span className="font-mono font-semibold text-emerald-400">
+            {sellerProfile?.active_upi_id || (sellerProfile?.phone ? `${sellerProfile.phone}@upi` : 'Configured in Settings')}
+          </span>
+        </div>
+      )}
+
       {/* Status (for quotations or credit) */}
       {(docType === 'QUOTATION' || paymentMode === 'CREDIT') && (
         <div>

@@ -1,6 +1,6 @@
 // components/settings/SellerSettingsModal.tsx
 import { useEffect, useState } from 'react'
-import { X, Save, Plus, Trash2, Star } from 'lucide-react'
+import { X, Save, Plus, Trash2, Star, QrCode } from 'lucide-react'
 import { api } from '../../utils/api'
 import { INDIAN_STATES } from '../../utils/gstEngine'
 
@@ -20,22 +20,30 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
 
   const saveProfile = async () => {
     setLoading(true)
-    try { await api.settings.updateProfile(profile); setMsg('Profile saved!'); setTimeout(() => setMsg(''), 2000) }
-    finally { setLoading(false) }
+    try {
+      await api.settings.updateProfile(profile)
+      setMsg('Profile saved!')
+      setTimeout(() => setMsg(''), 2500)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const addUpi = async () => {
     if (!upiForm.upi_id || !upiForm.payee_name || !upiForm.label) return
     await api.settings.addUpi(upiForm)
-    setUpiForm({ upi_id: '', payee_name: '', label: '', is_default: false }); load()
+    setUpiForm({ upi_id: '', payee_name: '', label: '', is_default: false })
+    load()
   }
 
   const deleteUpi = async (id: string) => {
-    await api.settings.deleteUpi(id); load()
+    await api.settings.deleteUpi(id)
+    load()
   }
 
   const setDefault = async (acc: any) => {
-    await api.settings.updateUpi(acc.id, { ...acc, is_default: true }); load()
+    await api.settings.updateUpi(acc.id, { ...acc, is_default: true })
+    load()
   }
 
   const fp = (k: string, v: any) => setProfile((p: any) => ({ ...p, [k]: v }))
@@ -81,6 +89,27 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
               <div><label className="label">Pincode</label><input className="input" value={profile.pincode || ''} onChange={e => fp('pincode', e.target.value)} /></div>
             </div>
 
+            {/* Configurable Scan to Pay UPI Selector */}
+            <div className="p-3 bg-brand-600/10 border border-brand-500/30 rounded-xl space-y-2">
+              <div className="flex items-center gap-2">
+                <QrCode size={16} className="text-brand-400" />
+                <span className="text-xs font-semibold text-brand-300 uppercase tracking-wider">Scan to Pay UPI Configuration</span>
+              </div>
+              <div>
+                <label className="label">Active Scan to Pay UPI ID</label>
+                {upiAccounts.length > 0 ? (
+                  <select className="input" value={profile.active_upi_id || ''} onChange={e => fp('active_upi_id', e.target.value)}>
+                    <option value="">-- Select Saved UPI ID --</option>
+                    {upiAccounts.map(a => (
+                      <option key={a.id} value={a.upi_id}>{a.label} ({a.upi_id}) {a.is_default ? '★ Default' : ''}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input className="input" placeholder="e.g. merchant@upi" value={profile.active_upi_id || ''} onChange={e => fp('active_upi_id', e.target.value)} />
+                )}
+              </div>
+            </div>
+
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider pt-2">Bank Details</p>
             <div className="grid grid-cols-2 gap-3">
               <div><label className="label">Bank Name</label><input className="input" value={profile.bank_name || ''} onChange={e => fp('bank_name', e.target.value)} /></div>
@@ -108,7 +137,11 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
                   <p className="text-xs text-gray-500">{acc.payee_name}</p>
                 </div>
                 <div className="flex gap-1">
-                  {!acc.is_default && <button onClick={() => setDefault(acc)} className="btn-ghost p-1.5 text-amber-400" title="Set Default"><Star size={14} /></button>}
+                  {!acc.is_default && (
+                    <button onClick={() => setDefault(acc)} className="btn-ghost p-1.5 text-amber-400" title="Set Default for Scan to Pay">
+                      <Star size={14} /> Set Default
+                    </button>
+                  )}
                   <button onClick={() => deleteUpi(acc.id)} className="btn-ghost p-1.5 text-red-400"><Trash2 size={14} /></button>
                 </div>
               </div>
@@ -116,15 +149,15 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
 
             {/* Add new UPI */}
             <div className="glass-card p-4 space-y-3">
-              <p className="text-sm font-semibold text-gray-300">Add UPI Account</p>
+              <p className="text-sm font-semibold text-gray-300">Add New UPI Account</p>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="label">UPI ID</label><input className="input" value={upiForm.upi_id} onChange={e => setUpiForm(u => ({ ...u, upi_id: e.target.value }))} placeholder="merchant@upi" /></div>
-                <div><label className="label">Payee Name</label><input className="input" value={upiForm.payee_name} onChange={e => setUpiForm(u => ({ ...u, payee_name: e.target.value }))} placeholder="Business Name" /></div>
-                <div><label className="label">Label</label><input className="input" value={upiForm.label} onChange={e => setUpiForm(u => ({ ...u, label: e.target.value }))} placeholder="GPay / PhonePe" /></div>
+                <div><label className="label">UPI ID *</label><input className="input" value={upiForm.upi_id} onChange={e => setUpiForm(u => ({ ...u, upi_id: e.target.value }))} placeholder="merchant@upi" /></div>
+                <div><label className="label">Payee Name *</label><input className="input" value={upiForm.payee_name} onChange={e => setUpiForm(u => ({ ...u, payee_name: e.target.value }))} placeholder="Business Name" /></div>
+                <div><label className="label">Label *</label><input className="input" value={upiForm.label} onChange={e => setUpiForm(u => ({ ...u, label: e.target.value }))} placeholder="GPay / PhonePe" /></div>
                 <div className="flex items-end">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={upiForm.is_default} onChange={e => setUpiForm(u => ({ ...u, is_default: e.target.checked }))} className="w-4 h-4 rounded accent-brand-500" />
-                    <span className="text-sm text-gray-300">Set as Default</span>
+                    <span className="text-sm text-gray-300">Set as Default Scan to Pay</span>
                   </label>
                 </div>
               </div>
