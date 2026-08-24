@@ -12,7 +12,8 @@
     "build": "npm run build:client && npm run build:server",
     "rebuild": "npm run build",
     "package": "powershell -ExecutionPolicy Bypass -File ./scripts/package-release.ps1",
-    "start": "cd server && npm start"
+    "start": "cd server && npm start",
+    "stop": "node ./scripts/stop-server.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
