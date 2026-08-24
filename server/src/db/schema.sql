@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS seller_profile (
     bank_branch TEXT,
     active_upi_id TEXT,
     enable_scan_to_pay INTEGER DEFAULT 1,
-    show_purchase_price_in_pos INTEGER DEFAULT 0,
+    show_purchase_price_in_pos INTEGER DEFAULT 1,
     show_profit_loss_in_pos INTEGER DEFAULT 1,
     restrict_sales_to_stock_qty INTEGER DEFAULT 0,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP

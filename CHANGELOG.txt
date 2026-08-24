@@ -3,38 +3,26 @@
 ========================================================================
 
 ========================================================================
-ApexBill Release v1.3.0 - 2026-08-24 17:42:20
-========================================================================
-- Automated rebuild & minor version bump to v1.3.0.
-- Includes updated billing calculations, terminology, POS settings, and title bar versioning.
-
-========================================================================
-ApexBill Release v1.4.0 - 2026-08-24 17:55:29
-========================================================================
-- Automated rebuild & minor version bump to v1.4.0.
-- Includes updated billing calculations, terminology, POS settings, and title bar versioning.
-
-========================================================================
-ApexBill Release v1.5.0 - 2026-08-24 17:55:45
+ApexBill Release v1.9.0 - 2026-08-24 19:58:01
 ========================================================================
 Changes & Commits in this Build:
-* feat: manual release workflow, version bump automation, POS terminology, unit mapping, POS toggles, and title bar versioning (2457231)
-  * feat: Add PnL analytics, Admin data resiliency settings, and 12-month sales trend (0d23472)
-  * style: Redesign invoice & quotation templates with executive modern typography & layout (46b49a4)
-  * chore: Ignore release/ build output folder in .gitignore (08b2b5e)
-  * feat: Add plug-and-play one-click release packager script (npm run package) (02550ed)
-  * feat: Scan to Pay toggle, multi-UPI selector, quotation conversion, instant dropdowns & print CSS updates (ac0164d)
+* fix: change qty spelling to quantity and correct case in warning confirm popup messages (1d36def)
+  * feat: show product details & HSN code in stock-limit warning confirm popup (7703f80)
+  * fix: make purchase price read-only in POS; remove stock exception throwing in reconciler service to allow negative stock overrides (ef8b34f)
+  * feat: warn and highlight items in red if order selling price is less than purchase price (8b1d5a8)
+  * feat: make stock-limit warning a confirm popup to cap quantity or bypass it (091ca75)
+  * feat: enforce stock-limit quantity checks on both frontend and backend based on settings toggle (4b568bb)
 
 ========================================================================
-ApexBill Release v1.6.0 - 2026-08-24 18:04:29
+ApexBill Release v1.8.0 - 2026-08-24 18:09:02
 ========================================================================
 Changes & Commits in this Build:
-* chore: automate changelog extraction from git commits in release packager (9defd58)
+* perf: add document_items index, optimize MemorySlotBar event listeners, and add search blur timer cleanup (ba1a462)
+  * chore: automate changelog extraction from git commits in release packager (9defd58)
   * feat: manual release workflow, version bump automation, POS terminology, unit mapping, POS toggles, and title bar versioning (2457231)
   * feat: Add PnL analytics, Admin data resiliency settings, and 12-month sales trend (0d23472)
   * style: Redesign invoice & quotation templates with executive modern typography & layout (46b49a4)
   * chore: Ignore release/ build output folder in .gitignore (08b2b5e)
-  * feat: Add plug-and-play one-click release packager script (npm run package) (02550ed)
 
 ========================================================================
 ApexBill Release v1.7.0 - 2026-08-24 18:08:45
@@ -48,13 +36,35 @@ Changes & Commits in this Build:
   * chore: Ignore release/ build output folder in .gitignore (08b2b5e)
 
 ========================================================================
-ApexBill Release v1.8.0 - 2026-08-24 18:09:02
+ApexBill Release v1.6.0 - 2026-08-24 18:04:29
 ========================================================================
 Changes & Commits in this Build:
-* perf: add document_items index, optimize MemorySlotBar event listeners, and add search blur timer cleanup (ba1a462)
-  * chore: automate changelog extraction from git commits in release packager (9defd58)
+* chore: automate changelog extraction from git commits in release packager (9defd58)
   * feat: manual release workflow, version bump automation, POS terminology, unit mapping, POS toggles, and title bar versioning (2457231)
   * feat: Add PnL analytics, Admin data resiliency settings, and 12-month sales trend (0d23472)
   * style: Redesign invoice & quotation templates with executive modern typography & layout (46b49a4)
   * chore: Ignore release/ build output folder in .gitignore (08b2b5e)
+  * feat: Add plug-and-play one-click release packager script (npm run package) (02550ed)
 
+========================================================================
+ApexBill Release v1.5.0 - 2026-08-24 17:55:45
+========================================================================
+Changes & Commits in this Build:
+* feat: manual release workflow, version bump automation, POS terminology, unit mapping, POS toggles, and title bar versioning (2457231)
+  * feat: Add PnL analytics, Admin data resiliency settings, and 12-month sales trend (0d23472)
+  * style: Redesign invoice & quotation templates with executive modern typography & layout (46b49a4)
+  * chore: Ignore release/ build output folder in .gitignore (08b2b5e)
+  * feat: Add plug-and-play one-click release packager script (npm run package) (02550ed)
+  * feat: Scan to Pay toggle, multi-UPI selector, quotation conversion, instant dropdowns & print CSS updates (ac0164d)
+
+========================================================================
+ApexBill Release v1.4.0 - 2026-08-24 17:55:29
+========================================================================
+- Automated rebuild & minor version bump to v1.4.0.
+- Includes updated billing calculations, terminology, POS settings, and title bar versioning.
+
+========================================================================
+ApexBill Release v1.3.0 - 2026-08-24 17:42:20
+========================================================================
+- Automated rebuild & minor version bump to v1.3.0.
+- Includes updated billing calculations, terminology, POS settings, and title bar versioning.

@@ -47,7 +47,11 @@ export function getDb(): DatabaseSync {
     const schema = fs.readFileSync(SCHEMA_PATH, 'utf-8')
     _db.exec(schema)
     try { _db.exec('ALTER TABLE seller_profile ADD COLUMN enable_scan_to_pay INTEGER DEFAULT 1') } catch {}
-    try { _db.exec('ALTER TABLE seller_profile ADD COLUMN show_purchase_price_in_pos INTEGER DEFAULT 0') } catch {}
+    try { _db.exec('ALTER TABLE seller_profile ADD COLUMN show_purchase_price_in_pos INTEGER DEFAULT 1') } catch {}
+    try {
+      _db.exec('ALTER TABLE seller_profile ADD COLUMN _migrated_purchase_price_default INTEGER DEFAULT 0')
+      _db.exec('UPDATE seller_profile SET show_purchase_price_in_pos = 1, _migrated_purchase_price_default = 1 WHERE id = 1')
+    } catch {}
     try { _db.exec('ALTER TABLE seller_profile ADD COLUMN show_profit_loss_in_pos INTEGER DEFAULT 1') } catch {}
     try { _db.exec('ALTER TABLE seller_profile ADD COLUMN restrict_sales_to_stock_qty INTEGER DEFAULT 0') } catch {}
     try { _db.exec('ALTER TABLE documents ADD COLUMN hide_tax_on_invoice INTEGER DEFAULT 0') } catch {}

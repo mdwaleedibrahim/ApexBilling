@@ -56,16 +56,33 @@ ${gitCommits || '  * Incremented minor version & compiled release package.'}
 
 `;
 
-let existingChangelog = '';
-if (fs.existsSync(changelogPath)) {
-  existingChangelog = fs.readFileSync(changelogPath, 'utf8');
-} else {
-  existingChangelog = `========================================================================
+const header = `========================================================================
                     ApexBill Product Changelog
 ========================================================================\n\n`;
+
+let previousEntries = '';
+if (fs.existsSync(changelogPath)) {
+  const fullContent = fs.readFileSync(changelogPath, 'utf8');
+  if (fullContent.startsWith(header)) {
+    previousEntries = fullContent.slice(header.length);
+  } else {
+    const marker = '========================================================================\nApexBill Release';
+    const index = fullContent.indexOf(marker);
+    if (index !== -1) {
+      previousEntries = fullContent.slice(index);
+    } else {
+      const crlfMarker = '========================================================================\r\nApexBill Release';
+      const crlfIndex = fullContent.indexOf(crlfMarker);
+      if (crlfIndex !== -1) {
+        previousEntries = fullContent.slice(crlfIndex);
+      } else {
+        previousEntries = fullContent;
+      }
+    }
+  }
 }
 
-fs.writeFileSync(changelogPath, existingChangelog + newEntry, 'utf8');
+fs.writeFileSync(changelogPath, header + newEntry + previousEntries, 'utf8');
 console.log(`[Changelog] Updated ${path.relative(rootDir, changelogPath)} for v${newVersion}`);
 
 console.log(`\nSuccessfully bumped minor version to v${newVersion}\n`);
