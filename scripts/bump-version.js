@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
 const rootDir = path.resolve(__dirname, '..');
 
@@ -36,15 +37,22 @@ packagePaths.forEach((pkgPath) => {
   }
 });
 
-// Update CHANGELOG.txt
+// Update CHANGELOG.txt with git commit history
 const changelogPath = path.join(rootDir, 'CHANGELOG.txt');
 const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+let gitCommits = '';
+try {
+  gitCommits = execSync('git log -n 6 --pretty=format:"  * %s (%h)"', { cwd: rootDir, encoding: 'utf8' }).trim();
+} catch (e) {
+  gitCommits = '  * Automated release build and package update.';
+}
 
 const newEntry = `========================================================================
 ApexBill Release v${newVersion} - ${timestamp}
 ========================================================================
-- Automated rebuild & minor version bump to v${newVersion}.
-- Includes updated billing calculations, terminology, POS settings, and title bar versioning.
+Changes & Commits in this Build:
+${gitCommits || '  * Incremented minor version & compiled release package.'}
 
 `;
 

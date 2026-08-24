@@ -3,19 +3,20 @@ $ErrorActionPreference = "Stop"
 
 $ROOT_DIR = (Get-Item "$PSScriptRoot\..").FullName
 $RELEASE_DIR = Join-Path $ROOT_DIR "release"
+Write-Host "`n[ApexBill] Packaging Portable Release...`n" -ForegroundColor Cyan
+
+# 1. Build Client and Server (with automated version bump & changelog)
+Set-Location $ROOT_DIR
+$env:PATH = "C:\Program Files\nodejs;$env:PATH"
+Write-Host "Step 1: Bumping Version, Generating Changelog, and Compiling App..." -ForegroundColor Yellow
+npm run rebuild
+
+# Read updated version from package.json after rebuild
 $PKG_JSON = Get-Content "$ROOT_DIR\package.json" -Raw | ConvertFrom-Json
 $VERSION = $PKG_JSON.version
 if (-not $VERSION) { $VERSION = "1.0.0" }
 $APP_NAME = "ApexBill-v$VERSION-Portable"
 $BUNDLE_DIR = Join-Path $RELEASE_DIR $APP_NAME
-
-Write-Host "`n[ApexBill] Packaging Portable Release...`n" -ForegroundColor Cyan
-
-# 1. Build Client and Server
-Set-Location $ROOT_DIR
-$env:PATH = "C:\Program Files\nodejs;$env:PATH"
-Write-Host "Step 1: Compiling Frontend and Backend..." -ForegroundColor Yellow
-npm run build
 
 # 2. Prepare Release Directory
 if (Test-Path $BUNDLE_DIR) {

@@ -8,3 +8,20 @@ ApexBill Release v1.3.0 - 2026-08-24 17:42:20
 - Automated rebuild & minor version bump to v1.3.0.
 - Includes updated billing calculations, terminology, POS settings, and title bar versioning.
 
+========================================================================
+ApexBill Release v1.4.0 - 2026-08-24 17:55:29
+========================================================================
+- Automated rebuild & minor version bump to v1.4.0.
+- Includes updated billing calculations, terminology, POS settings, and title bar versioning.
+
+========================================================================
+ApexBill Release v1.5.0 - 2026-08-24 17:55:45
+========================================================================
+Changes & Commits in this Build:
+* feat: manual release workflow, version bump automation, POS terminology, unit mapping, POS toggles, and title bar versioning (2457231)
+  * feat: Add PnL analytics, Admin data resiliency settings, and 12-month sales trend (0d23472)
+  * style: Redesign invoice & quotation templates with executive modern typography & layout (46b49a4)
+  * chore: Ignore release/ build output folder in .gitignore (08b2b5e)
+  * feat: Add plug-and-play one-click release packager script (npm run package) (02550ed)
+  * feat: Scan to Pay toggle, multi-UPI selector, quotation conversion, instant dropdowns & print CSS updates (ac0164d)
+
