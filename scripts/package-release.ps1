@@ -5,11 +5,14 @@ $ROOT_DIR = (Get-Item "$PSScriptRoot\..").FullName
 $RELEASE_DIR = Join-Path $ROOT_DIR "release"
 Write-Host "`n[ApexBill] Packaging Portable Release...`n" -ForegroundColor Cyan
 
-# 1. Build Client and Server (with automated version bump & changelog)
+# 1. Bump version, generate changelog, then build
 Set-Location $ROOT_DIR
 $env:PATH = "C:\Program Files\nodejs;$env:PATH"
-Write-Host "Step 1: Bumping Version, Generating Changelog, and Compiling App..." -ForegroundColor Yellow
-npm run rebuild
+Write-Host "Step 1: Bumping Version & Generating Changelog..." -ForegroundColor Yellow
+node ./scripts/bump-version.js
+
+Write-Host "Step 2: Compiling Frontend and Backend..." -ForegroundColor Yellow
+npm run build
 
 # Read updated version from package.json after rebuild
 $PKG_JSON = Get-Content "$ROOT_DIR\package.json" -Raw | ConvertFrom-Json

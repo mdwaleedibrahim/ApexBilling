@@ -1,6 +1,6 @@
 {
   "name": "apexbill",
-  "version": "1.6.0",
+  "version": "1.8.0",
   "description": "Modern Billing & POS System for Windows",
   "private": true,
   "scripts": {
@@ -10,7 +10,7 @@
     "build:server": "cd server && npm run build",
     "build:client": "cd client && npm run build",
     "build": "npm run build:client && npm run build:server",
-    "rebuild": "node ./scripts/bump-version.js && npm run build",
+    "rebuild": "npm run build",
     "package": "powershell -ExecutionPolicy Bypass -File ./scripts/package-release.ps1",
     "start": "cd server && npm start"
   },
