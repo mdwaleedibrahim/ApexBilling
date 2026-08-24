@@ -1,6 +1,6 @@
 {
   "name": "apexbill",
-  "version": "1.9.0",
+  "version": "2.0.0",
   "description": "Modern Billing & POS System for Windows",
   "private": true,
   "scripts": {

@@ -3,6 +3,17 @@
 ========================================================================
 
 ========================================================================
+ApexBill Release v1.10.0 - 2026-08-24 20:09:44
+========================================================================
+Changes & Commits in this Build:
+* feat: default show_purchase_price_in_pos to true (1) for new and existing databases (f6cffb0)
+  * fix: change qty spelling to quantity and correct case in warning confirm popup messages (1d36def)
+  * feat: show product details & HSN code in stock-limit warning confirm popup (7703f80)
+  * fix: make purchase price read-only in POS; remove stock exception throwing in reconciler service to allow negative stock overrides (ef8b34f)
+  * feat: warn and highlight items in red if order selling price is less than purchase price (8b1d5a8)
+  * feat: make stock-limit warning a confirm popup to cap quantity or bypass it (091ca75)
+
+========================================================================
 ApexBill Release v1.9.0 - 2026-08-24 19:58:01
 ========================================================================
 Changes & Commits in this Build:

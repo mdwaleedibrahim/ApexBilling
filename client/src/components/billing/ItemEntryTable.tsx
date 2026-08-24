@@ -5,6 +5,7 @@ import { useBillingStore } from '../../store/useBillingStore'
 import { api } from '../../utils/api'
 import { formatINR } from '../../utils/upiHelper'
 import { GST_RATES } from '../../utils/gstEngine'
+import { useDialogStore } from '../../store/useDialogStore'
 
 export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any } = {}) {
   const showPurchasePrice = !!sellerProfile?.show_purchase_price_in_pos
@@ -59,9 +60,12 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
     setSearchOpen(true)
   }
 
-  const selectProduct = (p: any) => {
+  const selectProduct = async (p: any) => {
     if (sellerProfile?.restrict_sales_to_stock_qty && p.stock_qty <= 0) {
-      const confirmed = window.confirm(`Order quantity of "${p.name}" (HSN: ${p.hsn_sac || 'N/A'}) exceeds inventory ${p.stock_qty}. Click OK to set quantity to inventory (0) or Cancel to allow quantity > inventory.`)
+      const confirmed = await useDialogStore.getState().show(
+        `Order quantity of "${p.name}" (HSN: ${p.hsn_sac || 'N/A'}) exceeds inventory ${p.stock_qty}. Click OK to set quantity to inventory (0) or Cancel to allow quantity > inventory.`,
+        true
+      )
       if (confirmed) {
         return
       }
@@ -170,7 +174,7 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
                     <td className="td">
                       <input type="number" min={1} className={`input !bg-transparent !border-transparent !rounded-none w-full focus:!border-brand-500 focus:!bg-white/5 !px-0 ${isBelowCost ? '!text-red-400' : ''}`}
                         value={item.quantity}
-                        onChange={e => {
+                        onChange={async e => {
                           const newQty = Math.max(1, parseInt(e.target.value) || 1)
                           if (sellerProfile?.restrict_sales_to_stock_qty && item.productId) {
                             const prod = allProducts.find(p => p.id === item.productId)
@@ -178,7 +182,10 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
                               const isEditing = !!useBillingStore.getState().editingDocId
                               const maxAllowedInventory = isEditing ? (item.quantity + prod.stock_qty) : prod.stock_qty
                               if (newQty > maxAllowedInventory) {
-                                const confirmed = window.confirm(`Order Qqantity of "${item.productName}" (HSN: ${item.hsnSac || 'N/A'}) exceeds inventory ${maxAllowedInventory}. Click OK to set quantity to inventory (${maxAllowedInventory}) or Cancel to allow quantity > inventory.`)
+                                const confirmed = await useDialogStore.getState().show(
+                                  `Order Qqantity of "${item.productName}" (HSN: ${item.hsnSac || 'N/A'}) exceeds inventory ${maxAllowedInventory}. Click OK to set quantity to inventory (${maxAllowedInventory}) or Cancel to allow quantity > inventory.`,
+                                  true
+                                )
                                 if (confirmed) {
                                   updateItem(item.id, { quantity: maxAllowedInventory })
                                   return
@@ -198,10 +205,13 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
                       <input type="number" min={0} step={1} className={`input !bg-transparent !border-transparent !rounded-none w-full focus:!border-brand-500 focus:!bg-white/5 !px-0 ${isBelowCost ? '!text-red-400 font-bold' : ''}`}
                         value={item.unitPrice}
                         onChange={e => updateItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })}
-                        onBlur={() => {
+                        onBlur={async () => {
                           const netPrice = item.unitPrice * (1 - discountPct / 100)
                           if (item.purchasePrice && netPrice < item.purchasePrice) {
-                            alert(`Order price of "${item.productName}" is lesser than purchase price. Increase price.`)
+                            await useDialogStore.getState().show(
+                              `Order price of "${item.productName}" is lesser than purchase price. Increase price.`,
+                              false
+                            )
                           }
                         }} />
                     </td>

@@ -4,6 +4,7 @@ import { CreditCard, Banknote, QrCode, Landmark, Clock, X } from 'lucide-react'
 import { useBillingStore } from '../../store/useBillingStore'
 import { formatINR } from '../../utils/upiHelper'
 import { api } from '../../utils/api'
+import { useDialogStore } from '../../store/useDialogStore'
 
 const MODE_ICONS: Record<string, any> = {
   CASH: Banknote, UPI: QrCode, CREDIT: Clock
@@ -30,7 +31,10 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
 
     const belowCostItem = items.find(item => item.purchasePrice && (item.unitPrice * (1 - discountPct / 100)) < item.purchasePrice)
     if (belowCostItem) {
-      alert(`Order price of "${belowCostItem.productName}" is lesser than purchase price. Increase price.`)
+      await useDialogStore.getState().show(
+        `Order price of "${belowCostItem.productName}" is lesser than purchase price. Increase price.`,
+        false
+      )
       return
     }
 
