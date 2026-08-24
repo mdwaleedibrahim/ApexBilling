@@ -65,8 +65,11 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
     setCleanupMsg({ type: '', text: '' })
     try {
       await fetch('/api/admin/cleanup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scope }) })
-      setCleanupMsg({ type: 'success', text: `✓ Successfully deleted ${scopeLabel}.` })
+      setCleanupMsg({ type: 'success', text: `✓ Successfully deleted ${scopeLabel}. Reloading app...` })
       await load()
+      setTimeout(() => {
+        window.location.reload()
+      }, 1500)
     } catch (err: any) {
       setCleanupMsg({ type: 'error', text: err?.message || 'Cleanup failed.' })
     } finally {
@@ -155,9 +158,12 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
     setLoading(true)
     try {
       await api.admin.restoreBackup(selectedBackupFile)
-      setRestoreMsg({ type: 'success', text: 'System successfully restored from backup!' })
+      setRestoreMsg({ type: 'success', text: 'System successfully restored from backup! Reloading app...' })
       setSelectedBackupFile(null)
       await load()
+      setTimeout(() => {
+        window.location.reload()
+      }, 1500)
     } catch (err: any) {
       setRestoreMsg({ type: 'error', text: err?.message || 'Restore failed' })
     } finally {
