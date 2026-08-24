@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+const { execSync } = require('child_process');
 
 try {
   const output = execSync('netstat -ano | findstr :54321', { encoding: 'utf8' });
