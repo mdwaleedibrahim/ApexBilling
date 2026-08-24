@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS document_items (
     sgst_amount DECIMAL(10,2) NOT NULL,
     total_amount DECIMAL(10,2) NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_document_items_doc_id ON document_items(document_id);
 
 -- 7. POS Memory Slots (Persistent Active Sessions)
 CREATE TABLE IF NOT EXISTS pos_memory_slots (

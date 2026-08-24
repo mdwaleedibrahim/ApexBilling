@@ -40,7 +40,40 @@ export default function MemorySlotBar() {
     return () => clearTimeout(timer)
   }, [store.items, store.customer, store.discountPct, store.paymentMode, store.docType, store.notes, activeSlot])
 
-  // 3. Global keyboard shortcuts Alt+1..5
+  const switchSlot = async (newSlot: number) => {
+    const slotState = useSlotStore.getState()
+    const billState = useBillingStore.getState()
+    const currentActive = slotState.activeSlot
+
+    if (newSlot === currentActive) return
+    // Save current active slot draft first
+    await slotState.saveSlot(currentActive, {
+      items: billState.items,
+      customer: billState.customer,
+      discountPct: billState.discountPct,
+      paymentMode: billState.paymentMode,
+      docType: billState.docType,
+      notes: billState.notes,
+    })
+
+    // Switch active slot
+    slotState.setActiveSlot(newSlot)
+    await slotState.fetchSlots()
+
+    // Restore cart from target slot
+    const cart = slotState.getSlotCart(newSlot)
+    billState.clearCart()
+    if (cart.items?.length) {
+      cart.items.forEach((item: any) => billState.addItem(item))
+      if (cart.customer) billState.setCustomer(cart.customer)
+      if (cart.discountPct) billState.setDiscountPct(cart.discountPct || 0)
+      if (cart.paymentMode) billState.setPaymentMode(cart.paymentMode || 'CASH')
+      if (cart.docType) billState.setDocType(cart.docType || 'INVOICE')
+      if (cart.notes) billState.setNotes(cart.notes || '')
+    }
+  }
+
+  // 3. Global keyboard shortcuts Alt+1..5 (Mounted once)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.altKey && ['1','2','3','4','5'].includes(e.key)) {
@@ -50,36 +83,7 @@ export default function MemorySlotBar() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [activeSlot, store.items, store.customer, store.discountPct, store.paymentMode, store.docType, store.notes])
-
-  const switchSlot = async (newSlot: number) => {
-    if (newSlot === activeSlot) return
-    // Save current active slot draft first
-    await saveSlot(activeSlot, {
-      items: store.items,
-      customer: store.customer,
-      discountPct: store.discountPct,
-      paymentMode: store.paymentMode,
-      docType: store.docType,
-      notes: store.notes,
-    })
-
-    // Switch active slot
-    setActiveSlot(newSlot)
-    await fetchSlots()
-
-    // Restore cart from target slot
-    const cart = getSlotCart(newSlot)
-    store.clearCart()
-    if (cart.items?.length) {
-      cart.items.forEach((item: any) => store.addItem(item))
-      if (cart.customer) store.setCustomer(cart.customer)
-      if (cart.discountPct) store.setDiscountPct(cart.discountPct || 0)
-      if (cart.paymentMode) store.setPaymentMode(cart.paymentMode || 'CASH')
-      if (cart.docType) store.setDocType(cart.docType || 'INVOICE')
-      if (cart.notes) store.setNotes(cart.notes || '')
-    }
-  }
+  }, [])
 
   return (
     <div className="flex items-center gap-1.5">

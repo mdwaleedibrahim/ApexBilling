@@ -14,6 +14,13 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
   const [allProducts, setAllProducts] = useState<any[]>([])
   const [searchOpen, setSearchOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
+  const blurTimerRef = useRef<any>(null)
+
+  useEffect(() => {
+    return () => {
+      if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
+    }
+  }, [])
 
   const loadAll = async () => {
     try {
@@ -76,7 +83,10 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
             value={search}
             onChange={e => filterProducts(e.target.value)}
             onFocus={handleFocus}
-            onBlur={() => setTimeout(() => setSearchOpen(false), 200)}
+            onBlur={() => {
+              if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
+              blurTimerRef.current = setTimeout(() => setSearchOpen(false), 200)
+            }}
           />
           <button onClick={addBlank} className="btn-secondary px-3 flex-shrink-0" title="Add blank row"><Plus size={16} /></button>
         </div>

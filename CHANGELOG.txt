@@ -25,3 +25,14 @@ Changes & Commits in this Build:
   * feat: Add plug-and-play one-click release packager script (npm run package) (02550ed)
   * feat: Scan to Pay toggle, multi-UPI selector, quotation conversion, instant dropdowns & print CSS updates (ac0164d)
 
+========================================================================
+ApexBill Release v1.6.0 - 2026-08-24 18:04:29
+========================================================================
+Changes & Commits in this Build:
+* chore: automate changelog extraction from git commits in release packager (9defd58)
+  * feat: manual release workflow, version bump automation, POS terminology, unit mapping, POS toggles, and title bar versioning (2457231)
+  * feat: Add PnL analytics, Admin data resiliency settings, and 12-month sales trend (0d23472)
+  * style: Redesign invoice & quotation templates with executive modern typography & layout (46b49a4)
+  * chore: Ignore release/ build output folder in .gitignore (08b2b5e)
+  * feat: Add plug-and-play one-click release packager script (npm run package) (02550ed)
+
