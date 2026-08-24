@@ -204,7 +204,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
       // Restore Memory Slots
       if (Array.isArray(payload.memorySlots)) {
-        const insertSlot = db.prepare('INSERT INTO memory_slots (slot_id, slot_label, cart_state) VALUES (?,?,?)')
+        const insertSlot = db.prepare('INSERT OR REPLACE INTO pos_memory_slots (slot_id, slot_label, cart_state) VALUES (?,?,?)')
         for (const ms of payload.memorySlots) {
           insertSlot.run(ms.slot_id, ms.slot_label || `Slot ${ms.slot_id}`, typeof ms.cart_state === 'string' ? ms.cart_state : JSON.stringify(ms.cart_state || {}))
         }
@@ -239,7 +239,7 @@ export async function adminRoutes(app: FastifyInstance) {
       if (scope === 'billing' || scope === 'all') {
         db.prepare('DELETE FROM document_items').run()
         db.prepare('DELETE FROM documents').run()
-        db.prepare('DELETE FROM memory_slots').run()
+        db.prepare(`UPDATE pos_memory_slots SET slot_label = 'Slot ' || slot_id, cart_state = '{"items":[],"customer":null,"discountPct":0,"paymentMode":"CASH"}'`).run()
       }
       if (scope === 'inventory' || scope === 'all') {
         db.prepare('UPDATE document_items SET product_id = NULL').run()
