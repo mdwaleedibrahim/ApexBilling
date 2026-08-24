@@ -118,7 +118,7 @@ export default function InventoryTable() {
             <thead><tr className="border-b border-white/10">
               <th className="th">SKU</th><th className="th">Name</th><th className="th">HSN</th>
               <th className="th">Unit</th><th className="th text-right">Purchase Price</th>
-              <th className="th text-right">MRP Price</th><th className="th">GST</th>
+              <th className="th text-right">MRP Price</th><th className="th text-right">GST %</th>
               <th className="th text-right">Stock</th><th className="th">Actions</th>
             </tr></thead>
             <tbody>
@@ -131,7 +131,7 @@ export default function InventoryTable() {
                   <td className="td text-gray-400">{p.unit}</td>
                   <td className="td text-right text-gray-400">{formatINR(p.purchase_price)}</td>
                   <td className="td text-right font-medium text-emerald-400">{formatINR(p.selling_price)}</td>
-                  <td className="td text-center text-xs text-gray-400">{p.tax_rate}%</td>
+                  <td className="td text-right text-xs text-gray-400">{p.tax_rate}%</td>
                   <td className={`td text-right font-medium ${p.stock_qty <= 5 ? 'text-red-400' : 'text-gray-200'}`}>{p.stock_qty}</td>
                   <td className="td">
                     <div className="flex gap-1">
