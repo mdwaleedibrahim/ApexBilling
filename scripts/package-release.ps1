@@ -61,19 +61,50 @@ Copy-Item -Path (Join-Path $ROOT_DIR "server\node_modules") -Destination (Join-P
 # 5. Create 1-Click Launch Script & VBScript (Silent Background Launcher)
 Write-Host "Step 4: Creating One-Click Windows Launchers..." -ForegroundColor Yellow
 
-# Launch-ApexBill.vbs — Silent double-click launcher without console window
-$vbsLines = @(
-  'Set WshShell = CreateObject("WScript.Shell")',
-  'strPath = WshShell.CurrentDirectory',
-  'WshShell.Run """" & strPath & "\runtime\node.exe"" --experimental-sqlite """ & strPath & "\app\dist\index.js""", 0, False',
-  'WScript.Sleep 1500',
-  'On Error Resume Next',
-  'WshShell.Run "msedge.exe --app=http://localhost:54321 --name=ApexBill", 1, False',
-  'If Err.Number <> 0 Then',
-  '    WshShell.Run "http://localhost:54321", 1, False',
-  'End If'
-)
-$vbsLines | Set-Content -Path (Join-Path $BUNDLE_DIR "Launch-ApexBill.vbs") -Encoding ASCII
+# Launch-ApexBill.vbs — Silent launcher with duplicate-instance detection
+$vbsContent = @'
+Set WshShell = CreateObject("WScript.Shell")
+strPath = WshShell.CurrentDirectory
+
+' Check if ApexBill server is already listening on port 54321
+Dim bRunning
+bRunning = False
+Set objExec = WshShell.Exec("cmd /c netstat -ano | findstr :54321")
+Do While Not objExec.StdOut.AtEndOfStream
+    Dim strLine
+    strLine = objExec.StdOut.ReadLine()
+    If InStr(strLine, "LISTENING") > 0 Then
+        bRunning = True
+        Exit Do
+    End If
+Loop
+
+If bRunning Then
+    Dim answer
+    answer = MsgBox("ApexBill is already running." & vbCrLf & vbCrLf & _
+        "Click YES to stop the existing instance and launch fresh." & vbCrLf & _
+        "Click NO to switch to the running instance instead.", _
+        vbYesNo + vbQuestion + vbDefaultButton2, "ApexBill - Already Running")
+    If answer = vbYes Then
+        WshShell.Run "cmd /c taskkill /F /IM node.exe", 0, True
+        WScript.Sleep 1000
+    Else
+        On Error Resume Next
+        WshShell.Run "msedge.exe --app=http://localhost:54321 --name=ApexBill", 1, False
+        If Err.Number <> 0 Then WshShell.Run "http://localhost:54321", 1, False
+        WScript.Quit
+    End If
+End If
+
+WshShell.Run """" & strPath & "\runtime\node.exe"" --experimental-sqlite """ & strPath & "\app\dist\index.js""", 0, False
+WScript.Sleep 1500
+On Error Resume Next
+WshShell.Run "msedge.exe --app=http://localhost:54321 --name=ApexBill", 1, False
+If Err.Number <> 0 Then
+    WshShell.Run "http://localhost:54321", 1, False
+End If
+'@
+$vbsContent | Set-Content -Path (Join-Path $BUNDLE_DIR "Launch-ApexBill.vbs") -Encoding ASCII
 
 # ApexBill.cmd — Command Batch Launcher
 $cmdLines = @(
