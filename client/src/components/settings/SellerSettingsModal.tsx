@@ -43,9 +43,10 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
     }
   }
 
-  const handleCleanup = async (scope: 'billing' | 'inventory' | 'all') => {
+  const handleCleanup = async (scope: 'billing' | 'inventory' | 'customers' | 'all') => {
     const scopeLabel = scope === 'billing' ? 'all Billing & Invoice records'
       : scope === 'inventory' ? 'all Inventory & Products'
+      : scope === 'customers' ? 'all Customers/Clients'
       : 'ALL data (billing, inventory, customers)'
 
     const first = window.confirm(`⚠️ Warning: This will permanently delete ${scopeLabel}.\n\nThis action CANNOT be undone. Are you sure?`)
@@ -491,7 +492,7 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <button
                   onClick={() => handleCleanup('billing')}
                   disabled={cleanupLoading}
@@ -508,6 +509,15 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
                 >
                   <span className="text-xs font-bold text-orange-300">Clear Inventory</span>
                   <span className="text-[11px] text-orange-400/70">Delete all products from inventory</span>
+                </button>
+
+                <button
+                  onClick={() => handleCleanup('customers')}
+                  disabled={cleanupLoading}
+                  className="flex flex-col items-start gap-1 p-3 rounded-xl border border-yellow-500/30 bg-yellow-500/10 hover:bg-yellow-500/20 transition-colors text-left"
+                >
+                  <span className="text-xs font-bold text-yellow-300">Clear Customers</span>
+                  <span className="text-[11px] text-yellow-400/70">Delete all registered customer/client profiles</span>
                 </button>
 
                 <button

@@ -231,8 +231,8 @@ export async function adminRoutes(app: FastifyInstance) {
   app.post<{ Body: { scope: string } }>('/api/admin/cleanup', (req, reply) => {
     const db = getDb()
     const { scope } = req.body || {}
-    if (!['billing', 'inventory', 'all'].includes(scope)) {
-      return reply.status(400).send({ error: 'scope must be: billing | inventory | all' })
+    if (!['billing', 'inventory', 'customers', 'all'].includes(scope)) {
+      return reply.status(400).send({ error: 'scope must be: billing | inventory | customers | all' })
     }
     db.exec('BEGIN')
     try {
@@ -244,7 +244,7 @@ export async function adminRoutes(app: FastifyInstance) {
       if (scope === 'inventory' || scope === 'all') {
         db.prepare('DELETE FROM products').run()
       }
-      if (scope === 'all') {
+      if (scope === 'customers' || scope === 'all') {
         db.prepare('DELETE FROM customers').run()
       }
       db.exec('COMMIT')
