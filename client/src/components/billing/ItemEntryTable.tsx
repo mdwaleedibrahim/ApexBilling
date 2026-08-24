@@ -8,7 +8,7 @@ import { GST_RATES } from '../../utils/gstEngine'
 
 export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any } = {}) {
   const showPurchasePrice = !!sellerProfile?.show_purchase_price_in_pos
-  const { items, addItem, updateItem, removeItem } = useBillingStore()
+  const { items, addItem, updateItem, removeItem, discountPct } = useBillingStore()
   const [search, setSearch] = useState('')
   const [results, setResults] = useState<any[]>([])
   const [allProducts, setAllProducts] = useState<any[]>([])
@@ -141,80 +141,90 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
               </tr>
             </thead>
             <tbody>
-              {items.map((item, idx) => (
-                <tr key={item.id} className="tr">
-                  <td className="td text-gray-500">{idx + 1}</td>
-                  <td className="td">
-                    <input
-                      className="input !bg-transparent !border-transparent !rounded-none focus:!border-brand-500 focus:!bg-white/5 !px-0"
-                      value={item.productName}
-                      onChange={e => updateItem(item.id, { productName: e.target.value })}
-                      placeholder="Item name"
-                    />
-                  </td>
-                  <td className="td">
-                    <input className="input !bg-transparent !border-transparent !rounded-none w-full text-xs focus:!border-brand-500 focus:!bg-white/5 !px-0"
-                      value={item.hsnSac || ''} placeholder="HSN"
-                      onChange={e => updateItem(item.id, { hsnSac: e.target.value })} />
-                  </td>
-                  <td className="td">
-                    <select className="input !bg-transparent !border-transparent !rounded-none w-full text-xs focus:!border-brand-500 focus:!bg-white/5 !px-0"
-                      value={item.unit || 'PCS'}
-                      onChange={e => updateItem(item.id, { unit: e.target.value })}>
-                      {['PCS','KG','LTR','MTR','BOX','PKT','NOS'].map(u => <option key={u} value={u}>{u}</option>)}
-                    </select>
-                  </td>
-                  <td className="td">
-                    <input type="number" min={1} className="input !bg-transparent !border-transparent !rounded-none w-full focus:!border-brand-500 focus:!bg-white/5 !px-0"
-                      value={item.quantity}
-                      onChange={e => {
-                        const newQty = Math.max(1, parseInt(e.target.value) || 1)
-                        if (sellerProfile?.restrict_sales_to_stock_qty && item.productId) {
-                          const prod = allProducts.find(p => p.id === item.productId)
-                          if (prod) {
-                            const isEditing = !!useBillingStore.getState().editingDocId
-                            const maxAllowedInventory = isEditing ? (item.quantity + prod.stock_qty) : prod.stock_qty
-                            if (newQty > maxAllowedInventory) {
-                              const confirmed = window.confirm(`Order qty exceeds inventory ${maxAllowedInventory}. Click OK to set qty to inventory (${maxAllowedInventory}) or Cancel to allow qty > inventory.`)
-                              if (confirmed) {
-                                updateItem(item.id, { quantity: maxAllowedInventory })
-                                return
+              {items.map((item, idx) => {
+                const netPrice = item.unitPrice * (1 - discountPct / 100)
+                const isBelowCost = !!(item.purchasePrice && netPrice < item.purchasePrice)
+                return (
+                  <tr key={item.id} className={`tr ${isBelowCost ? 'bg-red-950/20 border-red-500/30' : ''}`}>
+                    <td className={`td ${isBelowCost ? 'text-red-400 font-semibold' : 'text-gray-500'}`}>{idx + 1}</td>
+                    <td className="td">
+                      <input
+                        className={`input !bg-transparent !border-transparent !rounded-none focus:!border-brand-500 focus:!bg-white/5 !px-0 ${isBelowCost ? '!text-red-400 font-medium' : ''}`}
+                        value={item.productName}
+                        onChange={e => updateItem(item.id, { productName: e.target.value })}
+                        placeholder="Item name"
+                      />
+                    </td>
+                    <td className="td">
+                      <input className={`input !bg-transparent !border-transparent !rounded-none w-full text-xs focus:!border-brand-500 focus:!bg-white/5 !px-0 ${isBelowCost ? '!text-red-400' : ''}`}
+                        value={item.hsnSac || ''} placeholder="HSN"
+                        onChange={e => updateItem(item.id, { hsnSac: e.target.value })} />
+                    </td>
+                    <td className="td">
+                      <select className={`input !bg-transparent !border-transparent !rounded-none w-full text-xs focus:!border-brand-500 focus:!bg-white/5 !px-0 ${isBelowCost ? '!text-red-400' : ''}`}
+                        value={item.unit || 'PCS'}
+                        onChange={e => updateItem(item.id, { unit: e.target.value })}>
+                        {['PCS','KG','LTR','MTR','BOX','PKT','NOS'].map(u => <option key={u} value={u}>{u}</option>)}
+                      </select>
+                    </td>
+                    <td className="td">
+                      <input type="number" min={1} className={`input !bg-transparent !border-transparent !rounded-none w-full focus:!border-brand-500 focus:!bg-white/5 !px-0 ${isBelowCost ? '!text-red-400' : ''}`}
+                        value={item.quantity}
+                        onChange={e => {
+                          const newQty = Math.max(1, parseInt(e.target.value) || 1)
+                          if (sellerProfile?.restrict_sales_to_stock_qty && item.productId) {
+                            const prod = allProducts.find(p => p.id === item.productId)
+                            if (prod) {
+                              const isEditing = !!useBillingStore.getState().editingDocId
+                              const maxAllowedInventory = isEditing ? (item.quantity + prod.stock_qty) : prod.stock_qty
+                              if (newQty > maxAllowedInventory) {
+                                const confirmed = window.confirm(`Order qty exceeds inventory ${maxAllowedInventory}. Click OK to set qty to inventory (${maxAllowedInventory}) or Cancel to allow qty > inventory.`)
+                                if (confirmed) {
+                                  updateItem(item.id, { quantity: maxAllowedInventory })
+                                  return
+                                }
                               }
                             }
                           }
-                        }
-                        updateItem(item.id, { quantity: newQty })
-                      }} />
-                  </td>
-                  {showPurchasePrice && (
-                    <td className="td">
-                      <input type="number" min={0} step={1} className="input !bg-transparent !border-transparent !rounded-none w-full text-amber-300 focus:!border-brand-500 focus:!bg-white/5 !px-0"
-                        value={item.purchasePrice || 0}
-                        onChange={e => updateItem(item.id, { purchasePrice: parseFloat(e.target.value) || 0 })} />
+                          updateItem(item.id, { quantity: newQty })
+                        }} />
                     </td>
-                  )}
-                  <td className="td">
-                    <input type="number" min={0} step={1} className="input !bg-transparent !border-transparent !rounded-none w-full focus:!border-brand-500 focus:!bg-white/5 !px-0"
-                      value={item.unitPrice}
-                      onChange={e => updateItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })} />
-                  </td>
-                  <td className="td">
-                    <select className="input !bg-transparent !border-transparent !rounded-none !px-0 focus:!border-brand-500 focus:!bg-white/5"
-                      value={item.gstRate}
-                      onChange={e => updateItem(item.id, { gstRate: parseFloat(e.target.value) })}>
-                      {GST_RATES.map(r => <option key={r} value={r}>{r}%</option>)}
-                    </select>
-                  </td>
-                  <td className="td text-right font-medium text-emerald-400">
-                    {formatINR(item.quantity * item.unitPrice)}
-                  </td>
-                  <td className="td">
-                    <button onClick={() => removeItem(item.id)} className="text-gray-600 hover:text-red-400 transition-colors p-1">
-                      <Trash2 size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    {showPurchasePrice && (
+                      <td className="td">
+                        <input type="number" min={0} step={1} className="input !bg-transparent !border-transparent !rounded-none w-full text-amber-300 focus:!border-brand-500 focus:!bg-white/5 !px-0"
+                          value={item.purchasePrice || 0}
+                          onChange={e => updateItem(item.id, { purchasePrice: parseFloat(e.target.value) || 0 })} />
+                      </td>
+                    )}
+                    <td className="td">
+                      <input type="number" min={0} step={1} className={`input !bg-transparent !border-transparent !rounded-none w-full focus:!border-brand-500 focus:!bg-white/5 !px-0 ${isBelowCost ? '!text-red-400 font-bold' : ''}`}
+                        value={item.unitPrice}
+                        onChange={e => updateItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })}
+                        onBlur={() => {
+                          const netPrice = item.unitPrice * (1 - discountPct / 100)
+                          if (item.purchasePrice && netPrice < item.purchasePrice) {
+                            alert(`Order price of "${item.productName}" is lesser than purchase price. Increase price.`)
+                          }
+                        }} />
+                    </td>
+                    <td className="td">
+                      <select className={`input !bg-transparent !border-transparent !rounded-none !px-0 focus:!border-brand-500 focus:!bg-white/5 ${isBelowCost ? '!text-red-400' : ''}`}
+                        value={item.gstRate}
+                        onChange={e => updateItem(item.id, { gstRate: parseFloat(e.target.value) })}>
+                        {GST_RATES.map(r => <option key={r} value={r}>{r}%</option>)}
+                      </select>
+                    </td>
+                    <td className={`td text-right font-medium ${isBelowCost ? 'text-red-400' : 'text-emerald-400'}`}>
+                      {formatINR(item.quantity * item.unitPrice)}
+                    </td>
+                    <td className="td">
+                      <button onClick={() => removeItem(item.id)} className="text-gray-600 hover:text-red-400 transition-colors p-1">
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

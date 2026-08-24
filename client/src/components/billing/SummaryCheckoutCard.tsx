@@ -27,6 +27,13 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
 
   const handleSubmit = async (mode?: string, status?: string) => {
     if (!items.length) { setError('Add at least one item'); return }
+
+    const belowCostItem = items.find(item => item.purchasePrice && (item.unitPrice * (1 - discountPct / 100)) < item.purchasePrice)
+    if (belowCostItem) {
+      alert(`Order price of "${belowCostItem.productName}" is lesser than purchase price. Increase price.`)
+      return
+    }
+
     setLoading(true); setError('')
     try {
       const pm = mode || paymentMode
