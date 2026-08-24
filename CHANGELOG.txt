@@ -1,0 +1,10 @@
+========================================================================
+                    ApexBill Product Changelog
+========================================================================
+
+========================================================================
+ApexBill Release v1.3.0 - 2026-08-24 17:42:20
+========================================================================
+- Automated rebuild & minor version bump to v1.3.0.
+- Includes updated billing calculations, terminology, POS settings, and title bar versioning.
+

@@ -8,6 +8,8 @@ export interface LineItemInput {
   productId?: string;
   productName: string;
   hsnSac?: string;
+  unit?: string;
+  purchasePrice?: number;
   quantity: number;
   unitPrice: number;  // Tax-inclusive unit selling price
   gstRate: number;    // Total GST % (e.g. 18 → CGST 9% + SGST 9%)

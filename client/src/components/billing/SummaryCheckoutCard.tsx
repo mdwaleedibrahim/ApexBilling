@@ -40,14 +40,15 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
         customer_phone: customer?.phone || null,
         customer_snapshot: JSON.stringify(customer || {}),
         items: items.map(i => ({
-          productId: i.productId, productName: i.productName, hsnSac: i.hsnSac,
-          quantity: i.quantity, unitPrice: i.unitPrice, gstRate: i.gstRate,
+          productId: i.productId, productName: i.productName, hsnSac: i.hsnSac, unit: i.unit,
+          purchasePrice: i.purchasePrice, quantity: i.quantity, unitPrice: i.unitPrice, gstRate: i.gstRate,
         })),
         discount_pct: discountPct,
         payment_mode: pm,
         payment_status: ps,
         notes,
         selected_upi_id: selectedUpi,
+        hide_tax_on_invoice: store.hideTaxOnInvoice ? 1 : 0,
       }
       const doc = editingDocId
         ? await api.documents.update(editingDocId, body)
@@ -75,6 +76,12 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
       <span className="font-medium text-gray-200">{value}</span>
     </div>
   )
+
+  const showProfitLoss = sellerProfile?.show_profit_loss_in_pos !== 0 && sellerProfile?.show_profit_loss_in_pos !== false
+  const totalPurchaseCost = items.reduce((sum, i) => sum + (i.quantity * (i.purchasePrice || 0)), 0)
+  const netRevenue = totals.rawGrandTotal
+  const profitAmount = netRevenue - totalPurchaseCost
+  const profitPct = totalPurchaseCost > 0 ? (profitAmount / totalPurchaseCost) * 100 : (netRevenue > 0 ? 100 : 0)
 
   return (
     <div className="glass-card p-5 space-y-4 sticky top-4">
@@ -110,17 +117,37 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
 
       {/* Totals */}
       <div className="space-y-2 py-3 border-y border-white/10">
+        <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-300 pb-1 border-b border-white/5">
+          <input type="checkbox" checked={store.hideTaxOnInvoice} onChange={e => store.setHideTaxOnInvoice(e.target.checked)} className="w-3.5 h-3.5 rounded accent-brand-500" />
+          <span>Hide Tax breakdown on Invoice</span>
+        </label>
         {row('Subtotal',       formatINR(totals.grossSubtotal))}
         {discountPct > 0 && row(`Discount (${discountPct}%)`, `− ${formatINR(totals.discountAmount)}`, 'text-amber-400')}
-        {row('Taxable Amount', formatINR(totals.taxableAmount))}
-        {row(`CGST`,           formatINR(totals.cgstTotal))}
-        {row(`SGST`,           formatINR(totals.sgstTotal))}
+        {!store.hideTaxOnInvoice && (
+          <>
+            {row('Taxable Amount', formatINR(totals.taxableAmount))}
+            {row(`CGST`,           formatINR(totals.cgstTotal))}
+            {row(`SGST`,           formatINR(totals.sgstTotal))}
+          </>
+        )}
         {totals.roundOff !== 0 && row('Round Off', (totals.roundOff >= 0 ? '+' : '') + formatINR(Math.abs(totals.roundOff)))}
         <div className="flex items-center justify-between pt-2 border-t border-white/10">
           <span className="text-base font-bold text-white">Total</span>
           <span className="text-xl font-bold text-emerald-400">{formatINR(totals.grandTotal)}</span>
         </div>
       </div>
+
+      {/* Bill Profit / Loss Indicator (POS internal only) */}
+      {showProfitLoss && items.length > 0 && (
+        <div className={`p-3 rounded-xl text-xs flex items-center justify-between border ${
+          profitAmount >= 0 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-red-500/10 border-red-500/30 text-red-300'
+        }`}>
+          <span>{profitAmount >= 0 ? '📈 Est. Bill Profit' : '📉 Est. Bill Loss'}</span>
+          <span className="font-bold text-sm">
+            {profitAmount >= 0 ? '+' : ''}{formatINR(profitAmount)} ({profitPct.toFixed(1)}%)
+          </span>
+        </div>
+      )}
 
       {/* Payment Mode (Invoices only) */}
       {docType === 'INVOICE' && (

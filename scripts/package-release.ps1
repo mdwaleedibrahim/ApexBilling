@@ -3,7 +3,10 @@ $ErrorActionPreference = "Stop"
 
 $ROOT_DIR = (Get-Item "$PSScriptRoot\..").FullName
 $RELEASE_DIR = Join-Path $ROOT_DIR "release"
-$APP_NAME = "ApexBill-v1.0.0-Portable"
+$PKG_JSON = Get-Content "$ROOT_DIR\package.json" -Raw | ConvertFrom-Json
+$VERSION = $PKG_JSON.version
+if (-not $VERSION) { $VERSION = "1.0.0" }
+$APP_NAME = "ApexBill-v$VERSION-Portable"
 $BUNDLE_DIR = Join-Path $RELEASE_DIR $APP_NAME
 
 Write-Host "`n[ApexBill] Packaging Portable Release...`n" -ForegroundColor Cyan
@@ -96,7 +99,7 @@ Copy-Item -Path (Join-Path $BUNDLE_DIR "ApexBill.cmd") -Destination (Join-Path $
 # README.txt
 $readmeLines = @(
   '========================================================================',
-  '             ApexBill — Standalone Portable Release v1.0.0',
+  "             ApexBill - Standalone Portable Release v$VERSION",
   '========================================================================',
   '',
   'Welcome to ApexBill Portable!',
@@ -116,6 +119,12 @@ $readmeLines = @(
   '========================================================================'
 )
 $readmeLines | Set-Content -Path (Join-Path $BUNDLE_DIR "README.txt") -Encoding UTF8
+
+# Copy CHANGELOG.txt if exists
+$changelogSrc = Join-Path $ROOT_DIR "CHANGELOG.txt"
+if (Test-Path $changelogSrc) {
+  Copy-Item -Path $changelogSrc -Destination (Join-Path $BUNDLE_DIR "CHANGELOG.txt") -Force
+}
 
 # 6. Compress into Portable ZIP Archive
 Write-Host "Step 5: Creating Compressed ZIP Package..." -ForegroundColor Yellow

@@ -27,6 +27,7 @@ export interface BillingState {
   notes: string
   docType: 'INVOICE' | 'QUOTATION'
   selectedUpiId: string | null
+  hideTaxOnInvoice: boolean
 
   // Editing existing doc
   editingDocId: string | null
@@ -45,6 +46,7 @@ export interface BillingState {
   setDocDate: (d: string) => void
   setNotes: (n: string) => void
   setSelectedUpiId: (id: string | null) => void
+  setHideTaxOnInvoice: (h: boolean) => void
 
   addItem: (item: Omit<CartItem, 'id'>) => void
   updateItem: (id: string, patch: Partial<CartItem>) => void
@@ -68,6 +70,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   notes: '',
   docType: 'INVOICE',
   selectedUpiId: null,
+  hideTaxOnInvoice: false,
   editingDocId: null,
   editingDocNumber: null,
   revisionNumber: 1,
@@ -84,6 +87,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   setDocDate: (d) => set({ docDate: d }),
   setNotes: (n) => set({ notes: n }),
   setSelectedUpiId: (id) => set({ selectedUpiId: id }),
+  setHideTaxOnInvoice: (h) => set({ hideTaxOnInvoice: h }),
 
   addItem: (item) => {
     const items = [...get().items, { ...item, id: uuid() }]
@@ -99,14 +103,14 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   },
   clearCart: () => set({
     items: [], customer: null, discountPct: 0, paymentMode: 'CASH', paymentStatus: 'PAID',
-    notes: '', selectedUpiId: null, docDate: todayIso(), editingDocId: null,
+    notes: '', selectedUpiId: null, hideTaxOnInvoice: false, docDate: todayIso(), editingDocId: null,
     editingDocNumber: null, revisionNumber: 1, totals: emptyTotals(),
   }),
 
   loadFromDoc: (doc) => {
     const items: CartItem[] = (doc.items || []).map((i: any) => ({
       id: uuid(), productId: i.product_id, productName: i.product_name,
-      hsnSac: i.hsn_sac, quantity: i.quantity, unitPrice: i.unit_price, gstRate: i.gst_rate,
+      hsnSac: i.hsn_sac, unit: i.unit || 'PCS', purchasePrice: i.purchase_price || 0, quantity: i.quantity, unitPrice: i.unit_price, gstRate: i.gst_rate,
     }))
     const customer = doc.customer_phone ? (() => {
       try { return JSON.parse(doc.customer_snapshot) } catch { return null }
@@ -115,7 +119,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
       items, customer, discountPct: doc.discount_pct || 0,
       paymentMode: doc.payment_mode || 'CASH', paymentStatus: doc.payment_status || 'PAID',
       docDate: doc.doc_date, notes: doc.notes || '', docType: doc.doc_type,
-      selectedUpiId: doc.selected_upi_id || null, editingDocId: doc.id,
+      selectedUpiId: doc.selected_upi_id || null, hideTaxOnInvoice: !!doc.hide_tax_on_invoice, editingDocId: doc.id,
       editingDocNumber: doc.doc_number, revisionNumber: doc.revision_number || 1,
       totals: calcTotals(items, doc.discount_pct || 0),
     })
@@ -123,7 +127,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   convertQuotationToInvoice: (doc) => {
     const items: CartItem[] = (doc.items || []).map((i: any) => ({
       id: uuid(), productId: i.product_id, productName: i.product_name,
-      hsnSac: i.hsn_sac, quantity: i.quantity, unitPrice: i.unit_price, gstRate: i.gst_rate,
+      hsnSac: i.hsn_sac, unit: i.unit || 'PCS', purchasePrice: i.purchase_price || 0, quantity: i.quantity, unitPrice: i.unit_price, gstRate: i.gst_rate,
     }))
     const customer = doc.customer_phone ? (() => {
       try { return JSON.parse(doc.customer_snapshot) } catch { return null }

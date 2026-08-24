@@ -47,7 +47,7 @@ export async function billingRoutes(app: FastifyInstance) {
   app.post<{ Body: any }>('/api/documents', (req, reply) => {
     const db = getDb();
     const { doc_type = 'INVOICE', doc_date, customer_phone, customer_snapshot, items: rawItems,
-      discount_pct = 0, payment_mode = 'CASH', payment_status = 'PAID', selected_upi_id, notes } = (req.body || {}) as any;
+      discount_pct = 0, payment_mode = 'CASH', payment_status = 'PAID', selected_upi_id, notes, hide_tax_on_invoice = 0 } = (req.body || {}) as any;
 
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
 
@@ -60,21 +60,21 @@ export async function billingRoutes(app: FastifyInstance) {
       db.prepare(`
         INSERT INTO documents (id, doc_type, doc_number, doc_date, customer_phone, customer_snapshot,
           gross_subtotal, discount_pct, discount_amount, taxable_amount, cgst_total, sgst_total,
-          round_off, grand_total, payment_mode, payment_status, selected_upi_id, notes)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          round_off, grand_total, payment_mode, payment_status, selected_upi_id, notes, hide_tax_on_invoice)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `).run(id, doc_type, doc_number, doc_date || new Date().toISOString().slice(0,10),
         customer_phone || null, snapshot, totals.grossSubtotal, totals.discountPct, totals.discountAmount,
         totals.taxableAmount, totals.cgstTotal, totals.sgstTotal, totals.roundOff, totals.grandTotal,
-        payment_mode, payment_status, selected_upi_id || null, notes || null);
+        payment_mode, payment_status, selected_upi_id || null, notes || null, hide_tax_on_invoice ? 1 : 0);
 
       const insertItem = db.prepare(`
-        INSERT INTO document_items (id, document_id, product_id, product_name, hsn_sac, quantity, unit_price,
+        INSERT INTO document_items (id, document_id, product_id, product_name, hsn_sac, unit, quantity, unit_price,
           gross_amount, taxable_value, gst_rate, cgst_rate, cgst_amount, sgst_rate, sgst_amount, total_amount)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `);
       for (const item of totals.items) {
         insertItem.run(randomUUID(), id, item.productId || null, item.productName, item.hsnSac || null,
-          item.quantity, item.unitPrice, item.grossAmount, item.taxableValue,
+          item.unit || 'PCS', item.quantity, item.unitPrice, item.grossAmount, item.taxableValue,
           item.gstRate, item.cgstRate, item.cgstAmount, item.sgstRate, item.sgstAmount, item.totalAmount);
       }
 
@@ -96,7 +96,7 @@ export async function billingRoutes(app: FastifyInstance) {
     if (!existing) return reply.status(404).send({ error: 'Document not found' });
     if (existing.payment_status === 'CANCELLED') return reply.status(400).send({ error: 'Cannot edit cancelled document' });
 
-    const { items: rawItems, discount_pct = 0, payment_mode, payment_status, notes, customer_phone, customer_snapshot } = (req.body || {}) as any;
+    const { items: rawItems, discount_pct = 0, payment_mode, payment_status, notes, customer_phone, customer_snapshot, hide_tax_on_invoice } = (req.body || {}) as any;
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
 
     const totals = calculateInvoiceTotals(rawItems, discount_pct);
@@ -110,24 +110,25 @@ export async function billingRoutes(app: FastifyInstance) {
       db.prepare(`
         UPDATE documents SET customer_phone=?, customer_snapshot=?, gross_subtotal=?, discount_pct=?,
           discount_amount=?, taxable_amount=?, cgst_total=?, sgst_total=?, round_off=?, grand_total=?,
-          payment_mode=?, payment_status=?, notes=?, revision_number=revision_number+1, updated_at=CURRENT_TIMESTAMP
+          payment_mode=?, payment_status=?, notes=?, hide_tax_on_invoice=?, revision_number=revision_number+1, updated_at=CURRENT_TIMESTAMP
         WHERE id=?
       `).run(customer_phone || existing.customer_phone,
         typeof customer_snapshot === 'string' ? customer_snapshot : JSON.stringify(customer_snapshot || JSON.parse(existing.customer_snapshot)),
         totals.grossSubtotal, totals.discountPct, totals.discountAmount, totals.taxableAmount,
         totals.cgstTotal, totals.sgstTotal, totals.roundOff, totals.grandTotal,
         payment_mode || existing.payment_mode, payment_status || existing.payment_status,
-        notes ?? existing.notes, req.params.id);
+        notes ?? existing.notes, hide_tax_on_invoice !== undefined ? (hide_tax_on_invoice ? 1 : 0) : existing.hide_tax_on_invoice || 0,
+        req.params.id);
 
       db.prepare(`DELETE FROM document_items WHERE document_id = ?`).run(req.params.id);
       const insertItem = db.prepare(`
-        INSERT INTO document_items (id, document_id, product_id, product_name, hsn_sac, quantity, unit_price,
+        INSERT INTO document_items (id, document_id, product_id, product_name, hsn_sac, unit, quantity, unit_price,
           gross_amount, taxable_value, gst_rate, cgst_rate, cgst_amount, sgst_rate, sgst_amount, total_amount)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `);
       for (const item of totals.items) {
         insertItem.run(randomUUID(), req.params.id, item.productId || null, item.productName,
-          item.hsnSac || null, item.quantity, item.unitPrice, item.grossAmount, item.taxableValue,
+          item.hsnSac || null, item.unit || 'PCS', item.quantity, item.unitPrice, item.grossAmount, item.taxableValue,
           item.gstRate, item.cgstRate, item.cgstAmount, item.sgstRate, item.sgstAmount, item.totalAmount);
       }
     });
@@ -198,14 +199,14 @@ export async function billingRoutes(app: FastifyInstance) {
         );
 
         const insertItem = db.prepare(`
-          INSERT INTO document_items (id, document_id, product_id, product_name, hsn_sac, quantity, unit_price,
+          INSERT INTO document_items (id, document_id, product_id, product_name, hsn_sac, unit, quantity, unit_price,
             gross_amount, taxable_value, gst_rate, cgst_rate, cgst_amount, sgst_rate, sgst_amount, total_amount)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         `);
 
         for (const item of items) {
           insertItem.run(
-            randomUUID(), invoiceId, item.product_id, item.product_name, item.hsn_sac,
+            randomUUID(), invoiceId, item.product_id, item.product_name, item.hsn_sac, item.unit || 'PCS',
             item.quantity, item.unit_price, item.gross_amount, item.taxable_value,
             item.gst_rate, item.cgst_rate, item.cgst_amount, item.sgst_rate, item.sgst_amount, item.total_amount
           );

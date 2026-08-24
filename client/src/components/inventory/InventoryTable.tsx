@@ -96,7 +96,7 @@ export default function InventoryTable() {
             </div>
             <div><label className="label">HSN/SAC</label><input className="input" value={form.hsn_sac} onChange={e => f('hsn_sac', e.target.value)} placeholder="HSN Code" /></div>
             <div><label className="label">Purchase Price</label><input type="number" className="input" value={form.purchase_price} onChange={e => f('purchase_price', parseFloat(e.target.value) || 0)} /></div>
-            <div><label className="label">Selling Price *</label><input type="number" className="input" value={form.selling_price} onChange={e => f('selling_price', parseFloat(e.target.value) || 0)} /></div>
+            <div><label className="label">MRP Price *</label><input type="number" className="input" value={form.selling_price} onChange={e => f('selling_price', parseFloat(e.target.value) || 0)} /></div>
             <div><label className="label">GST %</label>
               <select className="input" value={form.tax_rate} onChange={e => f('tax_rate', parseFloat(e.target.value))}>
                 {GST_RATES.map(r => <option key={r} value={r}>{r}%</option>)}
@@ -117,8 +117,8 @@ export default function InventoryTable() {
           <table className="w-full">
             <thead><tr className="border-b border-white/10">
               <th className="th">SKU</th><th className="th">Name</th><th className="th">HSN</th>
-              <th className="th">Unit</th><th className="th text-right">Buy</th>
-              <th className="th text-right">Sell</th><th className="th">GST</th>
+              <th className="th">Unit</th><th className="th text-right">Purchase Price</th>
+              <th className="th text-right">MRP Price</th><th className="th">GST</th>
               <th className="th text-right">Stock</th><th className="th">Actions</th>
             </tr></thead>
             <tbody>

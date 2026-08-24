@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS seller_profile (
     bank_branch TEXT,
     active_upi_id TEXT,
     enable_scan_to_pay INTEGER DEFAULT 1,
+    show_purchase_price_in_pos INTEGER DEFAULT 0,
+    show_profit_loss_in_pos INTEGER DEFAULT 1,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -85,6 +87,7 @@ CREATE TABLE IF NOT EXISTS documents (
     payment_status TEXT CHECK (payment_status IN ('PAID', 'PARTIAL', 'UNPAID', 'CANCELLED')) DEFAULT 'PAID',
     selected_upi_id TEXT,
     notes TEXT,
+    hide_tax_on_invoice INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -97,6 +100,7 @@ CREATE TABLE IF NOT EXISTS document_items (
     product_id TEXT REFERENCES products(id),
     product_name TEXT NOT NULL,
     hsn_sac TEXT,
+    unit TEXT DEFAULT 'PCS',
     quantity INTEGER NOT NULL,
     unit_price DECIMAL(10,2) NOT NULL,
     gross_amount DECIMAL(10,2) NOT NULL,

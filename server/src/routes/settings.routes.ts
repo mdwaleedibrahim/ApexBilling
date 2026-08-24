@@ -30,7 +30,8 @@ export async function settingsRoutes(app: FastifyInstance) {
     const {
       business_name, trade_name, gstin, pan, phone, email,
       address_line1, address_line2, city, state_code, pincode,
-      bank_name, bank_account_no, bank_ifsc, bank_branch, active_upi_id, enable_scan_to_pay
+      bank_name, bank_account_no, bank_ifsc, bank_branch, active_upi_id, enable_scan_to_pay,
+      show_purchase_price_in_pos, show_profit_loss_in_pos
     } = (req.body || {}) as any;
 
     db.prepare(`
@@ -38,12 +39,15 @@ export async function settingsRoutes(app: FastifyInstance) {
         business_name=?, trade_name=?, gstin=?, pan=?, phone=?, email=?,
         address_line1=?, address_line2=?, city=?, state_code=?, pincode=?,
         bank_name=?, bank_account_no=?, bank_ifsc=?, bank_branch=?, active_upi_id=?,
-        enable_scan_to_pay=?, updated_at=CURRENT_TIMESTAMP
+        enable_scan_to_pay=?, show_purchase_price_in_pos=?, show_profit_loss_in_pos=?,
+        updated_at=CURRENT_TIMESTAMP
       WHERE id=1
     `).run(business_name, trade_name||null, gstin, pan||null, phone, email||null,
       address_line1, address_line2||null, city, state_code, pincode,
       bank_name||null, bank_account_no||null, bank_ifsc||null, bank_branch||null,
-      active_upi_id||null, enable_scan_to_pay !== undefined ? (enable_scan_to_pay ? 1 : 0) : 1);
+      active_upi_id||null, enable_scan_to_pay !== undefined ? (enable_scan_to_pay ? 1 : 0) : 1,
+      show_purchase_price_in_pos ? 1 : 0,
+      show_profit_loss_in_pos !== undefined ? (show_profit_loss_in_pos ? 1 : 0) : 1);
 
     return reply.send(db.prepare(`SELECT * FROM seller_profile WHERE id=1`).get());
   });

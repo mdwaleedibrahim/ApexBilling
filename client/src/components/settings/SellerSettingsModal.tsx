@@ -207,6 +207,46 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
               </label>
             </div>
 
+            {/* POS Purchase Price Toggle */}
+            <div className="p-3.5 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <FileText size={18} className="text-emerald-400" />
+                <div>
+                  <p className="text-sm font-medium text-gray-200">Show Purchase Price in POS Billing</p>
+                  <p className="text-xs text-gray-400">Displays purchase price column in POS billing table (hidden on customer invoices)</p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!profile.show_purchase_price_in_pos}
+                  onChange={e => fp('show_purchase_price_in_pos', e.target.checked ? 1 : 0)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div>
+              </label>
+            </div>
+
+            {/* POS Profit / Loss Estimate Toggle */}
+            <div className="p-3.5 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <ShieldCheck size={18} className="text-amber-400" />
+                <div>
+                  <p className="text-sm font-medium text-gray-200">Show Profit / Loss Estimate in POS Billing</p>
+                  <p className="text-xs text-gray-400">Shows bill profit margin in POS checkout summary (hidden on customer invoices)</p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={profile.show_profit_loss_in_pos !== 0 && profile.show_profit_loss_in_pos !== false}
+                  onChange={e => fp('show_profit_loss_in_pos', e.target.checked ? 1 : 0)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div>
+              </label>
+            </div>
+
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider pt-2">Bank Details</p>
             <div className="grid grid-cols-2 gap-3">
               <div><label className="label">Bank Name</label><input className="input" value={profile.bank_name || ''} onChange={e => fp('bank_name', e.target.value)} /></div>

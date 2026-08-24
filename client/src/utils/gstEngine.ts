@@ -4,8 +4,10 @@ export interface LineItem {
   productId?: string
   productName: string
   hsnSac?: string
+  unit?: string
+  purchasePrice?: number
   quantity: number
-  unitPrice: number // Tax inclusive unit price
+  unitPrice: number // Tax inclusive unit price (MRP)
   gstRate: number
 }
 

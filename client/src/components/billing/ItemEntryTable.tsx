@@ -6,7 +6,8 @@ import { api } from '../../utils/api'
 import { formatINR } from '../../utils/upiHelper'
 import { GST_RATES } from '../../utils/gstEngine'
 
-export default function ItemEntryTable() {
+export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any } = {}) {
+  const showPurchasePrice = !!sellerProfile?.show_purchase_price_in_pos
   const { items, addItem, updateItem, removeItem } = useBillingStore()
   const [search, setSearch] = useState('')
   const [results, setResults] = useState<any[]>([])
@@ -52,13 +53,13 @@ export default function ItemEntryTable() {
   }
 
   const selectProduct = (p: any) => {
-    addItem({ productId: p.id, productName: p.name, hsnSac: p.hsn_sac, quantity: 1, unitPrice: p.selling_price, gstRate: p.tax_rate })
+    addItem({ productId: p.id, productName: p.name, hsnSac: p.hsn_sac, unit: p.unit || 'PCS', purchasePrice: p.purchase_price || 0, quantity: 1, unitPrice: p.selling_price, gstRate: p.tax_rate })
     setSearch(''); setResults([]); setSearchOpen(false)
     searchRef.current?.focus()
   }
 
   const addBlank = () => {
-    addItem({ productName: '', quantity: 1, unitPrice: 0, gstRate: 18 })
+    addItem({ productName: '', hsnSac: '', unit: 'PCS', purchasePrice: 0, quantity: 1, unitPrice: 0, gstRate: 18 })
   }
 
   return (
@@ -90,7 +91,8 @@ export default function ItemEntryTable() {
                     {p.sku && <span className="ml-2 text-xs text-gray-500 font-mono">SKU: {p.sku}</span>}
                   </div>
                   <div className="text-right">
-                    <span className="text-sm font-medium text-emerald-400">{formatINR(p.selling_price)}</span>
+                    <span className="text-sm font-medium text-emerald-400">MRP: {formatINR(p.selling_price)}</span>
+                    {showPurchasePrice && <span className="ml-2 text-xs text-amber-300">Buy: {formatINR(p.purchase_price)}</span>}
                     <span className="ml-2 text-xs text-gray-500">GST {p.tax_rate}%</span>
                   </div>
                 </div>
@@ -113,8 +115,10 @@ export default function ItemEntryTable() {
                 <th className="th w-8">#</th>
                 <th className="th">Item</th>
                 <th className="th w-20">HSN</th>
+                <th className="th w-20">Unit</th>
                 <th className="th w-20">Qty</th>
-                <th className="th w-28">Unit Price</th>
+                {showPurchasePrice && <th className="th w-28 text-amber-300">Pur. Price</th>}
+                <th className="th w-28">MRP Price</th>
                 <th className="th w-20">GST%</th>
                 <th className="th w-28 text-right">Total</th>
                 <th className="th w-8"></th>
@@ -138,10 +142,24 @@ export default function ItemEntryTable() {
                       onChange={e => updateItem(item.id, { hsnSac: e.target.value })} />
                   </td>
                   <td className="td">
+                    <select className="input !bg-transparent !border-transparent !rounded-none w-full text-xs focus:!border-brand-500 focus:!bg-white/5 !px-0"
+                      value={item.unit || 'PCS'}
+                      onChange={e => updateItem(item.id, { unit: e.target.value })}>
+                      {['PCS','KG','LTR','MTR','BOX','PKT','NOS'].map(u => <option key={u} value={u}>{u}</option>)}
+                    </select>
+                  </td>
+                  <td className="td">
                     <input type="number" min={1} className="input !bg-transparent !border-transparent !rounded-none w-full focus:!border-brand-500 focus:!bg-white/5 !px-0"
                       value={item.quantity}
                       onChange={e => updateItem(item.id, { quantity: Math.max(1, parseInt(e.target.value) || 1) })} />
                   </td>
+                  {showPurchasePrice && (
+                    <td className="td">
+                      <input type="number" min={0} step={1} className="input !bg-transparent !border-transparent !rounded-none w-full text-amber-300 focus:!border-brand-500 focus:!bg-white/5 !px-0"
+                        value={item.purchasePrice || 0}
+                        onChange={e => updateItem(item.id, { purchasePrice: parseFloat(e.target.value) || 0 })} />
+                    </td>
+                  )}
                   <td className="td">
                     <input type="number" min={0} step={1} className="input !bg-transparent !border-transparent !rounded-none w-full focus:!border-brand-500 focus:!bg-white/5 !px-0"
                       value={item.unitPrice}

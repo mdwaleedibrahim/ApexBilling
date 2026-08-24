@@ -1,0 +1,38 @@
+name: Build and Package Portable Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_note:
+        description: 'Release Notes / Description'
+        required: false
+        default: 'Manual ApexBill Release'
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Root Dependencies
+        run: npm ci || npm install
+
+      - name: Install Client & Server Dependencies
+        run: |
+          cd client && npm ci || npm install
+          cd ../server && npm ci || npm install
+
+      - name: Package Portable Release
+        run: powershell -ExecutionPolicy Bypass -File ./scripts/package-release.ps1
+
+      - name: Upload Release Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ApexBill-Portable-Release
+          path: release/*.zip

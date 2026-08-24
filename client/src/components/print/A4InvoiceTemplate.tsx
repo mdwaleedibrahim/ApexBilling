@@ -16,6 +16,7 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
   const isQuotation = doc.doc_type === 'QUOTATION'
   const isPaid = !isQuotation && doc.payment_status === 'PAID'
   const isOverdue = !isQuotation && doc.payment_status === 'UNPAID'
+  const hideTax = !!doc.hide_tax_on_invoice
 
   const accentColor = isQuotation ? '#0284c7' : '#4338ca' // Sky blue for Quotations, Deep Indigo for Invoices
   const headerBg = isQuotation ? 'linear-gradient(135deg, #0c4a6e, #0369a1)' : 'linear-gradient(135deg, #1e1b4b, #3730a3)'
@@ -130,10 +131,13 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: headerBg, color: 'white' }}>
-              {['#', 'Item Description', 'HSN/SAC', 'Qty', 'Unit Price', 'Taxable', 'CGST', 'SGST', 'Total'].map((h) => (
+              {(hideTax
+                ? ['#', 'Item Description', 'HSN/SAC', 'Qty', 'Unit', 'MRP Price', 'Total']
+                : ['#', 'Item Description', 'HSN/SAC', 'Qty', 'Unit', 'MRP Price', 'Taxable', 'CGST', 'SGST', 'Total']
+              ).map((h) => (
                 <th key={h} style={{
                   padding: '10px 12px', fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
-                  textAlign: (h === '#' || h === 'Qty') ? 'center' : (h === 'Item Description' || h === 'HSN/SAC') ? 'left' : 'right'
+                  textAlign: (h === '#' || h === 'Qty' || h === 'Unit') ? 'center' : (h === 'Item Description' || h === 'HSN/SAC') ? 'left' : 'right'
                 }}>
                   {h}
                 </th>
@@ -150,14 +154,19 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
                 </td>
                 <td style={{ padding: '9px 12px', fontSize: 11, color: '#475569' }}>{item.hsn_sac || '—'}</td>
                 <td style={{ padding: '9px 12px', textAlign: 'center', fontSize: 12, fontWeight: 600, color: '#0f172a' }}>{item.quantity}</td>
+                <td style={{ padding: '9px 12px', textAlign: 'center', fontSize: 11, color: '#64748b' }}>{item.unit || 'PCS'}</td>
                 <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: 11, color: '#334155' }}>{formatINR(item.unit_price)}</td>
-                <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: 11, color: '#334155' }}>{formatINR(item.taxable_value)}</td>
-                <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: 11, color: '#64748b' }}>
-                  {item.cgst_rate}%<span style={{ display: 'block', color: '#334155', fontWeight: 500 }}>{formatINR(item.cgst_amount)}</span>
-                </td>
-                <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: 11, color: '#64748b' }}>
-                  {item.sgst_rate}%<span style={{ display: 'block', color: '#334155', fontWeight: 500 }}>{formatINR(item.sgst_amount)}</span>
-                </td>
+                {!hideTax && <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: 11, color: '#334155' }}>{formatINR(item.taxable_value)}</td>}
+                {!hideTax && (
+                  <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: 11, color: '#64748b' }}>
+                    {item.cgst_rate}%<span style={{ display: 'block', color: '#334155', fontWeight: 500 }}>{formatINR(item.cgst_amount)}</span>
+                  </td>
+                )}
+                {!hideTax && (
+                  <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: 11, color: '#64748b' }}>
+                    {item.sgst_rate}%<span style={{ display: 'block', color: '#334155', fontWeight: 500 }}>{formatINR(item.sgst_amount)}</span>
+                  </td>
+                )}
                 <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: 12, fontWeight: 700, color: accentColor }}>{formatINR(item.total_amount)}</td>
               </tr>
             ))}
@@ -194,9 +203,9 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
             {[
               ['Subtotal', formatINR(doc.gross_subtotal)],
               doc.discount_pct > 0 ? [`Discount (${doc.discount_pct}%)`, `− ${formatINR(doc.discount_amount)}`] : null,
-              ['Taxable Value', formatINR(doc.taxable_amount)],
-              ['CGST Total', formatINR(doc.cgst_total)],
-              ['SGST Total', formatINR(doc.sgst_total)],
+              !hideTax ? ['Taxable Value', formatINR(doc.taxable_amount)] : null,
+              !hideTax ? ['CGST Total', formatINR(doc.cgst_total)] : null,
+              !hideTax ? ['SGST Total', formatINR(doc.sgst_total)] : null,
               doc.round_off !== 0 ? ['Round Off', (doc.round_off > 0 ? '+' : '') + formatINR(Math.abs(doc.round_off))] : null,
             ].filter(Boolean).map(([label, value]: any, idx) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', fontSize: 11, borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>

@@ -61,7 +61,7 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
           </div>
           <div className="glass-card p-4 flex-1">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Items</h3>
-            <ItemEntryTable />
+            <ItemEntryTable sellerProfile={profile} />
           </div>
         </div>
 
