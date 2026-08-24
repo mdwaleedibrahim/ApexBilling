@@ -69,13 +69,14 @@ export async function billingRoutes(app: FastifyInstance) {
 
       const insertItem = db.prepare(`
         INSERT INTO document_items (id, document_id, product_id, product_name, hsn_sac, unit, quantity, unit_price,
-          gross_amount, taxable_value, gst_rate, cgst_rate, cgst_amount, sgst_rate, sgst_amount, total_amount)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          gross_amount, taxable_value, gst_rate, cgst_rate, cgst_amount, sgst_rate, sgst_amount, total_amount, purchase_price)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `);
       for (const item of totals.items) {
         insertItem.run(randomUUID(), id, item.productId || null, item.productName, item.hsnSac || null,
           item.unit || 'PCS', item.quantity, item.unitPrice, item.grossAmount, item.taxableValue,
-          item.gstRate, item.cgstRate, item.cgstAmount, item.sgstRate, item.sgstAmount, item.totalAmount);
+          item.gstRate, item.cgstRate, item.cgstAmount, item.sgstRate, item.sgstAmount, item.totalAmount,
+          item.purchasePrice || 0);
       }
 
       // Deduct stock only for confirmed invoices
@@ -123,13 +124,14 @@ export async function billingRoutes(app: FastifyInstance) {
       db.prepare(`DELETE FROM document_items WHERE document_id = ?`).run(req.params.id);
       const insertItem = db.prepare(`
         INSERT INTO document_items (id, document_id, product_id, product_name, hsn_sac, unit, quantity, unit_price,
-          gross_amount, taxable_value, gst_rate, cgst_rate, cgst_amount, sgst_rate, sgst_amount, total_amount)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          gross_amount, taxable_value, gst_rate, cgst_rate, cgst_amount, sgst_rate, sgst_amount, total_amount, purchase_price)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `);
       for (const item of totals.items) {
         insertItem.run(randomUUID(), req.params.id, item.productId || null, item.productName,
           item.hsnSac || null, item.unit || 'PCS', item.quantity, item.unitPrice, item.grossAmount, item.taxableValue,
-          item.gstRate, item.cgstRate, item.cgstAmount, item.sgstRate, item.sgstAmount, item.totalAmount);
+          item.gstRate, item.cgstRate, item.cgstAmount, item.sgstRate, item.sgstAmount, item.totalAmount,
+          item.purchasePrice || 0);
       }
     });
 

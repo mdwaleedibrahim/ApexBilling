@@ -110,7 +110,8 @@ CREATE TABLE IF NOT EXISTS document_items (
     cgst_amount DECIMAL(10,2) NOT NULL,
     sgst_rate DECIMAL(5,2) NOT NULL,
     sgst_amount DECIMAL(10,2) NOT NULL,
-    total_amount DECIMAL(10,2) NOT NULL
+    total_amount DECIMAL(10,2) NOT NULL,
+    purchase_price DECIMAL(10,2) DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_document_items_doc_id ON document_items(document_id);
 

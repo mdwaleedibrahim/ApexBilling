@@ -132,7 +132,7 @@ export default function App() {
       </main>
 
       {/* Settings Modal */}
-      {settingsOpen && <SellerSettingsModal onClose={() => setSettings(false)} />}
+      {settingsOpen && <SellerSettingsModal onClose={() => { setSettings(false); window.dispatchEvent(new Event('focus')) }} />}
     </div>
   )
 }

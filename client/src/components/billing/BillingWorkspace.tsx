@@ -22,7 +22,11 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
   useEffect(() => {
     loadProfile()
     window.addEventListener('focus', loadProfile)
-    return () => window.removeEventListener('focus', loadProfile)
+    document.addEventListener('visibilitychange', loadProfile)
+    return () => {
+      window.removeEventListener('focus', loadProfile)
+      document.removeEventListener('visibilitychange', loadProfile)
+    }
   }, [])
 
   // F2 focuses item search, F4 saves quotation, F7 cash checkout, F8 UPI
