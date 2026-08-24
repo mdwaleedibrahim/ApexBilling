@@ -85,11 +85,6 @@ export async function billingRoutes(app: FastifyInstance) {
 
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
 
-    if (doc_type === 'INVOICE') {
-      const stockErr = validateStockLimits(db, rawItems);
-      if (stockErr) return reply.status(400).send({ error: stockErr });
-    }
-
     const totals = calculateInvoiceTotals(rawItems, discount_pct);
     const id = randomUUID();
     const doc_number = generateDocNumber(db, doc_type);
@@ -138,11 +133,6 @@ export async function billingRoutes(app: FastifyInstance) {
 
     const { items: rawItems, discount_pct = 0, payment_mode, payment_status, notes, customer_phone, customer_snapshot, hide_tax_on_invoice } = (req.body || {}) as any;
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
-
-    if (existing.doc_type === 'INVOICE') {
-      const stockErr = validateStockLimits(db, rawItems, req.params.id);
-      if (stockErr) return reply.status(400).send({ error: stockErr });
-    }
 
     const totals = calculateInvoiceTotals(rawItems, discount_pct);
 
