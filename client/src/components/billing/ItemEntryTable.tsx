@@ -61,7 +61,7 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
 
   const selectProduct = (p: any) => {
     if (sellerProfile?.restrict_sales_to_stock_qty && p.stock_qty <= 0) {
-      const confirmed = window.confirm(`Order qty exceeds inventory ${p.stock_qty}. Click OK to set qty to inventory (0) or Cancel to allow qty > inventory.`)
+      const confirmed = window.confirm(`Order qty of "${p.name}" (HSN: ${p.hsn_sac || 'N/A'}) exceeds inventory ${p.stock_qty}. Click OK to set qty to inventory (0) or Cancel to allow qty > inventory.`)
       if (confirmed) {
         return
       }
@@ -178,7 +178,7 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
                               const isEditing = !!useBillingStore.getState().editingDocId
                               const maxAllowedInventory = isEditing ? (item.quantity + prod.stock_qty) : prod.stock_qty
                               if (newQty > maxAllowedInventory) {
-                                const confirmed = window.confirm(`Order qty exceeds inventory ${maxAllowedInventory}. Click OK to set qty to inventory (${maxAllowedInventory}) or Cancel to allow qty > inventory.`)
+                                const confirmed = window.confirm(`Order qty of "${item.productName}" (HSN: ${item.hsnSac || 'N/A'}) exceeds inventory ${maxAllowedInventory}. Click OK to set qty to inventory (${maxAllowedInventory}) or Cancel to allow qty > inventory.`)
                                 if (confirmed) {
                                   updateItem(item.id, { quantity: maxAllowedInventory })
                                   return
