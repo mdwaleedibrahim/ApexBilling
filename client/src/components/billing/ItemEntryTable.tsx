@@ -190,10 +190,8 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
                         }} />
                     </td>
                     {showPurchasePrice && (
-                      <td className="td">
-                        <input type="number" min={0} step={1} className="input !bg-transparent !border-transparent !rounded-none w-full text-amber-300 focus:!border-brand-500 focus:!bg-white/5 !px-0"
-                          value={item.purchasePrice || 0}
-                          onChange={e => updateItem(item.id, { purchasePrice: parseFloat(e.target.value) || 0 })} />
+                      <td className="td text-amber-300/80 font-mono text-xs">
+                        {formatINR(item.purchasePrice || 0)}
                       </td>
                     )}
                     <td className="td">

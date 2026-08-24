@@ -24,9 +24,6 @@ export function reconcileStockOnEdit(
       const product = db.prepare(`SELECT stock_qty, name FROM products WHERE id = ?`)
         .get(item.productId) as { stock_qty: number; name: string } | undefined
       if (!product) continue
-      if (product.stock_qty < item.quantity) {
-        throw new Error(`Insufficient stock for "${product.name}": available ${product.stock_qty}, requested ${item.quantity}`)
-      }
       db.prepare(`UPDATE products SET stock_qty = stock_qty - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
         .run(item.quantity, item.productId)
     }
@@ -43,9 +40,6 @@ export function deductStockForNewInvoice(
       const product = db.prepare(`SELECT stock_qty, name FROM products WHERE id = ?`)
         .get(item.productId) as { stock_qty: number; name: string } | undefined
       if (!product) continue
-      if (product.stock_qty < item.quantity) {
-        throw new Error(`Insufficient stock for "${product.name}": available ${product.stock_qty}, requested ${item.quantity}`)
-      }
       db.prepare(`UPDATE products SET stock_qty = stock_qty - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
         .run(item.quantity, item.productId)
     }
