@@ -290,6 +290,26 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
               </label>
             </div>
 
+            {/* Restrict sale quantity to stock quantity toggle */}
+            <div className="p-3.5 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <AlertTriangle size={18} className="text-red-400" />
+                <div>
+                  <p className="text-sm font-medium text-gray-200">Restrict Sales to Available Stock</p>
+                  <p className="text-xs text-gray-400">Do not allow POS bill quantity to exceed the product's available stock inventory</p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={profile.restrict_sales_to_stock_qty !== 0 && profile.restrict_sales_to_stock_qty !== false}
+                  onChange={e => fp('restrict_sales_to_stock_qty', e.target.checked ? 1 : 0)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div>
+              </label>
+            </div>
+
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider pt-2">Bank Details</p>
             <div className="grid grid-cols-2 gap-3">
               <div><label className="label">Bank Name</label><input className="input" value={profile.bank_name || ''} onChange={e => fp('bank_name', e.target.value)} /></div>

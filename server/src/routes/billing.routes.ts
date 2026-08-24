@@ -14,6 +14,40 @@ function generateDocNumber(db: any, type: 'INVOICE' | 'QUOTATION', prefix = 'INV
   return `${p}-${year}-${String(count).padStart(4, '0')}`;
 }
 
+function validateStockLimits(db: any, rawItems: any[], existingDocId: string | null = null): string | null {
+  const profile = db.prepare(`SELECT restrict_sales_to_stock_qty FROM seller_profile WHERE id = 1`).get() as any;
+  if (!profile?.restrict_sales_to_stock_qty) return null;
+
+  const newQuantities: Record<string, number> = {};
+  for (const item of rawItems) {
+    if (item.productId) {
+      newQuantities[item.productId] = (newQuantities[item.productId] || 0) + item.quantity;
+    }
+  }
+
+  const oldQuantities: Record<string, number> = {};
+  if (existingDocId) {
+    const oldItems = db.prepare(`SELECT product_id, quantity FROM document_items WHERE document_id = ?`).all(existingDocId) as any[];
+    for (const item of oldItems) {
+      if (item.product_id) {
+        oldQuantities[item.product_id] = (oldQuantities[item.product_id] || 0) + item.quantity;
+      }
+    }
+  }
+
+  for (const [prodId, newQty] of Object.entries(newQuantities)) {
+    const oldQty = oldQuantities[prodId] || 0;
+    if (newQty > oldQty) {
+      const netRequired = newQty - oldQty;
+      const prod = db.prepare(`SELECT name, stock_qty FROM products WHERE id = ?`).get(prodId) as any;
+      if (prod && netRequired > prod.stock_qty) {
+        return `Cannot sell ${newQty} units of "${prod.name}" (Only ${prod.stock_qty} available in stock)`;
+      }
+    }
+  }
+  return null;
+}
+
 export async function billingRoutes(app: FastifyInstance) {
   // ── Documents ──────────────────────────────────────────────────────────────
 
@@ -50,6 +84,11 @@ export async function billingRoutes(app: FastifyInstance) {
       discount_pct = 0, payment_mode = 'CASH', payment_status = 'PAID', selected_upi_id, notes, hide_tax_on_invoice = 0 } = (req.body || {}) as any;
 
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
+
+    if (doc_type === 'INVOICE') {
+      const stockErr = validateStockLimits(db, rawItems);
+      if (stockErr) return reply.status(400).send({ error: stockErr });
+    }
 
     const totals = calculateInvoiceTotals(rawItems, discount_pct);
     const id = randomUUID();
@@ -99,6 +138,11 @@ export async function billingRoutes(app: FastifyInstance) {
 
     const { items: rawItems, discount_pct = 0, payment_mode, payment_status, notes, customer_phone, customer_snapshot, hide_tax_on_invoice } = (req.body || {}) as any;
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
+
+    if (existing.doc_type === 'INVOICE') {
+      const stockErr = validateStockLimits(db, rawItems, req.params.id);
+      if (stockErr) return reply.status(400).send({ error: stockErr });
+    }
 
     const totals = calculateInvoiceTotals(rawItems, discount_pct);
 

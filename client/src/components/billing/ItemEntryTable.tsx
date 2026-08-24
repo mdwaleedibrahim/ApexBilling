@@ -60,6 +60,10 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
   }
 
   const selectProduct = (p: any) => {
+    if (sellerProfile?.restrict_sales_to_stock_qty && p.stock_qty <= 0) {
+      alert(`"${p.name}" is out of stock.`)
+      return
+    }
     addItem({ productId: p.id, productName: p.name, hsnSac: p.hsn_sac, unit: p.unit || 'PCS', purchasePrice: p.purchase_price || 0, quantity: 1, unitPrice: p.selling_price, gstRate: p.tax_rate })
     setSearch(''); setResults([]); setSearchOpen(false)
     searchRef.current?.focus()
@@ -161,7 +165,21 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
                   <td className="td">
                     <input type="number" min={1} className="input !bg-transparent !border-transparent !rounded-none w-full focus:!border-brand-500 focus:!bg-white/5 !px-0"
                       value={item.quantity}
-                      onChange={e => updateItem(item.id, { quantity: Math.max(1, parseInt(e.target.value) || 1) })} />
+                      onChange={e => {
+                        const newQty = Math.max(1, parseInt(e.target.value) || 1)
+                        if (sellerProfile?.restrict_sales_to_stock_qty && item.productId) {
+                          const prod = allProducts.find(p => p.id === item.productId)
+                          if (prod) {
+                            const diff = newQty - item.quantity
+                            if (diff > prod.stock_qty) {
+                              alert(`Cannot add ${diff} more units of "${prod.name}". Only ${prod.stock_qty} left in stock.`)
+                              updateItem(item.id, { quantity: item.quantity + prod.stock_qty })
+                              return
+                            }
+                          }
+                        }
+                        updateItem(item.id, { quantity: newQty })
+                      }} />
                   </td>
                   {showPurchasePrice && (
                     <td className="td">
