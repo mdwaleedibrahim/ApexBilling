@@ -64,7 +64,11 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
     setCleanupLoading(true)
     setCleanupMsg({ type: '', text: '' })
     try {
-      await fetch('/api/admin/cleanup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scope }) })
+      const res = await fetch('/api/admin/cleanup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scope }) })
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null)
+        throw new Error(errorData?.error || `Server returned code ${res.status}`)
+      }
       setCleanupMsg({ type: 'success', text: `✓ Successfully deleted ${scopeLabel}. Reloading app...` })
       await load()
       setTimeout(() => {

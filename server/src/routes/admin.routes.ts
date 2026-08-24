@@ -242,6 +242,7 @@ export async function adminRoutes(app: FastifyInstance) {
         db.prepare('DELETE FROM memory_slots').run()
       }
       if (scope === 'inventory' || scope === 'all') {
+        db.prepare('UPDATE document_items SET product_id = NULL').run()
         db.prepare('DELETE FROM products').run()
       }
       if (scope === 'customers' || scope === 'all') {
