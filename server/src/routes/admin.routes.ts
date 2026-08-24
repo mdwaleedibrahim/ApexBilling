@@ -226,4 +226,32 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply.status(500).send({ error: err?.message || 'Failed to create snapshot' })
     }
   })
+
+  // POST /api/admin/cleanup — Wipe selected data (billing | inventory | all)
+  app.post<{ Body: { scope: string } }>('/api/admin/cleanup', (req, reply) => {
+    const db = getDb()
+    const { scope } = req.body || {}
+    if (!['billing', 'inventory', 'all'].includes(scope)) {
+      return reply.status(400).send({ error: 'scope must be: billing | inventory | all' })
+    }
+    db.exec('BEGIN')
+    try {
+      if (scope === 'billing' || scope === 'all') {
+        db.prepare('DELETE FROM document_items').run()
+        db.prepare('DELETE FROM documents').run()
+        db.prepare('DELETE FROM memory_slots').run()
+      }
+      if (scope === 'inventory' || scope === 'all') {
+        db.prepare('DELETE FROM products').run()
+      }
+      if (scope === 'all') {
+        db.prepare('DELETE FROM customers').run()
+      }
+      db.exec('COMMIT')
+      return reply.send({ success: true, scope })
+    } catch (err: any) {
+      db.exec('ROLLBACK')
+      return reply.status(500).send({ error: err?.message || 'Cleanup failed' })
+    }
+  })
 }

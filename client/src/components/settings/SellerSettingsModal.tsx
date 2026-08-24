@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import {
   X, Save, Plus, Trash2, Star, QrCode, ShieldCheck, Database,
-  Download, Upload, Camera, RefreshCw, AlertTriangle, FileText
+  Download, Upload, Camera, RefreshCw, AlertTriangle, FileText, AlertOctagon
 } from 'lucide-react'
 import { api } from '../../utils/api'
 import { INDIAN_STATES } from '../../utils/gstEngine'
@@ -17,6 +17,8 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
   const [msg, setMsg] = useState('')
   const [restoreMsg, setRestoreMsg] = useState({ type: '', text: '' })
   const [selectedBackupFile, setSelectedBackupFile] = useState<any>(null)
+  const [cleanupMsg, setCleanupMsg] = useState({ type: '', text: '' })
+  const [cleanupLoading, setCleanupLoading] = useState(false)
 
   const load = async () => {
     const [r, sys] = await Promise.all([
@@ -38,6 +40,36 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
       setTimeout(() => setMsg(''), 2500)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleCleanup = async (scope: 'billing' | 'inventory' | 'all') => {
+    const scopeLabel = scope === 'billing' ? 'all Billing & Invoice records'
+      : scope === 'inventory' ? 'all Inventory & Products'
+      : 'ALL data (billing, inventory, customers)'
+
+    const first = window.confirm(`⚠️ Warning: This will permanently delete ${scopeLabel}.\n\nThis action CANNOT be undone. Are you sure?`)
+    if (!first) return
+
+    const second = window.confirm(`🚨 Final confirmation: Permanently delete ${scopeLabel}?\n\nType YES in the next prompt to confirm.`)
+    if (!second) return
+
+    const typed = window.prompt(`Type  DELETE  (all caps) to confirm permanent deletion of ${scopeLabel}:`)
+    if (typed?.trim() !== 'DELETE') {
+      setCleanupMsg({ type: 'error', text: 'Cleanup cancelled — confirmation text did not match.' })
+      return
+    }
+
+    setCleanupLoading(true)
+    setCleanupMsg({ type: '', text: '' })
+    try {
+      await fetch('/api/admin/cleanup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scope }) })
+      setCleanupMsg({ type: 'success', text: `✓ Successfully deleted ${scopeLabel}.` })
+      await load()
+    } catch (err: any) {
+      setCleanupMsg({ type: 'error', text: err?.message || 'Cleanup failed.' })
+    } finally {
+      setCleanupLoading(false)
     }
   }
 
@@ -448,6 +480,56 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
                 </div>
               </div>
             )}
+
+            {/* ── Danger Zone ── */}
+            <div className="p-4 bg-red-900/20 border border-red-500/40 rounded-xl space-y-4">
+              <div className="flex items-center gap-2">
+                <AlertOctagon size={18} className="text-red-400" />
+                <div>
+                  <p className="text-sm font-bold text-red-300">Danger Zone — Delete Data</p>
+                  <p className="text-xs text-red-400/70">Permanently removes records. Seller profile & settings are always preserved.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button
+                  onClick={() => handleCleanup('billing')}
+                  disabled={cleanupLoading}
+                  className="flex flex-col items-start gap-1 p-3 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-colors text-left"
+                >
+                  <span className="text-xs font-bold text-red-300">Clear Billing Data</span>
+                  <span className="text-[11px] text-red-400/70">Delete all invoices, quotations & memory slots</span>
+                </button>
+
+                <button
+                  onClick={() => handleCleanup('inventory')}
+                  disabled={cleanupLoading}
+                  className="flex flex-col items-start gap-1 p-3 rounded-xl border border-orange-500/30 bg-orange-500/10 hover:bg-orange-500/20 transition-colors text-left"
+                >
+                  <span className="text-xs font-bold text-orange-300">Clear Inventory</span>
+                  <span className="text-[11px] text-orange-400/70">Delete all products from inventory</span>
+                </button>
+
+                <button
+                  onClick={() => handleCleanup('all')}
+                  disabled={cleanupLoading}
+                  className="flex flex-col items-start gap-1 p-3 rounded-xl border border-red-600/50 bg-red-600/15 hover:bg-red-600/25 transition-colors text-left"
+                >
+                  <span className="text-xs font-bold text-red-200">⚠ Wipe All Data</span>
+                  <span className="text-[11px] text-red-400/70">Delete billing, inventory & customers</span>
+                </button>
+              </div>
+
+              {cleanupMsg.text && (
+                <div className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                  cleanupMsg.type === 'error' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
+                  'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                }`}>
+                  {cleanupMsg.type === 'error' && <AlertTriangle size={14} />}
+                  <span>{cleanupMsg.text}</span>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
