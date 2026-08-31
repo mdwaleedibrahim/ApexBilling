@@ -71,9 +71,19 @@ function TopHeaderClock() {
 }
 
 export default function App() {
-  const [tab, setTab]           = useState<Tab>('dashboard')
+  const [tab, setTab] = useState<Tab>(() => {
+    const params = new URLSearchParams(window.location.search)
+    const t = params.get('tab')
+    if (t && ['dashboard', 'billing', 'history', 'inventory', 'customers'].includes(t)) {
+      return t as Tab
+    }
+    return 'dashboard'
+  })
   const [sidebarOpen, setSidebar] = useState(true)
-  const [settingsOpen, setSettings] = useState(false)
+  const [settingsOpen, setSettings] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    return params.get('settings') === 'true'
+  })
 
   // Global keyboard: Alt+1..5 handled in BillingWorkspace
   useEffect(() => {

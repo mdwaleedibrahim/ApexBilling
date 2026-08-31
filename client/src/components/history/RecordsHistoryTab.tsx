@@ -37,6 +37,15 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
       ])
       setDocs(d || [])
       setProfile(p?.profile ? { ...p.profile, upiAccounts: p.upiAccounts || [] } : null)
+
+      const urlParams = new URLSearchParams(window.location.search)
+      const viewParam = urlParams.get('view')
+      if (viewParam && d && d.length > 0) {
+        const target = viewParam === 'first' ? d[0] : d.find((item: any) => item.id === viewParam || item.doc_number === viewParam) || d[0]
+        if (target) {
+          api.documents.get(target.id).then(full => setViewDoc(full)).catch(() => {})
+        }
+      }
     } catch (e) {
       console.error('Error loading documents:', e)
     } finally {
