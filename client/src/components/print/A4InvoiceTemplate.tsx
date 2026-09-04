@@ -1,4 +1,5 @@
 // components/print/A4InvoiceTemplate.tsx — Ultra-modern, sleek GST A4 print & view layout
+import { Fragment } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { buildUpiLink, formatINR, formatDate, formatDateTime, amountInWords } from '../../utils/upiHelper'
 
@@ -34,7 +35,7 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
   })()
 
   return (
-    <div className="bg-white text-gray-900 p-8 relative" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif", minHeight: '297mm', color: '#0f172a' }}>
+    <div className="print-container bg-white text-gray-900 p-8 relative" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif", minHeight: '297mm', color: '#0f172a' }}>
       
       {/* Watermarks */}
       {isPaid && (
@@ -138,53 +139,171 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
         )}
       </div>
 
-      {/* Items Table */}
-      <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid #e2e8f0', marginBottom: 20 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: headerBg, color: 'white' }}>
-              {(hideTax
-                ? ['#', 'Item Description', 'HSN/SAC', 'Qty', 'Unit', 'MRP Price', 'Total']
-                : ['#', 'Item Description', 'HSN/SAC', 'Qty', 'Unit', 'MRP Price', 'Taxable', 'CGST', 'SGST', 'Total']
-              ).map((h) => (
-                <th key={h} style={{
-                  padding: '10px 12px', fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
-                  textAlign: (h === '#' || h === 'Qty' || h === 'Unit') ? 'center' : (h === 'Item Description' || h === 'HSN/SAC') ? 'left' : 'right'
-                }}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item: any, i: number) => (
-              <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-                <td style={{ padding: '9px 12px', textAlign: 'center', fontSize: 11, color: '#64748b' }}>{i + 1}</td>
-                <td style={{ padding: '9px 12px', fontSize: 12, fontWeight: 600, color: '#0f172a' }}>
-                  {item.product_name}
-                  {item.hsn_sac && <span style={{ display: 'block', color: '#94a3b8', fontSize: 10, fontWeight: 400 }}>HSN: {item.hsn_sac}</span>}
-                </td>
-                <td style={{ padding: '9px 12px', fontSize: 11, color: '#475569' }}>{item.hsn_sac || '—'}</td>
-                <td style={{ padding: '9px 12px', textAlign: 'center', fontSize: 12, fontWeight: 600, color: '#0f172a' }}>{item.quantity}</td>
-                <td style={{ padding: '9px 12px', textAlign: 'center', fontSize: 11, color: '#64748b' }}>{item.unit || 'PCS'}</td>
-                <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: 11, color: '#334155' }}>{formatINR(item.unit_price)}</td>
-                {!hideTax && <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: 11, color: '#334155' }}>{formatINR(item.taxable_value)}</td>}
-                {!hideTax && (
-                  <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: 11, color: '#64748b' }}>
-                    {item.cgst_rate}%<span style={{ display: 'block', color: '#334155', fontWeight: 500 }}>{formatINR(item.cgst_amount)}</span>
-                  </td>
-                )}
-                {!hideTax && (
-                  <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: 11, color: '#64748b' }}>
-                    {item.sgst_rate}%<span style={{ display: 'block', color: '#334155', fontWeight: 500 }}>{formatINR(item.sgst_amount)}</span>
-                  </td>
-                )}
-                <td style={{ padding: '9px 12px', textAlign: 'right', fontSize: 12, fontWeight: 700, color: accentColor }}>{formatINR(item.total_amount)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* Items Table with Autofit Columns */}
+      {(() => {
+        const isLargeName = (name: string) => {
+          if (!name) return false
+          return name.trim().length > 22 || name.includes('\n')
+        }
+
+        const tableColumns = hideTax
+          ? [
+              { id: 'num', label: '#', align: 'center', width: '4%' },
+              { id: 'desc', label: 'Item Description', align: 'left', width: '38%' },
+              { id: 'hsn', label: 'HSN/SAC', align: 'left', width: '12%' },
+              { id: 'qty', label: 'Qty', align: 'center', width: '8%' },
+              { id: 'unit', label: 'Unit', align: 'center', width: '8%' },
+              { id: 'price', label: 'MRP Price', align: 'right', width: '14%' },
+              { id: 'total', label: 'Total', align: 'right', width: '16%' },
+            ]
+          : [
+              { id: 'num', label: '#', align: 'center', width: '3%' },
+              { id: 'desc', label: 'Item Description', align: 'left', width: '25%' },
+              { id: 'hsn', label: 'HSN/SAC', align: 'left', width: '9%' },
+              { id: 'qty', label: 'Qty', align: 'center', width: '6%' },
+              { id: 'unit', label: 'Unit', align: 'center', width: '6%' },
+              { id: 'price', label: 'Price', align: 'right', width: '10%' },
+              { id: 'taxable', label: 'Taxable', align: 'right', width: '11%' },
+              { id: 'cgst', label: 'CGST', align: 'right', width: '9%' },
+              { id: 'sgst', label: 'SGST', align: 'right', width: '9%' },
+              { id: 'total', label: 'Total', align: 'right', width: '12%' },
+            ]
+
+        const totalCols = tableColumns.length
+
+        return (
+          <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid #e2e8f0', marginBottom: 20, width: '100%', boxSizing: 'border-box' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+              <thead>
+                <tr style={{ background: headerBg, color: 'white' }}>
+                  {tableColumns.map((col) => (
+                    <th
+                      key={col.id}
+                      style={{
+                        width: col.width,
+                        padding: '8px 6px',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        letterSpacing: '0.03em',
+                        textTransform: 'uppercase',
+                        textAlign: col.align as any,
+                        whiteSpace: 'nowrap',
+                        boxSizing: 'border-box'
+                      }}
+                    >
+                      {col.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item: any, i: number) => {
+                  const isLarge = isLargeName(item.product_name)
+                  const rowBg = i % 2 === 0 ? '#ffffff' : '#f8fafc'
+
+                  if (isLarge) {
+                    return (
+                      <Fragment key={i}>
+                        {/* Full-width line for large item name */}
+                        <tr style={{ background: rowBg, borderTop: i > 0 ? '1px solid #e2e8f0' : 'none', breakInside: 'avoid' }}>
+                          <td
+                            colSpan={totalCols}
+                            style={{
+                              padding: '7px 8px 3px 8px',
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              color: '#0f172a',
+                              lineHeight: 1.4,
+                              wordBreak: 'break-word',
+                              overflowWrap: 'anywhere',
+                              whiteSpace: 'normal',
+                            }}
+                          >
+                            <span style={{ fontWeight: 700, color: '#64748b', marginRight: 6, fontSize: 11 }}>#{i + 1}</span>
+                            <span style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', whiteSpace: 'normal' }}>{item.product_name}</span>
+                          </td>
+                        </tr>
+                        {/* Subsequent line for pricing, quantity, and tax details */}
+                        <tr style={{ background: rowBg, borderBottom: '1px solid #e2e8f0', breakInside: 'avoid' }}>
+                          <td style={{ padding: '3px 6px 7px 6px', textAlign: 'center', fontSize: 10, color: '#94a3b8' }}>↳</td>
+                          <td style={{ padding: '3px 6px 7px 6px' }}></td>
+                          <td style={{ padding: '3px 6px 7px 6px', fontSize: 10, color: '#475569', whiteSpace: 'nowrap' }}>
+                            {item.hsn_sac || '—'}
+                          </td>
+                          <td style={{ padding: '3px 6px 7px 6px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>
+                            {item.quantity}
+                          </td>
+                          <td style={{ padding: '3px 6px 7px 6px', textAlign: 'center', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
+                            {item.unit || 'PCS'}
+                          </td>
+                          <td style={{ padding: '3px 6px 7px 6px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>
+                            {formatINR(item.unit_price)}
+                          </td>
+                          {!hideTax && (
+                            <td style={{ padding: '3px 6px 7px 6px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>
+                              {formatINR(item.taxable_value)}
+                            </td>
+                          )}
+                          {!hideTax && (
+                            <td style={{ padding: '3px 6px 7px 6px', textAlign: 'right', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
+                              {item.cgst_rate}%
+                              <span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: 9.5 }}>{formatINR(item.cgst_amount)}</span>
+                            </td>
+                          )}
+                          {!hideTax && (
+                            <td style={{ padding: '3px 6px 7px 6px', textAlign: 'right', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
+                              {item.sgst_rate}%
+                              <span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: 9.5 }}>{formatINR(item.sgst_amount)}</span>
+                            </td>
+                          )}
+                          <td style={{ padding: '3px 6px 7px 6px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>
+                            {formatINR(item.total_amount)}
+                          </td>
+                        </tr>
+                      </Fragment>
+                    )
+                  }
+
+                  // Standard single line for compact item names
+                  return (
+                    <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: rowBg, breakInside: 'avoid' }}>
+                      <td style={{ padding: '7px 6px', textAlign: 'center', fontSize: 11, color: '#64748b' }}>{i + 1}</td>
+                      <td style={{
+                        padding: '7px 6px',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: '#0f172a',
+                        wordBreak: 'break-word',
+                        overflowWrap: 'anywhere',
+                        whiteSpace: 'normal',
+                        lineHeight: 1.35,
+                      }}>
+                        {item.product_name}
+                      </td>
+                      <td style={{ padding: '7px 6px', fontSize: 10, color: '#475569', whiteSpace: 'nowrap' }}>{item.hsn_sac || '—'}</td>
+                      <td style={{ padding: '7px 6px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>{item.quantity}</td>
+                      <td style={{ padding: '7px 6px', textAlign: 'center', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>{item.unit || 'PCS'}</td>
+                      <td style={{ padding: '7px 6px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>{formatINR(item.unit_price)}</td>
+                      {!hideTax && <td style={{ padding: '7px 6px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>{formatINR(item.taxable_value)}</td>}
+                      {!hideTax && (
+                        <td style={{ padding: '7px 6px', textAlign: 'right', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
+                          {item.cgst_rate}%<span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: 9.5 }}>{formatINR(item.cgst_amount)}</span>
+                        </td>
+                      )}
+                      {!hideTax && (
+                        <td style={{ padding: '7px 6px', textAlign: 'right', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
+                          {item.sgst_rate}%<span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: 9.5 }}>{formatINR(item.sgst_amount)}</span>
+                        </td>
+                      )}
+                      <td style={{ padding: '7px 6px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>{formatINR(item.total_amount)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      })()}
 
       {/* Totals & Scan to Pay Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 20, alignItems: 'start' }}>

@@ -107,5 +107,31 @@
   }
   .no-print { display: none !important; }
   .print-only { display: block !important; }
+
+  /* Ensure modal and A4 template autofit A4 page perfectly */
+  .modal-backdrop {
+    position: static !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+  .modal-backdrop > div {
+    max-width: 100% !important;
+    max-height: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+  .print-container {
+    padding: 0 !important;
+    width: 100% !important;
+  }
+  table {
+    width: 100% !important;
+    table-layout: fixed !important;
+  }
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
 }
 .print-only { display: none; }
