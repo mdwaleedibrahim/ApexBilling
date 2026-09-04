@@ -17,9 +17,13 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
   const searchRef = useRef<HTMLInputElement>(null)
   const blurTimerRef = useRef<any>(null)
 
+  const [rowSearchId, setRowSearchId] = useState<string | null>(null)
+  const rowBlurTimerRef = useRef<any>(null)
+
   useEffect(() => {
     return () => {
       if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
+      if (rowBlurTimerRef.current) clearTimeout(rowBlurTimerRef.current)
     }
   }, [])
 
@@ -75,6 +79,19 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
     searchRef.current?.focus()
   }
 
+  const selectProductForRow = (rowId: string, p: any) => {
+    updateItem(rowId, {
+      productId: p.id,
+      productName: p.name,
+      hsnSac: p.hsn_sac || '',
+      unit: p.unit || 'PCS',
+      unitPrice: p.selling_price,
+      purchasePrice: p.purchase_price || 0,
+      gstRate: p.tax_rate ?? 18
+    })
+    setRowSearchId(null)
+  }
+
   const addBlank = () => {
     addItem({ productName: '', hsnSac: '', unit: 'PCS', purchasePrice: 0, quantity: 1, unitPrice: 0, gstRate: 18 })
   }
@@ -98,25 +115,25 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
               blurTimerRef.current = setTimeout(() => setSearchOpen(false), 200)
             }}
           />
-          <button onClick={addBlank} className="btn-secondary px-3 flex-shrink-0" title="Add blank row"><Plus size={16} /></button>
+          <button onClick={addBlank} className="btn-secondary px-3 flex-shrink-0" title="Add manual row"><Plus size={16} /></button>
         </div>
         {searchOpen && results.length > 0 && (
-          <div className="absolute top-full left-0 right-12 mt-1 glass-card z-30 overflow-hidden max-h-60 overflow-y-auto">
+          <div className="absolute top-full left-0 right-12 mt-1.5 bg-[#111827] border border-gray-700/80 rounded-xl shadow-2xl z-50 overflow-hidden max-h-64 overflow-y-auto divide-y divide-gray-800/60" style={{ backgroundColor: '#111827' }}>
             {results.map(p => (
-              <div key={p.id} className="px-4 py-2.5 cursor-pointer hover:bg-white/5 transition-colors border-b border-white/5 last:border-0"
+              <div key={p.id} className="px-4 py-3 cursor-pointer hover:bg-gray-800/80 transition-colors"
                 onMouseDown={() => selectProduct(p)}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-sm font-medium text-gray-100">{p.name}</span>
-                    {p.sku && <span className="ml-2 text-xs text-gray-500 font-mono">SKU: {p.sku}</span>}
+                    <span className="text-sm font-semibold text-white">{p.name}</span>
+                    {p.sku && <span className="ml-2 text-xs text-gray-400 font-mono">SKU: {p.sku}</span>}
                   </div>
                   <div className="text-right">
-                    <span className="text-sm font-medium text-emerald-400">MRP: {formatINR(p.selling_price)}</span>
+                    <span className="text-sm font-bold text-emerald-400">MRP: {formatINR(p.selling_price)}</span>
                     {showPurchasePrice && <span className="ml-2 text-xs text-amber-300">Buy: {formatINR(p.purchase_price)}</span>}
-                    <span className="ml-2 text-xs text-gray-500">GST {p.tax_rate}%</span>
+                    <span className="ml-2 text-xs text-gray-400">GST {p.tax_rate}%</span>
                   </div>
                 </div>
-                <div className="flex items-center justify-between text-xs text-gray-500 mt-0.5">
+                <div className="flex items-center justify-between text-xs text-gray-400 mt-1">
                   <span>HSN: {p.hsn_sac || '—'}</span>
                   <span>Stock: {p.stock_qty} {p.unit}</span>
                 </div>
@@ -148,16 +165,68 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
               {items.map((item, idx) => {
                 const netPrice = item.unitPrice * (1 - discountPct / 100)
                 const isBelowCost = !!(item.purchasePrice && netPrice < item.purchasePrice)
+                const query = item.productName ? item.productName.trim().toLowerCase() : ''
+                const matchingProducts = query ? allProducts.filter(p =>
+                  p.name.toLowerCase().includes(query) ||
+                  (p.sku && p.sku.toLowerCase().includes(query)) ||
+                  (p.hsn_sac && p.hsn_sac.toLowerCase().includes(query))
+                ) : []
+
                 return (
                   <tr key={item.id} className={`tr ${isBelowCost ? 'bg-red-950/20 border-red-500/30' : ''}`}>
                     <td className={`td ${isBelowCost ? 'text-red-400 font-semibold' : 'text-gray-500'}`}>{idx + 1}</td>
-                    <td className="td">
-                      <input
-                        className={`input !bg-transparent !border-transparent !rounded-none focus:!border-brand-500 focus:!bg-white/5 !px-0 ${isBelowCost ? '!text-red-400 font-medium' : ''}`}
-                        value={item.productName}
-                        onChange={e => updateItem(item.id, { productName: e.target.value })}
-                        placeholder="Item name"
-                      />
+                    <td className="td relative">
+                      <div className="relative">
+                        <input
+                          className={`input !bg-transparent !border-transparent !rounded-none focus:!border-brand-500 focus:!bg-white/5 !px-0 ${isBelowCost ? '!text-red-400 font-medium' : ''}`}
+                          value={item.productName}
+                          onChange={e => {
+                            updateItem(item.id, { productName: e.target.value })
+                            setRowSearchId(item.id)
+                          }}
+                          onFocus={() => {
+                            if (item.productName?.trim()) {
+                              setRowSearchId(item.id)
+                            }
+                          }}
+                          onBlur={() => {
+                            if (rowBlurTimerRef.current) clearTimeout(rowBlurTimerRef.current)
+                            rowBlurTimerRef.current = setTimeout(() => setRowSearchId(null), 250)
+                          }}
+                          placeholder="Item name (auto-adds to inventory)"
+                        />
+
+                        {/* Realtime Inventory Dropdown for manual item typing */}
+                        {rowSearchId === item.id && matchingProducts.length > 0 && (
+                          <div className="absolute top-full left-0 mt-1 min-w-[320px] max-w-[420px] bg-[#111827] border border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden max-h-56 overflow-y-auto divide-y divide-gray-800" style={{ backgroundColor: '#111827' }}>
+                            <div className="px-3 py-1.5 bg-gray-900/90 text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center justify-between">
+                              <span>Existing Inventory Matches</span>
+                              <span className="text-brand-400">{matchingProducts.length} found</span>
+                            </div>
+                            {matchingProducts.map(p => (
+                              <div
+                                key={p.id}
+                                className="px-3.5 py-2.5 cursor-pointer hover:bg-brand-600/20 transition-colors text-xs"
+                                onMouseDown={() => selectProductForRow(item.id, p)}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="font-semibold text-white">{p.name}</span>
+                                  <span className="font-bold text-emerald-400">{formatINR(p.selling_price)}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-[11px] text-gray-400 mt-0.5">
+                                  <span>SKU: {p.sku || '—'} · HSN: {p.hsn_sac || '—'}</span>
+                                  <span>Stock: {p.stock_qty} {p.unit}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {!item.productId && item.productName && (
+                        <span className="text-[10px] text-emerald-400/80 font-medium block">
+                          ✨ Manual item · will be auto-saved to inventory
+                        </span>
+                      )}
                     </td>
                     <td className="td">
                       <input className={`input !bg-transparent !border-transparent !rounded-none w-full text-xs focus:!border-brand-500 focus:!bg-white/5 !px-0 ${isBelowCost ? '!text-red-400' : ''}`}

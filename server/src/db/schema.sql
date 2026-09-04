@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS seller_profile (
     show_purchase_price_in_pos INTEGER DEFAULT 1,
     show_profit_loss_in_pos INTEGER DEFAULT 1,
     restrict_sales_to_stock_qty INTEGER DEFAULT 0,
+    invoice_terms TEXT DEFAULT '["Goods once sold can''t be returned", "Goods can be exchanged with valid bill within 7 days of purchase"]',
+    quotation_terms TEXT DEFAULT '["Quotation valid for 3 days only"]',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -88,6 +90,7 @@ CREATE TABLE IF NOT EXISTS documents (
     payment_status TEXT CHECK (payment_status IN ('PAID', 'PARTIAL', 'UNPAID', 'CANCELLED')) DEFAULT 'PAID',
     selected_upi_id TEXT,
     notes TEXT,
+    terms_and_conditions TEXT,
     hide_tax_on_invoice INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP

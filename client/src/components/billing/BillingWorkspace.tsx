@@ -4,6 +4,7 @@ import { CheckCircle } from 'lucide-react'
 import CustomerSelector from './CustomerSelector'
 import ItemEntryTable from './ItemEntryTable'
 import SummaryCheckoutCard from './SummaryCheckoutCard'
+import TermsAndConditionsCard from './TermsAndConditionsCard'
 import MemorySlotBar from './MemorySlotBar'
 import A4InvoiceTemplate from '../print/A4InvoiceTemplate'
 import { api } from '../../utils/api'
@@ -67,6 +68,11 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Items</h3>
             <ItemEntryTable sellerProfile={profile} />
           </div>
+          {/* Terms & Conditions Section */}
+          <TermsAndConditionsCard
+            sellerProfile={profile}
+            onProfileUpdated={(updated) => setProfile((prev: any) => ({ ...prev, ...updated }))}
+          />
         </div>
 
         {/* Right: Summary + Checkout */}

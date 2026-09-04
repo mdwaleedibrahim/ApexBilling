@@ -28,6 +28,7 @@ export interface BillingState {
   docType: 'INVOICE' | 'QUOTATION'
   selectedUpiId: string | null
   hideTaxOnInvoice: boolean
+  selectedTerms: string[]
 
   // Editing existing doc
   editingDocId: string | null
@@ -47,6 +48,7 @@ export interface BillingState {
   setNotes: (n: string) => void
   setSelectedUpiId: (id: string | null) => void
   setHideTaxOnInvoice: (h: boolean) => void
+  setSelectedTerms: (terms: string[]) => void
 
   addItem: (item: Omit<CartItem, 'id'>) => void
   updateItem: (id: string, patch: Partial<CartItem>) => void
@@ -71,6 +73,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   docType: 'INVOICE',
   selectedUpiId: null,
   hideTaxOnInvoice: false,
+  selectedTerms: [],
   editingDocId: null,
   editingDocNumber: null,
   revisionNumber: 1,
@@ -88,6 +91,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   setNotes: (n) => set({ notes: n }),
   setSelectedUpiId: (id) => set({ selectedUpiId: id }),
   setHideTaxOnInvoice: (h) => set({ hideTaxOnInvoice: h }),
+  setSelectedTerms: (terms) => set({ selectedTerms: terms }),
 
   addItem: (item) => {
     const items = [...get().items, { ...item, id: uuid() }]
@@ -103,7 +107,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   },
   clearCart: () => set({
     items: [], customer: null, discountPct: 0, paymentMode: 'CASH', paymentStatus: 'PAID',
-    notes: '', selectedUpiId: null, hideTaxOnInvoice: false, docDate: todayIso(), editingDocId: null,
+    notes: '', selectedUpiId: null, hideTaxOnInvoice: false, selectedTerms: [], docDate: todayIso(), editingDocId: null,
     editingDocNumber: null, revisionNumber: 1, totals: emptyTotals(),
   }),
 
@@ -115,11 +119,19 @@ export const useBillingStore = create<BillingState>((set, get) => ({
     const customer = doc.customer_phone ? (() => {
       try { return JSON.parse(doc.customer_snapshot) } catch { return null }
     })() : null
+    let terms: string[] = []
+    if (doc.terms_and_conditions) {
+      try {
+        terms = typeof doc.terms_and_conditions === 'string' ? JSON.parse(doc.terms_and_conditions) : doc.terms_and_conditions
+      } catch {}
+    }
     set({
       items, customer, discountPct: doc.discount_pct || 0,
       paymentMode: doc.payment_mode || 'CASH', paymentStatus: doc.payment_status || 'PAID',
       docDate: doc.doc_date, notes: doc.notes || '', docType: doc.doc_type,
-      selectedUpiId: doc.selected_upi_id || null, hideTaxOnInvoice: !!doc.hide_tax_on_invoice, editingDocId: doc.id,
+      selectedUpiId: doc.selected_upi_id || null, hideTaxOnInvoice: !!doc.hide_tax_on_invoice,
+      selectedTerms: Array.isArray(terms) ? terms : [],
+      editingDocId: doc.id,
       editingDocNumber: doc.doc_number, revisionNumber: doc.revision_number || 1,
       totals: calcTotals(items, doc.discount_pct || 0),
     })
@@ -137,6 +149,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
       paymentMode: 'CASH', paymentStatus: 'PAID',
       docDate: todayIso(), notes: doc.notes || '', docType: 'INVOICE',
       selectedUpiId: doc.selected_upi_id || null,
+      selectedTerms: [],
       editingDocId: null,
       editingDocNumber: `Converting ${doc.doc_number}`, revisionNumber: 1,
       totals: calcTotals(items, doc.discount_pct || 0),

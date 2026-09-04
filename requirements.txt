@@ -1,0 +1,52 @@
+# ApexBill — System & Project Dependencies Specification
+# Generated for ApexBill v2.1.0 (Windows / Portable / Node.js)
+
+# ==============================================================================
+# 1. RUNTIME & SYSTEM REQUIREMENTS
+# ==============================================================================
+# Node.js: >= 22.5.0 (Mandatory for built-in 'node:sqlite' DatabaseSync and WAL support)
+# Operating System: Windows 10/11 (x64) or compatible Linux/macOS environment
+# Shell: PowerShell 5.1+ (for release packaging scripts)
+
+# ==============================================================================
+# 2. ROOT ORCHESTRATION DEPENDENCIES (package.json)
+# ==============================================================================
+# DevDependencies
+concurrently==8.2.2       # Run dev:server and dev:client concurrently
+
+# ==============================================================================
+# 3. BACKEND SERVER DEPENDENCIES (server/package.json)
+# ==============================================================================
+# Production Dependencies
+fastify==4.28.1           # High-performance Fastify web framework
+@fastify/cors==9.0.1      # Cross-Origin Resource Sharing plugin for Fastify
+@fastify/static==7.0.4    # Static file serving plugin for Fastify (serves React SPA)
+
+# Backend DevDependencies
+typescript==5.4.5         # TypeScript compiler
+tsx==4.15.6               # TypeScript execute & watch engine for Node.js
+@types/node==22.0.0       # TypeScript type definitions for Node.js 22+
+
+# Embedded / Built-in Engines
+# node:sqlite             # Node.js built-in SQLite engine with WAL journaling
+# node:crypto             # Built-in cryptographic UUID generation
+
+# ==============================================================================
+# 4. FRONTEND CLIENT DEPENDENCIES (client/package.json)
+# ==============================================================================
+# Production Dependencies
+react==18.3.1             # React core library
+react-dom==18.3.1         # React DOM rendering engine
+zustand==4.5.4            # Fast, lightweight state management for carts & slots
+lucide-react==0.395.0     # Modern SVG icon set
+qrcode.react==3.1.0       # Dynamic NPCI UPI QR code generation engine
+
+# Frontend DevDependencies
+vite==5.3.1               # Next-generation frontend tooling and bundler
+@vitejs/plugin-react==4.3.1 # Official React plugin for Vite with Fast Refresh
+typescript==5.4.5         # TypeScript compiler for frontend code
+tailwindcss==3.4.4        # Utility-first CSS framework
+postcss==8.4.39           # CSS transformation tool
+autoprefixer==10.4.19     # PostCSS plugin to parse CSS and add vendor prefixes
+@types/react==18.3.3      # Type definitions for React
+@types/react-dom==18.3.0  # Type definitions for React DOM

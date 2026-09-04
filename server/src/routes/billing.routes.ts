@@ -48,6 +48,34 @@ function validateStockLimits(db: any, rawItems: any[], existingDocId: string | n
   return null;
 }
 
+function ensureProductInInventory(db: any, item: any): string {
+  if (item.productId) {
+    const existing = db.prepare(`SELECT id FROM products WHERE id = ?`).get(item.productId);
+    if (existing) return item.productId;
+  }
+  const byName = db.prepare(`SELECT id FROM products WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))`).get(item.productName) as any;
+  if (byName) {
+    return byName.id;
+  }
+  const id = randomUUID();
+  const sku = 'SKU-' + Date.now().toString(36).toUpperCase() + '-' + Math.floor(Math.random() * 1000);
+  db.prepare(`
+    INSERT INTO products (id, sku, name, hsn_sac, unit, purchase_price, selling_price, tax_rate, stock_qty)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    sku,
+    item.productName.trim(),
+    item.hsnSac || null,
+    item.unit || 'PCS',
+    item.purchasePrice || 0,
+    item.unitPrice || 0,
+    item.gstRate ?? 18,
+    item.quantity || 0
+  );
+  return id;
+}
+
 export async function billingRoutes(app: FastifyInstance) {
   // ── Documents ──────────────────────────────────────────────────────────────
 
@@ -81,7 +109,8 @@ export async function billingRoutes(app: FastifyInstance) {
   app.post<{ Body: any }>('/api/documents', (req, reply) => {
     const db = getDb();
     const { doc_type = 'INVOICE', doc_date, customer_phone, customer_snapshot, items: rawItems,
-      discount_pct = 0, payment_mode = 'CASH', payment_status = 'PAID', selected_upi_id, notes, hide_tax_on_invoice = 0 } = (req.body || {}) as any;
+      discount_pct = 0, payment_mode = 'CASH', payment_status = 'PAID', selected_upi_id, notes,
+      terms_and_conditions, hide_tax_on_invoice = 0 } = (req.body || {}) as any;
 
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
 
@@ -89,17 +118,25 @@ export async function billingRoutes(app: FastifyInstance) {
     const id = randomUUID();
     const doc_number = generateDocNumber(db, doc_type);
     const snapshot = typeof customer_snapshot === 'string' ? customer_snapshot : JSON.stringify(customer_snapshot || {});
+    const termsStr = terms_and_conditions !== undefined
+      ? (typeof terms_and_conditions === 'string' ? terms_and_conditions : JSON.stringify(terms_and_conditions))
+      : null;
 
     withTransaction(() => {
+      // Ensure all items (including manual ones) exist in inventory
+      for (const item of totals.items) {
+        item.productId = ensureProductInInventory(db, item);
+      }
+
       db.prepare(`
         INSERT INTO documents (id, doc_type, doc_number, doc_date, customer_phone, customer_snapshot,
           gross_subtotal, discount_pct, discount_amount, taxable_amount, cgst_total, sgst_total,
-          round_off, grand_total, payment_mode, payment_status, selected_upi_id, notes, hide_tax_on_invoice)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          round_off, grand_total, payment_mode, payment_status, selected_upi_id, notes, terms_and_conditions, hide_tax_on_invoice)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `).run(id, doc_type, doc_number, doc_date || new Date().toISOString().slice(0,10),
         customer_phone || null, snapshot, totals.grossSubtotal, totals.discountPct, totals.discountAmount,
         totals.taxableAmount, totals.cgstTotal, totals.sgstTotal, totals.roundOff, totals.grandTotal,
-        payment_mode, payment_status, selected_upi_id || null, notes || null, hide_tax_on_invoice ? 1 : 0);
+        payment_mode, payment_status, selected_upi_id || null, notes || null, termsStr, hide_tax_on_invoice ? 1 : 0);
 
       const insertItem = db.prepare(`
         INSERT INTO document_items (id, document_id, product_id, product_name, hsn_sac, unit, quantity, unit_price,
@@ -131,28 +168,37 @@ export async function billingRoutes(app: FastifyInstance) {
     if (!existing) return reply.status(404).send({ error: 'Document not found' });
     if (existing.payment_status === 'CANCELLED') return reply.status(400).send({ error: 'Cannot edit cancelled document' });
 
-    const { items: rawItems, discount_pct = 0, payment_mode, payment_status, notes, customer_phone, customer_snapshot, hide_tax_on_invoice } = (req.body || {}) as any;
+    const { items: rawItems, discount_pct = 0, payment_mode, payment_status, notes,
+      terms_and_conditions, customer_phone, customer_snapshot, hide_tax_on_invoice } = (req.body || {}) as any;
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
 
     const totals = calculateInvoiceTotals(rawItems, discount_pct);
+    const termsStr = terms_and_conditions !== undefined
+      ? (typeof terms_and_conditions === 'string' ? terms_and_conditions : JSON.stringify(terms_and_conditions))
+      : existing.terms_and_conditions;
 
     withTransaction(() => {
+      // Ensure all items (including manual ones) exist in inventory
+      for (const item of totals.items) {
+        item.productId = ensureProductInInventory(db, item);
+      }
+
       // Reconcile stock if it's an invoice
       if (existing.doc_type === 'INVOICE') {
-        reconcileStockOnEdit(req.params.id, rawItems.map((i: any) => ({ productId: i.productId, quantity: i.quantity })));
+        reconcileStockOnEdit(req.params.id, totals.items.map((i: any) => ({ productId: i.productId, quantity: i.quantity })));
       }
 
       db.prepare(`
         UPDATE documents SET customer_phone=?, customer_snapshot=?, gross_subtotal=?, discount_pct=?,
           discount_amount=?, taxable_amount=?, cgst_total=?, sgst_total=?, round_off=?, grand_total=?,
-          payment_mode=?, payment_status=?, notes=?, hide_tax_on_invoice=?, revision_number=revision_number+1, updated_at=CURRENT_TIMESTAMP
+          payment_mode=?, payment_status=?, notes=?, terms_and_conditions=?, hide_tax_on_invoice=?, revision_number=revision_number+1, updated_at=CURRENT_TIMESTAMP
         WHERE id=?
       `).run(customer_phone || existing.customer_phone,
         typeof customer_snapshot === 'string' ? customer_snapshot : JSON.stringify(customer_snapshot || JSON.parse(existing.customer_snapshot)),
         totals.grossSubtotal, totals.discountPct, totals.discountAmount, totals.taxableAmount,
         totals.cgstTotal, totals.sgstTotal, totals.roundOff, totals.grandTotal,
         payment_mode || existing.payment_mode, payment_status || existing.payment_status,
-        notes ?? existing.notes, hide_tax_on_invoice !== undefined ? (hide_tax_on_invoice ? 1 : 0) : existing.hide_tax_on_invoice || 0,
+        notes ?? existing.notes, termsStr, hide_tax_on_invoice !== undefined ? (hide_tax_on_invoice ? 1 : 0) : existing.hide_tax_on_invoice || 0,
         req.params.id);
 
       db.prepare(`DELETE FROM document_items WHERE document_id = ?`).run(req.params.id);

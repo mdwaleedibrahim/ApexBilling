@@ -318,6 +318,48 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
               <div><label className="label">Branch</label><input className="input" value={profile.bank_branch || ''} onChange={e => fp('bank_branch', e.target.value)} /></div>
             </div>
 
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider pt-2">Default Terms & Conditions</p>
+            <div className="space-y-3">
+              <div>
+                <label className="label">Invoice Terms & Conditions (One clause per line)</label>
+                <textarea
+                  className="input h-20 resize-none font-sans text-xs leading-relaxed"
+                  value={(() => {
+                    try {
+                      const parsed = typeof profile.invoice_terms === 'string' ? JSON.parse(profile.invoice_terms) : profile.invoice_terms
+                      return Array.isArray(parsed) ? parsed.join('\n') : (profile.invoice_terms || '')
+                    } catch {
+                      return profile.invoice_terms || ''
+                    }
+                  })()}
+                  onChange={e => {
+                    const lines = e.target.value.split('\n')
+                    fp('invoice_terms', JSON.stringify(lines))
+                  }}
+                  placeholder={"Goods once sold can't be returned\nGoods can be exchanged with valid bill within 7 days of purchase"}
+                />
+              </div>
+              <div>
+                <label className="label">Quotation Terms & Conditions (One clause per line)</label>
+                <textarea
+                  className="input h-16 resize-none font-sans text-xs leading-relaxed"
+                  value={(() => {
+                    try {
+                      const parsed = typeof profile.quotation_terms === 'string' ? JSON.parse(profile.quotation_terms) : profile.quotation_terms
+                      return Array.isArray(parsed) ? parsed.join('\n') : (profile.quotation_terms || '')
+                    } catch {
+                      return profile.quotation_terms || ''
+                    }
+                  })()}
+                  onChange={e => {
+                    const lines = e.target.value.split('\n')
+                    fp('quotation_terms', JSON.stringify(lines))
+                  }}
+                  placeholder="Quotation valid for 3 days only"
+                />
+              </div>
+            </div>
+
             {msg && <p className="text-emerald-400 text-sm">{msg}</p>}
             <button onClick={saveProfile} disabled={loading} className="btn-primary w-full justify-center py-2.5">
               <Save size={16} />{loading ? 'Saving…' : 'Save Profile'}

@@ -31,8 +31,18 @@ export async function settingsRoutes(app: FastifyInstance) {
       business_name, trade_name, gstin, pan, phone, email,
       address_line1, address_line2, city, state_code, pincode,
       bank_name, bank_account_no, bank_ifsc, bank_branch, active_upi_id, enable_scan_to_pay,
-      show_purchase_price_in_pos, show_profit_loss_in_pos, restrict_sales_to_stock_qty
+      show_purchase_price_in_pos, show_profit_loss_in_pos, restrict_sales_to_stock_qty,
+      invoice_terms, quotation_terms
     } = (req.body || {}) as any;
+
+    const invoiceTermsStr = invoice_terms !== undefined
+      ? (typeof invoice_terms === 'string' ? invoice_terms : JSON.stringify(invoice_terms))
+      : undefined;
+    const quotationTermsStr = quotation_terms !== undefined
+      ? (typeof quotation_terms === 'string' ? quotation_terms : JSON.stringify(quotation_terms))
+      : undefined;
+
+    const current = db.prepare(`SELECT invoice_terms, quotation_terms FROM seller_profile WHERE id=1`).get() as any;
 
     db.prepare(`
       UPDATE seller_profile SET
@@ -41,6 +51,7 @@ export async function settingsRoutes(app: FastifyInstance) {
         bank_name=?, bank_account_no=?, bank_ifsc=?, bank_branch=?, active_upi_id=?,
         enable_scan_to_pay=?, show_purchase_price_in_pos=?, show_profit_loss_in_pos=?,
         restrict_sales_to_stock_qty=?,
+        invoice_terms=?, quotation_terms=?,
         updated_at=CURRENT_TIMESTAMP
       WHERE id=1
     `).run(business_name, trade_name||null, gstin, pan||null, phone, email||null,
@@ -49,7 +60,9 @@ export async function settingsRoutes(app: FastifyInstance) {
       active_upi_id||null, enable_scan_to_pay !== undefined ? (enable_scan_to_pay ? 1 : 0) : 1,
       show_purchase_price_in_pos ? 1 : 0,
       show_profit_loss_in_pos !== undefined ? (show_profit_loss_in_pos ? 1 : 0) : 1,
-      restrict_sales_to_stock_qty !== undefined ? (restrict_sales_to_stock_qty ? 1 : 0) : 0);
+      restrict_sales_to_stock_qty !== undefined ? (restrict_sales_to_stock_qty ? 1 : 0) : 0,
+      invoiceTermsStr !== undefined ? invoiceTermsStr : (current?.invoice_terms || null),
+      quotationTermsStr !== undefined ? quotationTermsStr : (current?.quotation_terms || null));
 
     return reply.send(db.prepare(`SELECT * FROM seller_profile WHERE id=1`).get());
   });

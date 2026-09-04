@@ -21,6 +21,18 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
   const accentColor = isQuotation ? '#0284c7' : '#4338ca' // Sky blue for Quotations, Deep Indigo for Invoices
   const headerBg = isQuotation ? 'linear-gradient(135deg, #0c4a6e, #0369a1)' : 'linear-gradient(135deg, #1e1b4b, #3730a3)'
 
+  const termsList: string[] = (() => {
+    if (!doc.terms_and_conditions) return []
+    try {
+      const parsed = typeof doc.terms_and_conditions === 'string'
+        ? JSON.parse(doc.terms_and_conditions)
+        : doc.terms_and_conditions
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  })()
+
   return (
     <div className="bg-white text-gray-900 p-8 relative" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif", minHeight: '297mm', color: '#0f172a' }}>
       
@@ -235,10 +247,24 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
         </div>
       </div>
 
+      {/* Terms & Conditions Section */}
+      {termsList.length > 0 && (
+        <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 10, color: '#334155' }}>
+          <div style={{ fontWeight: 800, color: accentColor, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: 10 }}>
+            Terms & Conditions ({isQuotation ? 'Quotation' : 'Invoice'}):
+          </div>
+          <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.5 }}>
+            {termsList.map((term: string, idx: number) => (
+              <li key={idx} style={{ marginBottom: 2 }}>{term}</li>
+            ))}
+          </ol>
+        </div>
+      )}
+
       {/* Remarks & Footer Notes */}
       {doc.notes && (
-        <div style={{ marginTop: 16, padding: '8px 12px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 11, color: '#475569' }}>
-          <strong>Notes / Terms:</strong> {doc.notes}
+        <div style={{ marginTop: 12, padding: '8px 12px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 11, color: '#475569' }}>
+          <strong>Notes / Remarks:</strong> {doc.notes}
         </div>
       )}
 

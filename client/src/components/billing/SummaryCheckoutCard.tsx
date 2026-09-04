@@ -58,6 +58,7 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
         payment_mode: pm,
         payment_status: ps,
         notes,
+        terms_and_conditions: store.selectedTerms,
         selected_upi_id: selectedUpi,
         hide_tax_on_invoice: store.hideTaxOnInvoice ? 1 : 0,
       }
