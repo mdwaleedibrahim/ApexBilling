@@ -9,7 +9,6 @@ import RecordsHistoryTab from './components/history/RecordsHistoryTab'
 import InventoryTable from './components/inventory/InventoryTable'
 import CustomerDirectory from './components/customers/CustomerDirectory'
 import SellerSettingsModal from './components/settings/SellerSettingsModal'
-import pkg from '../package.json'
 import { useDialogStore } from './store/useDialogStore'
 
 function CustomDialog() {
@@ -107,7 +106,7 @@ export default function App() {
           {sidebarOpen && (
             <div className="flex items-center gap-1.5">
               <span className="font-bold text-white text-base tracking-tight">ApexBill</span>
-              <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-brand-600/20 text-brand-300 border border-brand-500/30">v{pkg.version}</span>
+              <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-brand-600/20 text-brand-300 border border-brand-500/30">v{__APP_VERSION__}</span>
             </div>
           )}
           <button onClick={() => setSidebar(!sidebarOpen)} className="ml-auto text-gray-500 hover:text-gray-300">
@@ -150,7 +149,7 @@ export default function App() {
         <header className="h-12 flex items-center px-6 border-b border-white/5 bg-gray-900/50 backdrop-blur-sm flex-shrink-0">
           <h1 className="text-sm font-semibold text-gray-300 capitalize flex items-center gap-2">
             <span>{NAV.find(n => n.id === tab)?.label ?? tab}</span>
-            <span className="text-[11px] font-mono text-gray-500 font-normal">· ApexBill v{pkg.version}</span>
+            <span className="text-[11px] font-mono text-gray-500 font-normal">· ApexBill v{__APP_VERSION__}</span>
           </h1>
           <div className="ml-auto flex items-center gap-3 text-xs text-gray-500">
             <div className="hidden sm:flex items-center gap-2">

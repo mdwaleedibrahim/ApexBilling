@@ -3,18 +3,32 @@
 ========================================================================
 
 ========================================================================
-ApexBill Release v2.1.0 - 2026-09-04 18:31:17
+ApexBill Release v2.2.0 - 2026-09-05 00:07:12
 ========================================================================
 Changes & Commits in this Build:
+  * fix changelog (25bbb1e)
+  * reorganize project structure (3fa5c09)
+  * reorganize the project structure (ae4d180)
   * remove upi id and notes from print (c85a8c0)
   * improve printing and remove redundant HSN values (40f2ad6)
   * improve build generation and add invoice number in UPI notes (6f023d3)
+
+========================================================================
+ApexBill Release v2.1.0 - 2026-09-04 19:57:02
+========================================================================
+Changes & Commits in this Build:
   * feat: implement portable Windows release packaging and add invoice number in UPI payment notes (a795fe5)
   * Opaque Dropdowns, Manual Item Inventory Sync, and Terms & Conditions (4ebe334)
   * feat: add automated sample data seeding and update application screenshots (f1820d1)
 
 ========================================================================
-ApexBill Release v1.10.0 - 2026-08-24 20:09:44
+ApexBill Release v2.0.0 - 2026-08-25 01:51:52
+========================================================================
+Changes & Commits in this Build:
+  * feat: replace native popups in POS with custom dialog modal to suppress browser origin header (5d66689)
+
+========================================================================
+ApexBill Release v1.9.0 - 2026-08-25 01:36:38
 ========================================================================
 Changes & Commits in this Build:
   * feat: default show_purchase_price_in_pos to true (1) for new and existing databases (f6cffb0)
@@ -23,70 +37,57 @@ Changes & Commits in this Build:
   * fix: make purchase price read-only in POS; remove stock exception throwing in reconciler service to allow negative stock overrides (ef8b34f)
   * feat: warn and highlight items in red if order selling price is less than purchase price (8b1d5a8)
   * feat: make stock-limit warning a confirm popup to cap quantity or bypass it (091ca75)
-
-========================================================================
-ApexBill Release v1.9.0 - 2026-08-24 19:58:01
-========================================================================
-Changes & Commits in this Build:
-  * fix: change qty spelling to quantity and correct case in warning confirm popup messages (1d36def)
-  * feat: show product details & HSN code in stock-limit warning confirm popup (7703f80)
-  * fix: make purchase price read-only in POS; remove stock exception throwing in reconciler service to allow negative stock overrides (ef8b34f)
-  * feat: warn and highlight items in red if order selling price is less than purchase price (8b1d5a8)
-  * feat: make stock-limit warning a confirm popup to cap quantity or bypass it (091ca75)
   * feat: enforce stock-limit quantity checks on both frontend and backend based on settings toggle (4b568bb)
 
 ========================================================================
-ApexBill Release v1.8.0 - 2026-08-24 18:09:02
+ApexBill Release v1.8.0 - 2026-08-25 00:56:12
+========================================================================
+Changes & Commits in this Build:
+  * fix: add unit column migration for document_items table in database.ts (2feb7e3)
+  * fix: correct memory_slots table name to pos_memory_slots in admin cleanup and restore routes (63aeb72)
+  * fix: resolve foreign key constraints on product delete; fix client side fetch error handling for database cleanup (239a197)
+  * fix: convert stop-server to CommonJS to resolve node typeless package warning (66ba43c)
+  * feat: add stop-server script and npm run stop command (10e7796)
+  * fix: reload application automatically after data cleanup or restore to sync UI state (3df995f)
+  * feat: add Clear Customers cleanup option to admin settings (1d9bbcc)
+  * feat: add Danger Zone cleanup in Admin settings with 3-step confirmation (2b9bca0)
+  * fix: persist & load purchase_price per line item; refresh profile on settings close so POS toggle takes effect immediately (346885c)
+  * fix: align GST column header and values to right in Inventory table (94a2ff0)
+  * fix: copy schema.sql to dist/db after tsc build so server can find it at runtime (0740e73)
+  * feat: detect duplicate ApexBill instance on launch, prompt kill or switch (15cb1dc)
+  * chore: version bump only on npm run package, not on rebuild (4ef7dcb)
+
+========================================================================
+ApexBill Release v1.6.0 - 2026-08-24 23:34:56
 ========================================================================
 Changes & Commits in this Build:
   * perf: add document_items index, optimize MemorySlotBar event listeners, and add search blur timer cleanup (ba1a462)
-  * chore: automate changelog extraction from git commits in release packager (9defd58)
-  * feat: manual release workflow, version bump automation, POS terminology, unit mapping, POS toggles, and title bar versioning (2457231)
-  * feat: Add PnL analytics, Admin data resiliency settings, and 12-month sales trend (0d23472)
-  * style: Redesign invoice & quotation templates with executive modern typography & layout (46b49a4)
-  * chore: Ignore release/ build output folder in .gitignore (08b2b5e)
 
 ========================================================================
-ApexBill Release v1.7.0 - 2026-08-24 18:08:45
-========================================================================
-Changes & Commits in this Build:
-  * perf: add document_items index, optimize MemorySlotBar event listeners, and add search blur timer cleanup (ba1a462)
-  * chore: automate changelog extraction from git commits in release packager (9defd58)
-  * feat: manual release workflow, version bump automation, POS terminology, unit mapping, POS toggles, and title bar versioning (2457231)
-  * feat: Add PnL analytics, Admin data resiliency settings, and 12-month sales trend (0d23472)
-  * style: Redesign invoice & quotation templates with executive modern typography & layout (46b49a4)
-  * chore: Ignore release/ build output folder in .gitignore (08b2b5e)
-
-========================================================================
-ApexBill Release v1.6.0 - 2026-08-24 18:04:29
+ApexBill Release v1.5.0 - 2026-08-24 23:27:39
 ========================================================================
 Changes & Commits in this Build:
   * chore: automate changelog extraction from git commits in release packager (9defd58)
-  * feat: manual release workflow, version bump automation, POS terminology, unit mapping, POS toggles, and title bar versioning (2457231)
-  * feat: Add PnL analytics, Admin data resiliency settings, and 12-month sales trend (0d23472)
-  * style: Redesign invoice & quotation templates with executive modern typography & layout (46b49a4)
-  * chore: Ignore release/ build output folder in .gitignore (08b2b5e)
-  * feat: Add plug-and-play one-click release packager script (npm run package) (02550ed)
 
 ========================================================================
-ApexBill Release v1.5.0 - 2026-08-24 17:55:45
+ApexBill Release v1.3.0 - 2026-08-24 23:18:42
 ========================================================================
 Changes & Commits in this Build:
   * feat: manual release workflow, version bump automation, POS terminology, unit mapping, POS toggles, and title bar versioning (2457231)
+
+========================================================================
+ApexBill Release v1.0.0 - 2026-08-23 01:29:36
+========================================================================
+Changes & Commits in this Build:
   * feat: Add PnL analytics, Admin data resiliency settings, and 12-month sales trend (0d23472)
   * style: Redesign invoice & quotation templates with executive modern typography & layout (46b49a4)
   * chore: Ignore release/ build output folder in .gitignore (08b2b5e)
   * feat: Add plug-and-play one-click release packager script (npm run package) (02550ed)
   * feat: Scan to Pay toggle, multi-UPI selector, quotation conversion, instant dropdowns & print CSS updates (ac0164d)
-
-========================================================================
-ApexBill Release v1.4.0 - 2026-08-24 17:55:29
-========================================================================
-- Automated rebuild & minor version bump to v1.4.0.
-- Includes updated billing calculations, terminology, POS settings, and title bar versioning.
-
-========================================================================
-ApexBill Release v1.3.0 - 2026-08-24 17:42:20
-========================================================================
-- Automated rebuild & minor version bump to v1.3.0.
-- Includes updated billing calculations, terminology, POS settings, and title bar versioning.
+  * Make Scan to Pay UPI ID fully configurable in UI settings and auto-sync default active UPI ID (800af59)
+  * Restrict payment modes to CASH, UPI, CREDIT and render Scan to Pay QR Code in invoice (d8e62ea)
+  * Fix nested transaction error in document creation (dd18560)
+  * Fix View modal document display and implement Tax-Inclusive pricing engine (6576a29)
+  * Fix records visibility and add View modal option for saved invoices/quotations (adf2e8d)
+  * Fix select option text visibility in dark mode (5b2d58b)
+  * Initial commit: Complete ApexBill Billing & POS System (e226609)

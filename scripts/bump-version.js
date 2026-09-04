@@ -4,11 +4,7 @@ const { execSync } = require('child_process');
 
 const rootDir = path.resolve(__dirname, '..');
 
-const packagePaths = [
-  path.join(rootDir, 'package.json'),
-  path.join(rootDir, 'src', 'client', 'package.json'),
-  path.join(rootDir, 'src', 'server', 'package.json'),
-];
+const rootPkgPath = path.join(rootDir, 'package.json');
 
 function bumpMinorVersion(versionStr) {
   const parts = versionStr.split('.');
@@ -21,21 +17,18 @@ function bumpMinorVersion(versionStr) {
   return versionStr;
 }
 
-let newVersion = '';
+if (!fs.existsSync(rootPkgPath)) {
+  console.error(`[Error] root package.json not found at ${rootPkgPath}`);
+  process.exit(1);
+}
 
-packagePaths.forEach((pkgPath) => {
-  if (fs.existsSync(pkgPath)) {
-    const content = fs.readFileSync(pkgPath, 'utf8');
-    const json = JSON.parse(content);
-    if (!newVersion) {
-      newVersion = bumpMinorVersion(json.version || '1.0.0');
-    }
-    const oldVer = json.version;
-    json.version = newVersion;
-    fs.writeFileSync(pkgPath, JSON.stringify(json, null, 2) + '\n', 'utf8');
-    console.log(`[Version Bump] ${path.relative(rootDir, pkgPath)}: ${oldVer} -> ${newVersion}`);
-  }
-});
+const rootPkgContent = fs.readFileSync(rootPkgPath, 'utf8');
+const rootPkgJson = JSON.parse(rootPkgContent);
+const oldVer = rootPkgJson.version || '1.0.0';
+const newVersion = bumpMinorVersion(oldVer);
+rootPkgJson.version = newVersion;
+fs.writeFileSync(rootPkgPath, JSON.stringify(rootPkgJson, null, 2) + '\n', 'utf8');
+console.log(`[Version Bump] package.json: ${oldVer} -> ${newVersion}`);
 
 // Update CHANGELOG.txt with git commit history
 const changelogPath = path.join(rootDir, 'CHANGELOG.txt');
