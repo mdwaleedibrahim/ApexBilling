@@ -141,9 +141,12 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
 
       {/* Items Table with Autofit Columns */}
       {(() => {
-        const isLargeName = (name: string) => {
+        // Word wrap within column by default. Only enter description in full line if wrapping exceeds 3 lines (>75 chars with tax, >105 without tax, or >=3 newlines)
+        const shouldSpanFullLine = (name: string) => {
           if (!name) return false
-          return name.trim().length > 22 || name.includes('\n')
+          const maxChars = hideTax ? 105 : 75
+          const newlineCount = (name.match(/\n/g) || []).length
+          return name.trim().length > maxChars || newlineCount >= 3
         }
 
         const tableColumns = hideTax
@@ -187,7 +190,7 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
                         letterSpacing: '0.03em',
                         textTransform: 'uppercase',
                         textAlign: col.align as any,
-                        whiteSpace: 'nowrap',
+                        whiteSpace: col.id === 'desc' ? 'normal' : 'nowrap',
                         boxSizing: 'border-box'
                       }}
                     >
@@ -198,7 +201,7 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
               </thead>
               <tbody>
                 {items.map((item: any, i: number) => {
-                  const isLarge = isLargeName(item.product_name)
+                  const isLarge = shouldSpanFullLine(item.product_name)
                   const rowBg = i % 2 === 0 ? '#ffffff' : '#f8fafc'
 
                   if (isLarge) {
@@ -359,9 +362,7 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
               <div style={{ display: 'flex', justifyContent: 'center', padding: 6, background: 'white', borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', width: 'fit-content', margin: '4px auto' }}>
                 <QRCodeSVG value={upiLink} size={105} />
               </div>
-              <p style={{ fontSize: 10, fontWeight: 700, color: '#0f172a', margin: '6px 0 2px 0', fontFamily: 'monospace' }}>{upiId}</p>
-              <p style={{ fontSize: 9, color: '#475569', margin: '1px 0 2px 0', fontWeight: 600 }}>Note: Invoice {doc.doc_number}</p>
-              <p style={{ fontSize: 9, color: '#64748b', margin: 0 }}>GPay · PhonePe · Paytm · BHIM</p>
+              <p style={{ fontSize: 9, color: '#64748b', margin: '6px 0 0 0' }}>GPay · PhonePe · Paytm · BHIM</p>
             </div>
           )}
         </div>
