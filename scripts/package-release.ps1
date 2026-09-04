@@ -5,14 +5,40 @@ $ROOT_DIR = (Get-Item "$PSScriptRoot\..").FullName
 $RELEASE_DIR = Join-Path $ROOT_DIR "release"
 Write-Host "`n[ApexBill] Packaging Portable Release...`n" -ForegroundColor Cyan
 
-# 1. Bump version, generate changelog, then build
+# 1. Locate Node.js Runtime
+$nodeExePath = (Get-Command node.exe -ErrorAction SilentlyContinue).Source
+if (-not $nodeExePath -or -not (Test-Path $nodeExePath)) {
+    if (Test-Path "C:\Program Files\nodejs\node.exe") {
+        $nodeExePath = "C:\Program Files\nodejs\node.exe"
+    } else {
+        $existingNode = Get-ChildItem "$RELEASE_DIR" -Filter "node.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($existingNode) { $nodeExePath = $existingNode.FullName }
+    }
+}
+if ($nodeExePath) {
+    $nodeDir = Split-Path $nodeExePath
+    $env:PATH = "$nodeDir;$env:PATH"
+}
+
+# 2. Bump version, generate changelog, then build
 Set-Location $ROOT_DIR
-$env:PATH = "C:\Program Files\nodejs;$env:PATH"
 Write-Host "Step 1: Bumping Version & Generating Changelog..." -ForegroundColor Yellow
-node ./scripts/bump-version.js
+if ($nodeExePath) {
+    & "$nodeExePath" ./scripts/bump-version.js
+} else {
+    node ./scripts/bump-version.js
+}
 
 Write-Host "Step 2: Compiling Frontend and Backend..." -ForegroundColor Yellow
-npm run build
+if (Get-Command npm -ErrorAction SilentlyContinue) {
+    npm run build
+} else {
+    Set-Location (Join-Path $ROOT_DIR "client")
+    & "$nodeExePath" (Join-Path $ROOT_DIR "client\node_modules\vite\bin\vite.js") build
+    Set-Location (Join-Path $ROOT_DIR "server")
+    & "$nodeExePath" (Join-Path $ROOT_DIR "server\node_modules\typescript\bin\tsc")
+    Set-Location $ROOT_DIR
+}
 
 # Read updated version from package.json after rebuild
 $PKG_JSON = Get-Content "$ROOT_DIR\package.json" -Raw | ConvertFrom-Json
@@ -21,7 +47,7 @@ if (-not $VERSION) { $VERSION = "1.0.0" }
 $APP_NAME = "ApexBill-v$VERSION-Portable"
 $BUNDLE_DIR = Join-Path $RELEASE_DIR $APP_NAME
 
-# 2. Prepare Release Directory
+# 3. Prepare Release Directory
 if (Test-Path $BUNDLE_DIR) {
     try { Remove-Item -Path $BUNDLE_DIR -Recurse -Force -ErrorAction SilentlyContinue } catch {}
 }
@@ -29,14 +55,9 @@ New-Item -ItemType Directory -Path $BUNDLE_DIR -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $BUNDLE_DIR "runtime") -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $BUNDLE_DIR "app") -Force | Out-Null
 
-# 3. Locate Portable node.exe
-Write-Host "Step 2: Bundling Standalone Node.js Runtime..." -ForegroundColor Yellow
-$nodeExePath = (Get-Command node.exe -ErrorAction SilentlyContinue).Source
-if (-not $nodeExePath) {
-    $nodeExePath = "C:\Program Files\nodejs\node.exe"
-}
-
-if (Test-Path $nodeExePath) {
+# 4. Bundle Standalone Node.js Runtime
+Write-Host "Step 3: Bundling Standalone Node.js Runtime..." -ForegroundColor Yellow
+if ($nodeExePath -and (Test-Path $nodeExePath)) {
     Copy-Item -Path $nodeExePath -Destination (Join-Path $BUNDLE_DIR "runtime\node.exe") -Force
     Write-Host "   Bundled standalone runtime: $nodeExePath" -ForegroundColor Green
 } else {

@@ -241,6 +241,7 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
                 <QRCodeSVG value={upiLink} size={105} />
               </div>
               <p style={{ fontSize: 10, fontWeight: 700, color: '#0f172a', margin: '6px 0 2px 0', fontFamily: 'monospace' }}>{upiId}</p>
+              <p style={{ fontSize: 9, color: '#475569', margin: '1px 0 2px 0', fontWeight: 600 }}>Note: Invoice {doc.doc_number}</p>
               <p style={{ fontSize: 9, color: '#64748b', margin: 0 }}>GPay · PhonePe · Paytm · BHIM</p>
             </div>
           )}

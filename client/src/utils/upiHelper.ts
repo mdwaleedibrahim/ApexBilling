@@ -9,13 +9,17 @@ export function buildUpiLink(params: {
   payeeName: string
   amount: number
   docNumber: string
+  note?: string
 }): string {
-  const { upiId, payeeName, amount, docNumber } = params
+  const { upiId, payeeName, amount, docNumber, note } = params
+  // NPCI UPI spec: 'tn' is the transaction note/comment displayed in UPI apps (PhonePe, GPay, Paytm)
+  const comment = note || (docNumber ? `Invoice No: ${docNumber}` : 'Invoice Payment')
   const p = new URLSearchParams({
     pa: upiId,
     pn: payeeName,
     am: amount.toFixed(2),
-    tn: `Bill_${docNumber}`,
+    tn: comment,
+    tr: docNumber || '',
     cu: 'INR',
   })
   return `upi://pay?${p.toString()}`

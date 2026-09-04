@@ -90,12 +90,19 @@ cd server && npm install && cd ..
 cd client && npm install && cd ..
 ```
 
-### Starting Development Mode
+### Starting Development Mode (Local Session)
 ```bash
 npm run dev
 ```
 
-### Compiling Production Release
+### Compiling Production Assets
 ```bash
 npm run build
 ```
+
+### Generating a New Versioned Release Package
+To bump the version across all manifests, update `CHANGELOG.txt` with git history, compile frontend and backend, and produce a new standalone portable package under `release/`:
+```bash
+npm run release
+```
+> **Note**: Items in `release/` are **only** updated when `npm run release` is executed. Local development and validation sessions run directly from source.
