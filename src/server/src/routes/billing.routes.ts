@@ -10,8 +10,25 @@ import { randomUUID } from 'crypto';
 function generateDocNumber(db: any, type: 'INVOICE' | 'QUOTATION', prefix = 'INV', qprefix = 'QUO'): string {
   const p = type === 'INVOICE' ? prefix : qprefix;
   const year = new Date().getFullYear();
-  const count = (db.prepare(`SELECT COUNT(*) as c FROM documents WHERE doc_type = ?`).get(type) as any).c + 1;
-  return `${p}-${year}-${String(count).padStart(4, '0')}`;
+  const pattern = `${p}-${year}-%`;
+  const existingNumbers = db.prepare(`SELECT doc_number FROM documents WHERE doc_number LIKE ?`).all(pattern) as Array<{ doc_number: string }>;
+  let maxSeq = 0;
+  for (const row of existingNumbers) {
+    const parts = row.doc_number.split('-');
+    if (parts.length >= 3) {
+      const seq = parseInt(parts[2], 10);
+      if (!isNaN(seq) && seq > maxSeq) {
+        maxSeq = seq;
+      }
+    }
+  }
+  let nextSeq = maxSeq + 1;
+  let candidate = `${p}-${year}-${String(nextSeq).padStart(4, '0')}`;
+  while (db.prepare(`SELECT 1 FROM documents WHERE doc_number = ?`).get(candidate)) {
+    nextSeq++;
+    candidate = `${p}-${year}-${String(nextSeq).padStart(4, '0')}`;
+  }
+  return candidate;
 }
 
 function validateStockLimits(db: any, rawItems: any[], existingDocId: string | null = null): string | null {
@@ -91,7 +108,9 @@ export async function billingRoutes(app: FastifyInstance) {
       if (status && status !== 'undefined') { sql += ' AND d.payment_status = ?'; params.push(status); }
       if (search && search.trim() && search !== 'undefined') { sql += ' AND (d.doc_number LIKE ? OR d.customer_snapshot LIKE ?)'; params.push(`%${search.trim()}%`, `%${search.trim()}%`); }
       sql += ' ORDER BY d.doc_date DESC, d.created_at DESC';
-      sql += ` LIMIT ${parseInt(limit || '100')}`;
+      const safeLimit = Math.max(1, Math.min(1000, parseInt(limit || '100', 10) || 100));
+      sql += ' LIMIT ?';
+      params.push(safeLimit);
       return reply.send(getDb().prepare(sql).all(...params));
     }
   );
@@ -115,6 +134,13 @@ export async function billingRoutes(app: FastifyInstance) {
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
 
     const totals = calculateInvoiceTotals(rawItems, discount_pct);
+
+    // Enforce stock restrictions if enabled
+    if (doc_type === 'INVOICE' && payment_status !== 'CANCELLED') {
+      const stockErr = validateStockLimits(db, totals.items);
+      if (stockErr) return reply.status(400).send({ error: stockErr });
+    }
+
     const id = randomUUID();
     const doc_number = generateDocNumber(db, doc_type);
     const snapshot = typeof customer_snapshot === 'string' ? customer_snapshot : JSON.stringify(customer_snapshot || {});
@@ -173,6 +199,14 @@ export async function billingRoutes(app: FastifyInstance) {
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
 
     const totals = calculateInvoiceTotals(rawItems, discount_pct);
+    const newStatus = payment_status || existing.payment_status;
+
+    // Enforce stock restrictions if enabled
+    if (existing.doc_type === 'INVOICE' && newStatus !== 'CANCELLED') {
+      const stockErr = validateStockLimits(db, totals.items, req.params.id);
+      if (stockErr) return reply.status(400).send({ error: stockErr });
+    }
+
     const termsStr = terms_and_conditions !== undefined
       ? (typeof terms_and_conditions === 'string' ? terms_and_conditions : JSON.stringify(terms_and_conditions))
       : existing.terms_and_conditions;
@@ -256,6 +290,12 @@ export async function billingRoutes(app: FastifyInstance) {
       const payment_mode = req.body?.payment_mode || 'CASH';
       const payment_status = req.body?.payment_status || 'PAID';
 
+      // Enforce stock restrictions if enabled
+      if (payment_status !== 'CANCELLED') {
+        const stockErr = validateStockLimits(db, items.map(i => ({ productId: i.product_id, quantity: i.quantity })));
+        if (stockErr) return reply.status(400).send({ error: stockErr });
+      }
+
       const invoiceId = randomUUID();
       const invoiceNum = generateDocNumber(db, 'INVOICE');
 
@@ -271,26 +311,27 @@ export async function billingRoutes(app: FastifyInstance) {
             id, doc_type, doc_number, parent_doc_id, revision_number, doc_date,
             customer_phone, customer_snapshot, gross_subtotal, discount_pct, discount_amount,
             taxable_amount, cgst_total, sgst_total, round_off, grand_total,
-            payment_mode, payment_status, selected_upi_id, notes
-          ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            payment_mode, payment_status, selected_upi_id, notes, terms_and_conditions, hide_tax_on_invoice
+          ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         `).run(
           invoiceId, 'INVOICE', invoiceNum, quo.id, 1, new Date().toISOString().split('T')[0],
           quo.customer_phone, quo.customer_snapshot, quo.gross_subtotal, quo.discount_pct, quo.discount_amount,
           quo.taxable_amount, quo.cgst_total, quo.sgst_total, quo.round_off, quo.grand_total,
-          payment_mode, payment_status, quo.selected_upi_id, quo.notes
+          payment_mode, payment_status, quo.selected_upi_id, quo.notes, quo.terms_and_conditions || null, quo.hide_tax_on_invoice || 0
         );
 
         const insertItem = db.prepare(`
           INSERT INTO document_items (id, document_id, product_id, product_name, hsn_sac, unit, quantity, unit_price,
-            gross_amount, taxable_value, gst_rate, cgst_rate, cgst_amount, sgst_rate, sgst_amount, total_amount)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            gross_amount, taxable_value, gst_rate, cgst_rate, cgst_amount, sgst_rate, sgst_amount, total_amount, purchase_price)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         `);
 
         for (const item of items) {
           insertItem.run(
             randomUUID(), invoiceId, item.product_id, item.product_name, item.hsn_sac, item.unit || 'PCS',
             item.quantity, item.unit_price, item.gross_amount, item.taxable_value,
-            item.gst_rate, item.cgst_rate, item.cgst_amount, item.sgst_rate, item.sgst_amount, item.total_amount
+            item.gst_rate, item.cgst_rate, item.cgst_amount, item.sgst_rate, item.sgst_amount, item.total_amount,
+            item.purchase_price || 0
           );
         }
       });

@@ -1,7 +1,7 @@
 # ApexBill — Modern Billing, POS & Inventory Management System
 
 <p align="center">
-  <img src="screenshots/01-dashboard.png" alt="ApexBill Dashboard" width="100%" />
+  <img src="docs/screenshots/01-dashboard.png" alt="ApexBill Dashboard" width="100%" />
 </p>
 
 <p align="center">
@@ -74,43 +74,43 @@
 
 ### 1. Sales Performance & PnL Analytics Dashboard
 Monitor daily turnover, gross revenue, cost of goods, GST liability, and net profit margins in real time.
-![Sales Dashboard](screenshots/01-dashboard.png)
+![Sales Dashboard](docs/screenshots/01-dashboard.png)
 
 ---
 
 ### 2. POS Billing Workspace (5-Slot Multi-Cart)
 High-speed checkout with 5 hold slots, live SKU search, purchase price protection, customer auto-complete, and instant GST calculation.
-![POS Billing Workspace](screenshots/02-pos-billing.png)
+![POS Billing Workspace](docs/screenshots/02-pos-billing.png)
 
 ---
 
 ### 3. Executive A4 GST Invoice & Quotation Preview
 Clean, high-impact A4 tax invoice template featuring itemized GST breakdown, bank payment info, and dynamic NPCI QR code.
-![Invoice Preview](screenshots/04-invoice-preview.png)
+![Invoice Preview](docs/screenshots/04-invoice-preview.png)
 
 ---
 
 ### 4. Records & Document History
 Filter and manage historical invoices, track revision numbers, void transactions, or convert quotations to tax invoices.
-![Records History](screenshots/03-records-history.png)
+![Records History](docs/screenshots/03-records-history.png)
 
 ---
 
 ### 5. Inventory & Multi-Unit Catalog
 Track stock quantities, HSN/SAC codes, profit margins, and tax rates with batch CSV import/export support.
-![Inventory Catalog](screenshots/05-inventory.png)
+![Inventory Catalog](docs/screenshots/05-inventory.png)
 
 ---
 
 ### 6. Customer Master & Credit Directory
 Search customer records, track outstanding balances, and view transaction histories.
-![Customer Directory](screenshots/06-customers.png)
+![Customer Directory](docs/screenshots/06-customers.png)
 
 ---
 
 ### 7. Seller Profile, Multi-UPI & Admin Settings
 Manage business details, banking info, multi-UPI QR accounts, POS display toggles, and data backup/restore.
-![Settings Modal](screenshots/07-settings.png)
+![Settings Modal](docs/screenshots/07-settings.png)
 
 ---
 
@@ -157,31 +157,38 @@ git clone https://github.com/mdwaleedibrahim/ApexBilling.git
 cd ApexBilling
 
 # Install Server dependencies
-cd server
+cd src/server
 npm install
 
 # Install Client dependencies
-cd ..\client
+cd ../client
 npm install
+cd ../..
 ```
 
 #### 2. Run in Development Mode
 ```powershell
-# In the root directory:
+# Quick launcher via PowerShell:
+powershell -ExecutionPolicy Bypass -File ./scripts/dev.ps1
+
+# Or run via npm root commands:
 npm run dev
 
 # Or run frontend and backend individually:
 # Terminal 1 (Fastify Server on port 54321):
-cd server && npm run dev
+cd src/server && npm run dev
 
 # Terminal 2 (Vite Client on port 5173):
-cd client && npm run dev
+cd src/client && npm run dev
 ```
-Open **`http://localhost:5173`** for live-reloading client development.
+Open **`http://localhost:5173`** for live-reloading client development, or **`http://localhost:54321`** for unified API & static bundle.
 
 #### 3. Production Build
 ```powershell
-# Build client and bundle into server/public:
+# Fast build batch launcher:
+scripts\build.bat
+
+# Or via npm root command:
 npm run build
 
 # Start production server (serves both API & Frontend):
@@ -192,7 +199,8 @@ npm start
 #### 4. Package Portable Windows Release
 ```powershell
 # Generates a self-contained ZIP bundle in /release:
-npm run package
+powershell -ExecutionPolicy Bypass -File ./scripts/release.ps1
+# or: npm run package
 ```
 
 ---
@@ -222,6 +230,10 @@ ApexBill uses an embedded SQLite database engine with **Write-Ahead Logging (WAL
   ```
   %APPDATA%\ApexBill\billing_app.db
   ```
+- **Concurrency & Lock Safeguards**: Configured with `PRAGMA busy_timeout = 5000` to prevent `SQLITE_BUSY` errors during concurrent transactions.
+- **Dedicated Analytical Indexes**:
+  - `idx_documents_customer_phone` for instant customer purchase histories.
+  - `idx_documents_analytics` (`doc_type, doc_date, payment_status`) for real-time dashboard analytics.
 - **Automatic Migrations**: Database tables, indexes, and columns are migrated on startup without data loss.
 - **Atomic Transactions**: Multi-table operations (billing, stock reconciliation, and customer updates) execute inside isolated transactions.
 
@@ -246,33 +258,39 @@ ApexBill uses an embedded SQLite database engine with **Write-Ahead Logging (WAL
 
 ```
 ApexBill/
-├── client/                     # React + Vite frontend application
-│   ├── src/
-│   │   ├── components/         # Modular UI views
-│   │   │   ├── billing/        # POS workspace, cart items, customer selector
-│   │   │   ├── dashboard/      # Sales metrics, PnL analytics, trend charts
-│   │   │   ├── history/        # Invoice register & quotation conversion
-│   │   │   ├── inventory/      # Product catalog, stock alerts, CSV modal
-│   │   │   ├── customers/      # Customer directory & outstanding balances
-│   │   │   ├── settings/       # Business profile, multi-UPI, data backup
-│   │   │   └── print/          # A4 GST Tax Invoice & 80mm ESC/POS templates
-│   │   ├── store/              # Zustand stores (billing, slots, dialogs)
-│   │   └── utils/              # GST calculation engine & UPI generator
-│   └── package.json
-├── server/                     # Fastify backend server
-│   ├── src/
-│   │   ├── db/                 # SQLite connection, migrations, schema.sql
-│   │   ├── routes/             # REST API endpoints (billing, inventory, etc.)
-│   │   └── services/           # GST math, stock reconciler, CSV importer
-│   ├── public/                 # Compiled frontend assets for unified hosting
-│   └── package.json
-├── scripts/                    # Release packaging and utility scripts
+├── src/
+│   ├── client/                 # React + Vite frontend application
+│   │   ├── src/
+│   │   │   ├── components/     # Modular UI views
+│   │   │   │   ├── billing/    # POS workspace, cart items, customer selector
+│   │   │   │   ├── dashboard/  # Sales metrics, PnL analytics, trend charts
+│   │   │   │   ├── history/    # Invoice register & quotation conversion
+│   │   │   │   ├── inventory/  # Product catalog, stock alerts, CSV modal
+│   │   │   │   ├── customers/  # Customer directory & outstanding balances
+│   │   │   │   ├── settings/   # Business profile, multi-UPI, data backup
+│   │   │   │   └── print/      # A4 GST Tax Invoice & 80mm ESC/POS templates
+│   │   │   ├── store/          # Zustand stores (billing, slots, dialogs)
+│   │   │   └── utils/          # GST calculation engine & UPI generator
+│   │   └── package.json
+│   └── server/                 # Fastify backend server
+│       ├── src/
+│       │   ├── db/             # SQLite connection, migrations, schema.sql
+│       │   ├── routes/         # REST API endpoints (billing, inventory, etc.)
+│       │   └── services/       # GST math, stock reconciler, CSV importer
+│       ├── public/             # Compiled frontend assets for unified hosting
+│       └── package.json
+├── scripts/                    # Build, dev, release packaging and utility scripts
+│   ├── build.bat               # Fast build batch launcher
+│   ├── build.ps1               # Automated frontend & backend build script
+│   ├── dev.ps1                 # Local dev server session orchestrator
+│   ├── release.ps1             # 1-click release packager shortcut
 │   ├── package-release.ps1     # 1-click portable release builder
+│   ├── seed-sample-data.js     # Demo & sample data seeder
+│   ├── start-service.vbs       # Silent background service launcher
 │   ├── bump-version.js         # Automated changelog & versioning
 │   ├── capture-screenshots.js  # Screenshot generator
 │   └── stop-server.js          # Process termination helper
-├── screenshots/                # Application screenshot gallery
-├── docs/screenshots/           # Documentation screenshot assets
+├── docs/screenshots/           # Documentation screenshot gallery
 └── package.json                # Root workflow commands
 ```
 

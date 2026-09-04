@@ -165,7 +165,7 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
               {items.map((item, idx) => {
                 const netPrice = item.unitPrice * (1 - discountPct / 100)
                 const isBelowCost = !!(item.purchasePrice && netPrice < item.purchasePrice)
-                const query = item.productName ? item.productName.trim().toLowerCase() : ''
+                const query = (rowSearchId === item.id && item.productName) ? item.productName.trim().toLowerCase() : ''
                 const matchingProducts = query ? allProducts.filter(p =>
                   p.name.toLowerCase().includes(query) ||
                   (p.sku && p.sku.toLowerCase().includes(query)) ||

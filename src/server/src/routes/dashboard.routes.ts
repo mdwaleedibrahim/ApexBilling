@@ -78,7 +78,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
       `).get(...params) as any;
 
       const cogsRow = db.prepare(`
-        SELECT COALESCE(SUM(di.quantity * COALESCE(p.purchase_price, 0)), 0) as cogs
+        SELECT COALESCE(SUM(di.quantity * COALESCE(NULLIF(di.purchase_price, 0), p.purchase_price, 0)), 0) as cogs
         FROM document_items di
         JOIN documents d ON d.id = di.document_id
         LEFT JOIN products p ON p.id = di.product_id

@@ -17,10 +17,26 @@ import { adminRoutes } from './routes/admin.routes.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = 54321;
 
-const app = Fastify({ logger: { level: 'info' } });
+const app = Fastify({
+  logger: { level: 'info' },
+  bodyLimit: 52428800, // 50MB to support large backups and product CSV imports
+});
 
 // ── Plugins ────────────────────────────────────────────────────────────────
-await app.register(cors, { origin: true });
+// Secure CORS: restrict strictly to local loopback and same-origin/desktop requests
+await app.register(cors, {
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);
+    try {
+      const parsed = new URL(origin);
+      if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') {
+        return cb(null, true);
+      }
+    } catch {}
+    return cb(new Error('Cross-Origin Request Blocked by ApexBill Security Policy'), false);
+  },
+  credentials: true,
+});
 
 // Serve built React app from server/public
 const publicDir = path.join(__dirname, '..', 'public');

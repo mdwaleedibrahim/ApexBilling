@@ -3,6 +3,17 @@
 ========================================================================
 
 ========================================================================
+ApexBill Release v2.1.0 - 2026-09-04 18:31:17
+========================================================================
+Changes & Commits in this Build:
+* remove upi id and notes from print (c85a8c0)
+  * improve printing and remove redundant HSN values (40f2ad6)
+  * improve build generation and add invoice number in UPI notes (6f023d3)
+  * feat: implement portable Windows release packaging and add invoice number in UPI payment notes (a795fe5)
+  * Opaque Dropdowns, Manual Item Inventory Sync, and Terms & Conditions (4ebe334)
+  * feat: add automated sample data seeding and update application screenshots (f1820d1)
+
+========================================================================
 ApexBill Release v1.10.0 - 2026-08-24 20:09:44
 ========================================================================
 Changes & Commits in this Build:

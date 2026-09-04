@@ -1,19 +1,19 @@
 {
   "name": "apexbill",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Modern Billing & POS System for Windows",
   "private": true,
   "scripts": {
-    "dev:server": "cd server && npm run dev",
-    "dev:client": "cd client && npm run dev",
+    "dev:server": "cd src/server && npm run dev",
+    "dev:client": "cd src/client && npm run dev",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "build:server": "cd server && npm run build",
-    "build:client": "cd client && npm run build",
+    "build:server": "cd src/server && npm run build",
+    "build:client": "cd src/client && npm run build",
     "build": "npm run build:client && npm run build:server",
     "rebuild": "npm run build",
     "package": "powershell -ExecutionPolicy Bypass -File ./scripts/package-release.ps1",
     "release": "powershell -ExecutionPolicy Bypass -File ./scripts/package-release.ps1",
-    "start": "cd server && npm start",
+    "start": "cd src/server && npm start",
     "stop": "node ./scripts/stop-server.js"
   },
   "devDependencies": {

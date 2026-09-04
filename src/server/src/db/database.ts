@@ -44,6 +44,7 @@ export function getDb(): DatabaseSync {
     _db.exec('PRAGMA journal_mode = WAL')
     _db.exec('PRAGMA foreign_keys = ON')
     _db.exec('PRAGMA synchronous = NORMAL')
+    _db.exec('PRAGMA busy_timeout = 5000')
     const schema = fs.readFileSync(SCHEMA_PATH, 'utf-8')
     _db.exec(schema)
     try { _db.exec('ALTER TABLE seller_profile ADD COLUMN enable_scan_to_pay INTEGER DEFAULT 1') } catch {}
@@ -67,6 +68,8 @@ export function getDb(): DatabaseSync {
     try { _db.exec('ALTER TABLE document_items ADD COLUMN purchase_price DECIMAL(10,2) DEFAULT 0') } catch {}
     try { _db.exec('ALTER TABLE document_items ADD COLUMN unit TEXT DEFAULT \'PCS\'') } catch {}
     try { _db.exec('CREATE INDEX IF NOT EXISTS idx_document_items_doc_id ON document_items(document_id)') } catch {}
+    try { _db.exec('CREATE INDEX IF NOT EXISTS idx_documents_customer_phone ON documents(customer_phone)') } catch {}
+    try { _db.exec('CREATE INDEX IF NOT EXISTS idx_documents_analytics ON documents(doc_type, payment_status, doc_date)') } catch {}
     console.log(`[DB] SQLite connected → ${DB_PATH}`)
   }
   return _db
@@ -85,10 +88,13 @@ export function withTransaction<T>(fn: () => T): T {
   db.exec('BEGIN')
   try {
     const result = fn()
+    if (result && typeof (result as any).then === 'function') {
+      throw new Error('[DB] withTransaction callbacks must be strictly synchronous')
+    }
     db.exec('COMMIT')
     return result
   } catch (err) {
-    db.exec('ROLLBACK')
+    try { db.exec('ROLLBACK') } catch {}
     throw err
   } finally {
     _inTransaction = false

@@ -1,5 +1,5 @@
 // components/billing/SummaryCheckoutCard.tsx — Totals + Checkout panel
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { CreditCard, Banknote, QrCode, Landmark, Clock, X } from 'lucide-react'
 import { useBillingStore } from '../../store/useBillingStore'
 import { formatINR } from '../../utils/upiHelper'
@@ -23,10 +23,12 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showUpiModal, setShowUpiModal] = useState(false)
+  const submittingRef = useRef(false)
 
   const upiAccounts = sellerProfile?.upiAccounts || []
 
   const handleSubmit = async (mode?: string, status?: string) => {
+    if (submittingRef.current) return
     if (!items.length) { setError('Add at least one item'); return }
 
     const belowCostItem = items.find(item => item.purchasePrice && (item.unitPrice * (1 - discountPct / 100)) < item.purchasePrice)
@@ -38,6 +40,7 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
       return
     }
 
+    submittingRef.current = true
     setLoading(true); setError('')
     try {
       const pm = mode || paymentMode
@@ -92,6 +95,7 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
     } catch (e: any) {
       setError(e.message)
     } finally {
+      submittingRef.current = false
       setLoading(false)
     }
   }
@@ -105,6 +109,35 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
       handleSubmit('UPI', 'PAID')
     }
   }
+
+  const handleSubmitRef = useRef(handleSubmit)
+  handleSubmitRef.current = handleSubmit
+  const handleUpiCheckoutRef = useRef(handleUpiCheckout)
+  handleUpiCheckoutRef.current = handleUpiCheckout
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (submittingRef.current) return
+      if (e.key === 'F7') {
+        e.preventDefault()
+        handleSubmitRef.current('CASH', 'PAID')
+      } else if (e.key === 'F8') {
+        if (!editingDocId && docType === 'INVOICE') {
+          e.preventDefault()
+          handleUpiCheckoutRef.current()
+        }
+      } else if (e.key === 'F4') {
+        e.preventDefault()
+        if (docType === 'INVOICE') {
+          setDocType('QUOTATION')
+        } else {
+          handleSubmitRef.current('CASH', 'UNPAID')
+        }
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [docType, editingDocId])
 
   const row = (label: string, value: string, cls = '') => (
     <div className={`flex items-center justify-between text-sm ${cls}`}>

@@ -15,6 +15,7 @@ export default function CustomerSelector() {
   const [addMode, setAddMode] = useState(false)
   const [form, setForm] = useState({ phone: '', name: '', email: '', gstin: '', billing_address: '', state_code: '36' })
   const inputRef = useRef<HTMLInputElement>(null)
+  const blurTimerRef = useRef<any>(null)
 
   const loadAll = async () => {
     try {
@@ -25,7 +26,12 @@ export default function CustomerSelector() {
     }
   }
 
-  useEffect(() => { loadAll() }, [])
+  useEffect(() => {
+    loadAll()
+    return () => {
+      if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
+    }
+  }, [])
 
   const filterCustomers = (q: string) => {
     setQuery(q)
@@ -111,7 +117,10 @@ export default function CustomerSelector() {
             onChange={e => filterCustomers(e.target.value)}
             onKeyDown={handleKey}
             onFocus={handleFocus}
-            onBlur={() => setTimeout(() => setOpen(false), 200)}
+            onBlur={() => {
+              if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
+              blurTimerRef.current = setTimeout(() => setOpen(false), 200)
+            }}
           />
         </div>
         <button onClick={() => setAddMode(true)} className="btn-secondary px-3" title="New Customer"><UserPlus size={16} /></button>

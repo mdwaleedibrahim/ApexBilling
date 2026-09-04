@@ -16,6 +16,7 @@ const STATUS_BADGE: Record<string, string> = {
 export default function RecordsHistoryTab({ onEdit }: Props) {
   const [docs, setDocs] = useState<any[]>([])
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [loading, setLoading] = useState(false)
@@ -24,6 +25,11 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
   const [profile, setProfile] = useState<any>(null)
   const store = useBillingStore()
 
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 250)
+    return () => clearTimeout(timer)
+  }, [search])
+
   const load = async () => {
     setLoading(true)
     try {
@@ -31,7 +37,7 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
         api.documents.list({
           type: typeFilter || undefined,
           status: statusFilter || undefined,
-          search: search || undefined
+          search: debouncedSearch || undefined
         }),
         api.settings.getProfile()
       ])
@@ -53,7 +59,7 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
     }
   }
 
-  useEffect(() => { load() }, [search, typeFilter, statusFilter])
+  useEffect(() => { load() }, [debouncedSearch, typeFilter, statusFilter])
 
   const handleView = async (doc: any) => {
     const full = await api.documents.get(doc.id)

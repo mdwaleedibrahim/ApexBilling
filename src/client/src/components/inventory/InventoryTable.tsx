@@ -47,9 +47,13 @@ export default function InventoryTable() {
 
   const handleCsvFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return
-    const text = await file.text()
-    const result = await api.inventory.importCsv(text)
-    setCsvResult(result); load()
+    try {
+      const text = await file.text()
+      const result = await api.inventory.importCsv(text)
+      setCsvResult(result); load()
+    } finally {
+      e.target.value = ''
+    }
   }
 
   const f = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }))
