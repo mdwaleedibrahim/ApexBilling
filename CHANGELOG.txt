@@ -6,7 +6,7 @@
 ApexBill Release v2.1.0 - 2026-09-04 18:31:17
 ========================================================================
 Changes & Commits in this Build:
-* remove upi id and notes from print (c85a8c0)
+  * remove upi id and notes from print (c85a8c0)
   * improve printing and remove redundant HSN values (40f2ad6)
   * improve build generation and add invoice number in UPI notes (6f023d3)
   * feat: implement portable Windows release packaging and add invoice number in UPI payment notes (a795fe5)
@@ -17,7 +17,7 @@ Changes & Commits in this Build:
 ApexBill Release v1.10.0 - 2026-08-24 20:09:44
 ========================================================================
 Changes & Commits in this Build:
-* feat: default show_purchase_price_in_pos to true (1) for new and existing databases (f6cffb0)
+  * feat: default show_purchase_price_in_pos to true (1) for new and existing databases (f6cffb0)
   * fix: change qty spelling to quantity and correct case in warning confirm popup messages (1d36def)
   * feat: show product details & HSN code in stock-limit warning confirm popup (7703f80)
   * fix: make purchase price read-only in POS; remove stock exception throwing in reconciler service to allow negative stock overrides (ef8b34f)
@@ -28,7 +28,7 @@ Changes & Commits in this Build:
 ApexBill Release v1.9.0 - 2026-08-24 19:58:01
 ========================================================================
 Changes & Commits in this Build:
-* fix: change qty spelling to quantity and correct case in warning confirm popup messages (1d36def)
+  * fix: change qty spelling to quantity and correct case in warning confirm popup messages (1d36def)
   * feat: show product details & HSN code in stock-limit warning confirm popup (7703f80)
   * fix: make purchase price read-only in POS; remove stock exception throwing in reconciler service to allow negative stock overrides (ef8b34f)
   * feat: warn and highlight items in red if order selling price is less than purchase price (8b1d5a8)
@@ -39,7 +39,7 @@ Changes & Commits in this Build:
 ApexBill Release v1.8.0 - 2026-08-24 18:09:02
 ========================================================================
 Changes & Commits in this Build:
-* perf: add document_items index, optimize MemorySlotBar event listeners, and add search blur timer cleanup (ba1a462)
+  * perf: add document_items index, optimize MemorySlotBar event listeners, and add search blur timer cleanup (ba1a462)
   * chore: automate changelog extraction from git commits in release packager (9defd58)
   * feat: manual release workflow, version bump automation, POS terminology, unit mapping, POS toggles, and title bar versioning (2457231)
   * feat: Add PnL analytics, Admin data resiliency settings, and 12-month sales trend (0d23472)
@@ -50,7 +50,7 @@ Changes & Commits in this Build:
 ApexBill Release v1.7.0 - 2026-08-24 18:08:45
 ========================================================================
 Changes & Commits in this Build:
-* perf: add document_items index, optimize MemorySlotBar event listeners, and add search blur timer cleanup (ba1a462)
+  * perf: add document_items index, optimize MemorySlotBar event listeners, and add search blur timer cleanup (ba1a462)
   * chore: automate changelog extraction from git commits in release packager (9defd58)
   * feat: manual release workflow, version bump automation, POS terminology, unit mapping, POS toggles, and title bar versioning (2457231)
   * feat: Add PnL analytics, Admin data resiliency settings, and 12-month sales trend (0d23472)
@@ -61,7 +61,7 @@ Changes & Commits in this Build:
 ApexBill Release v1.6.0 - 2026-08-24 18:04:29
 ========================================================================
 Changes & Commits in this Build:
-* chore: automate changelog extraction from git commits in release packager (9defd58)
+  * chore: automate changelog extraction from git commits in release packager (9defd58)
   * feat: manual release workflow, version bump automation, POS terminology, unit mapping, POS toggles, and title bar versioning (2457231)
   * feat: Add PnL analytics, Admin data resiliency settings, and 12-month sales trend (0d23472)
   * style: Redesign invoice & quotation templates with executive modern typography & layout (46b49a4)
@@ -72,7 +72,7 @@ Changes & Commits in this Build:
 ApexBill Release v1.5.0 - 2026-08-24 17:55:45
 ========================================================================
 Changes & Commits in this Build:
-* feat: manual release workflow, version bump automation, POS terminology, unit mapping, POS toggles, and title bar versioning (2457231)
+  * feat: manual release workflow, version bump automation, POS terminology, unit mapping, POS toggles, and title bar versioning (2457231)
   * feat: Add PnL analytics, Admin data resiliency settings, and 12-month sales trend (0d23472)
   * style: Redesign invoice & quotation templates with executive modern typography & layout (46b49a4)
   * chore: Ignore release/ build output folder in .gitignore (08b2b5e)

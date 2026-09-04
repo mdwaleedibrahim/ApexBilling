@@ -43,7 +43,13 @@ const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
 let gitCommits = '';
 try {
-  gitCommits = execSync('git log -n 6 --pretty=format:"  * %s (%h)"', { cwd: rootDir, encoding: 'utf8' }).trim();
+  const rawCommits = execSync('git log -n 6 --pretty=format:"%s (%h)"', { cwd: rootDir, encoding: 'utf8' }).trim();
+  gitCommits = rawCommits
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line => `  * ${line}`)
+    .join('\n');
 } catch (e) {
   gitCommits = '  * Automated release build and package update.';
 }
