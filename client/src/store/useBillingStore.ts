@@ -79,7 +79,14 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   revisionNumber: 1,
   totals: emptyTotals(),
 
-  setDocType: (t) => set({ docType: t }),
+  setDocType: (t) => {
+    const prev = get().docType
+    if (prev !== t && !get().editingDocId) {
+      set({ docType: t, selectedTerms: [] })
+    } else {
+      set({ docType: t })
+    }
+  },
   setCustomer: (c) => set({ customer: c }),
   setDiscountPct: (d) => {
     const items = get().items

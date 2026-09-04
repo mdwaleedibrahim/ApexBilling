@@ -99,7 +99,7 @@ export default function CustomerSelector() {
   )
 
   return (
-    <div className="relative">
+    <div className="relative z-30">
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
@@ -117,16 +117,24 @@ export default function CustomerSelector() {
         <button onClick={() => setAddMode(true)} className="btn-secondary px-3" title="New Customer"><UserPlus size={16} /></button>
       </div>
       {open && results.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-1.5 bg-[#111827] border border-gray-700/80 rounded-xl shadow-2xl z-50 overflow-hidden max-h-64 overflow-y-auto divide-y divide-gray-800/60" style={{ backgroundColor: '#111827' }}>
+        <div
+          className="absolute top-full left-0 right-0 mt-1.5 bg-[#111827] border border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden max-h-64 overflow-y-auto divide-y divide-gray-800"
+          style={{ backgroundColor: '#111827', opacity: 1 }}
+        >
           {results.map((r, i) => (
-            <div key={r.phone}
-              className={`px-4 py-3 cursor-pointer text-sm transition-colors ${i === highlighted ? 'bg-brand-600/30 text-brand-200' : 'hover:bg-gray-800/80 text-gray-200'}`}
-              onMouseDown={() => select(r)}>
+            <div
+              key={r.phone}
+              className={`px-4 py-3 cursor-pointer text-sm transition-colors ${i === highlighted ? 'bg-brand-600 text-white' : 'hover:bg-gray-800 text-gray-200'}`}
+              style={{ backgroundColor: i === highlighted ? '#2563eb' : '#111827' }}
+              onMouseDown={() => select(r)}
+            >
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-white">{r.name}</span>
-                <span className="text-gray-400 text-xs font-mono">{r.phone}</span>
+                <span className={i === highlighted ? 'text-blue-100 text-xs font-mono' : 'text-gray-400 text-xs font-mono'}>{r.phone}</span>
               </div>
-              {r.billing_address && <p className="text-xs text-gray-400 truncate mt-0.5">{r.billing_address}</p>}
+              {r.billing_address && (
+                <p className={`text-xs truncate mt-0.5 ${i === highlighted ? 'text-blue-200' : 'text-gray-400'}`}>{r.billing_address}</p>
+              )}
             </div>
           ))}
         </div>

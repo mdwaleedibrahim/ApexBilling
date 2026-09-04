@@ -29,9 +29,10 @@ export default function TermsAndConditionsCard({ sellerProfile, onProfileUpdated
   const [saveSuccess, setSaveSuccess] = useState(false)
 
   // Parse available terms for current mode from sellerProfile
-  const getAvailableTerms = (): string[] => {
+  const getAvailableTerms = (type?: string): string[] => {
+    const isInv = (type || docType) === 'INVOICE'
     try {
-      if (isInvoice) {
+      if (isInv) {
         if (!sellerProfile?.invoice_terms) return DEFAULT_INVOICE_TERMS
         const parsed = typeof sellerProfile.invoice_terms === 'string'
           ? JSON.parse(sellerProfile.invoice_terms)
@@ -45,18 +46,24 @@ export default function TermsAndConditionsCard({ sellerProfile, onProfileUpdated
         return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_QUOTATION_TERMS
       }
     } catch {
-      return isInvoice ? DEFAULT_INVOICE_TERMS : DEFAULT_QUOTATION_TERMS
+      return isInv ? DEFAULT_INVOICE_TERMS : DEFAULT_QUOTATION_TERMS
     }
   }
 
-  const availableTerms = getAvailableTerms()
+  const availableTerms = getAvailableTerms(docType)
 
-  // Initialize selectedTerms when switching docType or loading if empty
+  // Synchronize selectedTerms whenever docType changes or if terms are mismatched
   useEffect(() => {
-    if (!editingDocId && selectedTerms.length === 0 && availableTerms.length > 0) {
-      setSelectedTerms(availableTerms)
+    if (!editingDocId) {
+      const currentAvail = getAvailableTerms(docType)
+      const otherAvail = getAvailableTerms(docType === 'INVOICE' ? 'QUOTATION' : 'INVOICE')
+      const isMismatched = selectedTerms.length > 0 && selectedTerms.every(t => otherAvail.includes(t) && !currentAvail.includes(t))
+
+      if (selectedTerms.length === 0 || isMismatched) {
+        setSelectedTerms(currentAvail)
+      }
     }
-  }, [docType, sellerProfile])
+  }, [docType, sellerProfile, editingDocId])
 
   const toggleTerm = (term: string) => {
     if (selectedTerms.includes(term)) {

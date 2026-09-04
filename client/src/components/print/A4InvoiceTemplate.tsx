@@ -252,7 +252,7 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
       {termsList.length > 0 && (
         <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 10, color: '#334155' }}>
           <div style={{ fontWeight: 800, color: accentColor, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: 10 }}>
-            Terms & Conditions ({isQuotation ? 'Quotation' : 'Invoice'}):
+            Terms & Conditions:
           </div>
           <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.5 }}>
             {termsList.map((term: string, idx: number) => (

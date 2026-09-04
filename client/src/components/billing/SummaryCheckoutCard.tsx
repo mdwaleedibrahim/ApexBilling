@@ -45,6 +45,28 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
       const defaultUpi = upiAccounts.find((a: any) => a.is_default)?.upi_id || upiAccounts[0]?.upi_id || sellerProfile?.active_upi_id
       const selectedUpi = store.selectedUpiId || defaultUpi
 
+      // Safety check: ensure quotation terms are submitted for quotations, and invoice terms for invoices
+      let finalTerms = store.selectedTerms || []
+      if (!editingDocId) {
+        const isQuotation = docType === 'QUOTATION'
+        let invTerms: string[] = []
+        let quotTerms: string[] = []
+        try {
+          const invParsed = typeof sellerProfile?.invoice_terms === 'string' ? JSON.parse(sellerProfile.invoice_terms) : sellerProfile?.invoice_terms
+          invTerms = Array.isArray(invParsed) && invParsed.length ? invParsed : ["Goods once sold can't be returned", "Goods can be exchanged with valid bill within 7 days of purchase"]
+        } catch { invTerms = ["Goods once sold can't be returned", "Goods can be exchanged with valid bill within 7 days of purchase"] }
+        try {
+          const quotParsed = typeof sellerProfile?.quotation_terms === 'string' ? JSON.parse(sellerProfile.quotation_terms) : sellerProfile?.quotation_terms
+          quotTerms = Array.isArray(quotParsed) && quotParsed.length ? quotParsed : ["Quotation valid for 3 days only"]
+        } catch { quotTerms = ["Quotation valid for 3 days only"] }
+
+        if (isQuotation && (finalTerms.length === 0 || finalTerms.every((t: string) => invTerms.includes(t) && !quotTerms.includes(t)))) {
+          finalTerms = quotTerms
+        } else if (!isQuotation && (finalTerms.length === 0 || finalTerms.every((t: string) => quotTerms.includes(t) && !invTerms.includes(t)))) {
+          finalTerms = invTerms
+        }
+      }
+
       const body = {
         doc_type: docType,
         doc_date: docDate,
@@ -58,7 +80,7 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
         payment_mode: pm,
         payment_status: ps,
         notes,
-        terms_and_conditions: store.selectedTerms,
+        terms_and_conditions: finalTerms,
         selected_upi_id: selectedUpi,
         hide_tax_on_invoice: store.hideTaxOnInvoice ? 1 : 0,
       }
@@ -75,7 +97,9 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
   }
 
   const handleUpiCheckout = () => {
-    if (upiAccounts.length >= 2 && !store.selectedUpiId) {
+    // If payment mode is already UPI, checkout directly with current selection.
+    // Only prompt to select UPI account if clicking from Cash payment.
+    if (paymentMode === 'CASH' && upiAccounts.length >= 2) {
       setShowUpiModal(true)
     } else {
       handleSubmit('UPI', 'PAID')
@@ -187,19 +211,20 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
               <div>
                 <label className="label">Select Scan to Pay UPI Account</label>
                 <select
-                  className="input text-xs font-mono"
+                  className="input text-xs font-mono !bg-[#111827] !border-gray-700 text-gray-100"
+                  style={{ backgroundColor: '#111827', opacity: 1 }}
                   value={store.selectedUpiId || upiAccounts.find((a: any) => a.is_default)?.upi_id || upiAccounts[0]?.upi_id}
                   onChange={e => store.setSelectedUpiId(e.target.value)}
                 >
                   {upiAccounts.map((a: any) => (
-                    <option key={a.id} value={a.upi_id}>
+                    <option key={a.id} value={a.upi_id} style={{ backgroundColor: '#111827', color: '#f3f4f6' }}>
                       {a.label} — {a.upi_id} ({a.payee_name}) {a.is_default ? '★ Default' : ''}
                     </option>
                   ))}
                 </select>
               </div>
             ) : (
-              <div className="text-xs text-brand-300 bg-brand-600/10 border border-brand-500/30 rounded-xl p-2.5 flex items-center justify-between">
+              <div className="text-xs text-brand-300 bg-[#111827] border border-gray-700 rounded-xl p-2.5 flex items-center justify-between" style={{ backgroundColor: '#111827', opacity: 1 }}>
                 <span>Scan to Pay UPI:</span>
                 <span className="font-mono font-semibold text-emerald-400">
                   {sellerProfile?.active_upi_id || upiAccounts.find((a: any) => a.is_default)?.upi_id || upiAccounts[0]?.upi_id || (sellerProfile?.phone ? `${sellerProfile.phone}@upi` : 'Configured in Settings')}
@@ -212,10 +237,10 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
           {paymentMode === 'CREDIT' && (
             <div>
               <label className="label">Payment Status</label>
-              <select className="input" value={paymentStatus} onChange={e => setPaymentStatus(e.target.value)}>
-                <option value="UNPAID">Unpaid</option>
-                <option value="PARTIAL">Partial</option>
-                <option value="PAID">Paid</option>
+              <select className="input !bg-[#111827] !border-gray-700 text-gray-100" style={{ backgroundColor: '#111827', opacity: 1 }} value={paymentStatus} onChange={e => setPaymentStatus(e.target.value)}>
+                <option value="UNPAID" style={{ backgroundColor: '#111827', color: '#f3f4f6' }}>Unpaid</option>
+                <option value="PARTIAL" style={{ backgroundColor: '#111827', color: '#f3f4f6' }}>Partial</option>
+                <option value="PAID" style={{ backgroundColor: '#111827', color: '#f3f4f6' }}>Paid</option>
               </select>
             </div>
           )}
@@ -269,9 +294,9 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
       {/* Multi-UPI Account Chooser Modal (when >= 2 accounts exist) */}
       {showUpiModal && (
         <div className="modal-backdrop" onClick={() => setShowUpiModal(false)}>
-          <div className="glass-card p-5 max-w-md w-full space-y-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-[#111827] border border-gray-700 rounded-2xl shadow-2xl p-5 max-w-md w-full space-y-4" style={{ backgroundColor: '#111827', opacity: 1 }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h3 className="section-title text-base flex items-center gap-2 mb-0">
+              <h3 className="section-title text-base flex items-center gap-2 mb-0 text-white">
                 <QrCode size={18} className="text-brand-400" /> Select UPI Account
               </h3>
               <button onClick={() => setShowUpiModal(false)} className="btn-ghost p-1"><X size={16} /></button>
@@ -286,7 +311,8 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
                     setShowUpiModal(false)
                     handleSubmit('UPI', 'PAID')
                   }}
-                  className="p-3 rounded-xl border border-white/10 bg-white/5 hover:bg-brand-600/20 hover:border-brand-500/50 cursor-pointer transition-all flex items-center justify-between"
+                  className="p-3 rounded-xl border border-gray-700 bg-gray-800 hover:bg-brand-900/40 hover:border-brand-500 cursor-pointer transition-all flex items-center justify-between"
+                  style={{ backgroundColor: '#1f2937' }}
                 >
                   <div>
                     <p className="font-medium text-sm text-gray-100">{a.label} {a.is_default ? <span className="text-xs text-brand-400 ml-1">★ Default</span> : ''}</p>

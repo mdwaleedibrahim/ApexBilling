@@ -60,11 +60,11 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
       <div className="flex-1 grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-4 overflow-hidden">
         {/* Left: Customer + Items */}
         <div className="flex flex-col gap-4 overflow-y-auto pr-1">
-          <div className="glass-card p-4">
+          <div className="glass-card p-4 relative z-30">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Customer</h3>
             <CustomerSelector />
           </div>
-          <div className="glass-card p-4 flex-1">
+          <div className="glass-card p-4 flex-1 relative z-10">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Items</h3>
             <ItemEntryTable sellerProfile={profile} />
           </div>
