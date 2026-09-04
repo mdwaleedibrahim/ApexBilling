@@ -6,8 +6,8 @@ const rootDir = path.resolve(__dirname, '..');
 
 const packagePaths = [
   path.join(rootDir, 'package.json'),
-  path.join(rootDir, 'client', 'package.json'),
-  path.join(rootDir, 'server', 'package.json'),
+  path.join(rootDir, 'src', 'client', 'package.json'),
+  path.join(rootDir, 'src', 'server', 'package.json'),
 ];
 
 function bumpMinorVersion(versionStr) {

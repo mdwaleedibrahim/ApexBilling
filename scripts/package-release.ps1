@@ -33,10 +33,10 @@ Write-Host "Step 2: Compiling Frontend and Backend..." -ForegroundColor Yellow
 if (Get-Command npm -ErrorAction SilentlyContinue) {
     npm run build
 } else {
-    Set-Location (Join-Path $ROOT_DIR "client")
-    & "$nodeExePath" (Join-Path $ROOT_DIR "client\node_modules\vite\bin\vite.js") build
-    Set-Location (Join-Path $ROOT_DIR "server")
-    & "$nodeExePath" (Join-Path $ROOT_DIR "server\node_modules\typescript\bin\tsc")
+    Set-Location (Join-Path $ROOT_DIR "src\client")
+    & "$nodeExePath" (Join-Path $ROOT_DIR "src\client\node_modules\vite\bin\vite.js") build
+    Set-Location (Join-Path $ROOT_DIR "src\server")
+    & "$nodeExePath" (Join-Path $ROOT_DIR "src\server\node_modules\typescript\bin\tsc")
     Set-Location $ROOT_DIR
 }
 
@@ -66,18 +66,18 @@ if ($nodeExePath -and (Test-Path $nodeExePath)) {
 
 # 4. Copy Compiled App Files
 Write-Host "Step 3: Copying Application Assets..." -ForegroundColor Yellow
-Copy-Item -Path (Join-Path $ROOT_DIR "server\dist") -Destination (Join-Path $BUNDLE_DIR "app\dist") -Recurse -Force
-Copy-Item -Path (Join-Path $ROOT_DIR "server\public") -Destination (Join-Path $BUNDLE_DIR "app\public") -Recurse -Force
-Copy-Item -Path (Join-Path $ROOT_DIR "server\package.json") -Destination (Join-Path $BUNDLE_DIR "app\package.json") -Force
+Copy-Item -Path (Join-Path $ROOT_DIR "src\server\dist") -Destination (Join-Path $BUNDLE_DIR "app\dist") -Recurse -Force
+Copy-Item -Path (Join-Path $ROOT_DIR "src\server\public") -Destination (Join-Path $BUNDLE_DIR "app\public") -Recurse -Force
+Copy-Item -Path (Join-Path $ROOT_DIR "src\server\package.json") -Destination (Join-Path $BUNDLE_DIR "app\package.json") -Force
 
 # Create schema.sql copy in dist/db and app/src/db for runtime path resolution
 New-Item -ItemType Directory -Path (Join-Path $BUNDLE_DIR "app\dist\db") -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $BUNDLE_DIR "app\src\db") -Force | Out-Null
-Copy-Item -Path (Join-Path $ROOT_DIR "server\src\db\schema.sql") -Destination (Join-Path $BUNDLE_DIR "app\dist\db\schema.sql") -Force
-Copy-Item -Path (Join-Path $ROOT_DIR "server\src\db\schema.sql") -Destination (Join-Path $BUNDLE_DIR "app\src\db\schema.sql") -Force
+Copy-Item -Path (Join-Path $ROOT_DIR "src\server\src\db\schema.sql") -Destination (Join-Path $BUNDLE_DIR "app\dist\db\schema.sql") -Force
+Copy-Item -Path (Join-Path $ROOT_DIR "src\server\src\db\schema.sql") -Destination (Join-Path $BUNDLE_DIR "app\src\db\schema.sql") -Force
 
 # Copy production node_modules
-Copy-Item -Path (Join-Path $ROOT_DIR "server\node_modules") -Destination (Join-Path $BUNDLE_DIR "app\node_modules") -Recurse -Force
+Copy-Item -Path (Join-Path $ROOT_DIR "src\server\node_modules") -Destination (Join-Path $BUNDLE_DIR "app\node_modules") -Recurse -Force
 
 # 5. Create 1-Click Launch Script & VBScript (Silent Background Launcher)
 Write-Host "Step 4: Creating One-Click Windows Launchers..." -ForegroundColor Yellow
