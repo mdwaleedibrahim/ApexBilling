@@ -6,6 +6,7 @@ import { getDb, withTransaction } from '../db/database.js';
 import { calculateInvoiceTotals } from '../services/calculation.service.js';
 import { deductStockForNewInvoice, reconcileStockOnEdit, restoreStockOnCancel } from '../services/stock-reconciler.service.js';
 import { randomUUID } from 'crypto';
+import { normalizePhone } from '../utils/phoneHelper.js';
 
 function generateDocNumber(db: any, type: 'INVOICE' | 'QUOTATION', prefix = 'INV', qprefix = 'QUO'): string {
   const p = type === 'INVOICE' ? prefix : qprefix;
@@ -93,6 +94,60 @@ function ensureProductInInventory(db: any, item: any): string {
   return id;
 }
 
+function saveCustomerIfPaymentComplete(db: any, docId: string | null, customerSnapshot: any, customerPhone?: string | null): string | null {
+  let snap: any = {};
+  try {
+    snap = typeof customerSnapshot === 'string' ? JSON.parse(customerSnapshot) : (customerSnapshot || {});
+  } catch {
+    snap = {};
+  }
+
+  let phone = normalizePhone(customerPhone || snap.phone || '');
+  let name = (snap.name || '').trim();
+
+  // If both phone and name are empty, nothing to persist
+  if (!phone && !name) return null;
+
+  // Search if a customer with this exact phone already exists in customers table
+  if (phone && !phone.startsWith('NO_PHONE_')) {
+    const existingByPhone = db.prepare(`SELECT phone FROM customers WHERE phone = ?`).get(phone) as any;
+    if (existingByPhone) {
+      phone = existingByPhone.phone;
+    }
+  } else if (!phone && name) {
+    // If no phone was entered, search if an existing customer with this name exists to avoid duplicate
+    const existingByName = db.prepare(`SELECT phone FROM customers WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1`).get(name) as any;
+    if (existingByName && existingByName.phone) {
+      phone = existingByName.phone;
+    }
+  }
+
+  if (!phone) {
+    phone = 'NO_PHONE_' + randomUUID().slice(0, 8).toUpperCase();
+  }
+  if (!name) {
+    name = phone.startsWith('NO_PHONE_') ? 'Customer' : `Customer ${phone}`;
+  }
+
+  db.prepare(`
+    INSERT INTO customers (phone, name, email, gstin, billing_address, state_code)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(phone) DO UPDATE SET
+      name = CASE WHEN excluded.name != '' AND excluded.name NOT LIKE 'Customer %' THEN excluded.name ELSE customers.name END,
+      email = COALESCE(excluded.email, customers.email),
+      gstin = COALESCE(excluded.gstin, customers.gstin),
+      billing_address = COALESCE(excluded.billing_address, customers.billing_address),
+      state_code = COALESCE(excluded.state_code, customers.state_code),
+      updated_at = CURRENT_TIMESTAMP
+  `).run(phone, name, snap.email || null, snap.gstin || null, snap.billing_address || null, snap.state_code || '36');
+
+  if (docId) {
+    db.prepare(`UPDATE documents SET customer_phone = ? WHERE id = ?`).run(phone, docId);
+  }
+
+  return phone;
+}
+
 export async function billingRoutes(app: FastifyInstance) {
   // ── Documents ──────────────────────────────────────────────────────────────
 
@@ -129,7 +184,8 @@ export async function billingRoutes(app: FastifyInstance) {
     const db = getDb();
     const { doc_type = 'INVOICE', doc_date, customer_phone, customer_snapshot, items: rawItems,
       discount_pct = 0, payment_mode = 'CASH', payment_status = 'PAID', selected_upi_id, notes,
-      terms_and_conditions, hide_tax_on_invoice = 0 } = (req.body || {}) as any;
+      terms_and_conditions, hide_tax_on_invoice = 0, paid_amount = 0, partial_payment_mode,
+      converting_quotation_id } = (req.body || {}) as any;
 
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
 
@@ -148,21 +204,44 @@ export async function billingRoutes(app: FastifyInstance) {
       ? (typeof terms_and_conditions === 'string' ? terms_and_conditions : JSON.stringify(terms_and_conditions))
       : null;
 
+    let finalPaidAmount = 0;
+    if (doc_type === 'INVOICE') {
+      if (payment_status === 'PAID') {
+        finalPaidAmount = totals.grandTotal;
+      } else if (payment_status === 'PARTIAL') {
+        finalPaidAmount = parseFloat(paid_amount) || 0;
+      }
+    }
+
     withTransaction(() => {
       // Ensure all items (including manual ones) exist in inventory
       for (const item of totals.items) {
         item.productId = ensureProductInInventory(db, item);
       }
 
+      // Handle customer linking:
+      // If payment is complete (PAID invoice), save the customer immediately
+      let finalPhone: string | null = null;
+      if (doc_type === 'INVOICE' && payment_status === 'PAID') {
+        finalPhone = saveCustomerIfPaymentComplete(db, null, snapshot, customer_phone);
+      } else if (customer_phone) {
+        const normPhone = normalizePhone(customer_phone);
+        // If not paid yet, link phone only if customer already exists in customers table
+        const exists = db.prepare('SELECT phone FROM customers WHERE phone = ?').get(normPhone);
+        if (exists) finalPhone = normPhone;
+      }
+
       db.prepare(`
         INSERT INTO documents (id, doc_type, doc_number, doc_date, customer_phone, customer_snapshot,
           gross_subtotal, discount_pct, discount_amount, taxable_amount, cgst_total, sgst_total,
-          round_off, grand_total, payment_mode, payment_status, selected_upi_id, notes, terms_and_conditions, hide_tax_on_invoice)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          round_off, grand_total, payment_mode, payment_status, selected_upi_id, notes, terms_and_conditions,
+          hide_tax_on_invoice, paid_amount, partial_payment_mode)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `).run(id, doc_type, doc_number, doc_date || new Date().toISOString().slice(0,10),
-        customer_phone || null, snapshot, totals.grossSubtotal, totals.discountPct, totals.discountAmount,
+        finalPhone, snapshot, totals.grossSubtotal, totals.discountPct, totals.discountAmount,
         totals.taxableAmount, totals.cgstTotal, totals.sgstTotal, totals.roundOff, totals.grandTotal,
-        payment_mode, payment_status, selected_upi_id || null, notes || null, termsStr, hide_tax_on_invoice ? 1 : 0);
+        payment_mode, payment_status, selected_upi_id || null, notes || null, termsStr,
+        hide_tax_on_invoice ? 1 : 0, finalPaidAmount, partial_payment_mode || (payment_status === 'PARTIAL' ? 'CASH' : null));
 
       const insertItem = db.prepare(`
         INSERT INTO document_items (id, document_id, product_id, product_name, hsn_sac, unit, quantity, unit_price,
@@ -174,6 +253,11 @@ export async function billingRoutes(app: FastifyInstance) {
           item.unit || 'PCS', item.quantity, item.unitPrice, item.grossAmount, item.taxableValue,
           item.gstRate, item.cgstRate, item.cgstAmount, item.sgstRate, item.sgstAmount, item.totalAmount,
           item.purchasePrice || 0);
+      }
+
+      // If converted from quotation, remove the quotation from records!
+      if (converting_quotation_id) {
+        db.prepare(`DELETE FROM documents WHERE id = ? AND doc_type = 'QUOTATION'`).run(converting_quotation_id);
       }
 
       // Deduct stock only for confirmed invoices
@@ -195,7 +279,8 @@ export async function billingRoutes(app: FastifyInstance) {
     if (existing.payment_status === 'CANCELLED') return reply.status(400).send({ error: 'Cannot edit cancelled document' });
 
     const { items: rawItems, discount_pct = 0, payment_mode, payment_status, notes,
-      terms_and_conditions, customer_phone, customer_snapshot, hide_tax_on_invoice } = (req.body || {}) as any;
+      terms_and_conditions, customer_phone, customer_snapshot, hide_tax_on_invoice,
+      paid_amount, partial_payment_mode } = (req.body || {}) as any;
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
 
     const totals = calculateInvoiceTotals(rawItems, discount_pct);
@@ -211,6 +296,17 @@ export async function billingRoutes(app: FastifyInstance) {
       ? (typeof terms_and_conditions === 'string' ? terms_and_conditions : JSON.stringify(terms_and_conditions))
       : existing.terms_and_conditions;
 
+    let finalPaidAmount = existing.paid_amount || 0;
+    if (existing.doc_type === 'INVOICE') {
+      if (newStatus === 'PAID') {
+        finalPaidAmount = totals.grandTotal;
+      } else if (newStatus === 'PARTIAL') {
+        finalPaidAmount = paid_amount !== undefined ? (parseFloat(paid_amount) || 0) : (existing.paid_amount || 0);
+      } else {
+        finalPaidAmount = 0;
+      }
+    }
+
     withTransaction(() => {
       // Ensure all items (including manual ones) exist in inventory
       for (const item of totals.items) {
@@ -222,17 +318,27 @@ export async function billingRoutes(app: FastifyInstance) {
         reconcileStockOnEdit(req.params.id, totals.items.map((i: any) => ({ productId: i.productId, quantity: i.quantity })));
       }
 
+      let finalPhone = customer_phone || existing.customer_phone;
+      if (existing.doc_type === 'INVOICE' && newStatus === 'PAID') {
+        finalPhone = saveCustomerIfPaymentComplete(db, null, customer_snapshot || existing.customer_snapshot, finalPhone);
+      } else if (finalPhone) {
+        const exists = db.prepare('SELECT phone FROM customers WHERE phone = ?').get(finalPhone);
+        if (!exists) finalPhone = null;
+      }
+
       db.prepare(`
         UPDATE documents SET customer_phone=?, customer_snapshot=?, gross_subtotal=?, discount_pct=?,
           discount_amount=?, taxable_amount=?, cgst_total=?, sgst_total=?, round_off=?, grand_total=?,
-          payment_mode=?, payment_status=?, notes=?, terms_and_conditions=?, hide_tax_on_invoice=?, revision_number=revision_number+1, updated_at=CURRENT_TIMESTAMP
+          payment_mode=?, payment_status=?, notes=?, terms_and_conditions=?, hide_tax_on_invoice=?,
+          paid_amount=?, partial_payment_mode=?, revision_number=revision_number+1, updated_at=CURRENT_TIMESTAMP
         WHERE id=?
-      `).run(customer_phone || existing.customer_phone,
+      `).run(finalPhone,
         typeof customer_snapshot === 'string' ? customer_snapshot : JSON.stringify(customer_snapshot || JSON.parse(existing.customer_snapshot)),
         totals.grossSubtotal, totals.discountPct, totals.discountAmount, totals.taxableAmount,
         totals.cgstTotal, totals.sgstTotal, totals.roundOff, totals.grandTotal,
-        payment_mode || existing.payment_mode, payment_status || existing.payment_status,
+        payment_mode || existing.payment_mode, newStatus,
         notes ?? existing.notes, termsStr, hide_tax_on_invoice !== undefined ? (hide_tax_on_invoice ? 1 : 0) : existing.hide_tax_on_invoice || 0,
+        finalPaidAmount, partial_payment_mode !== undefined ? partial_payment_mode : existing.partial_payment_mode,
         req.params.id);
 
       db.prepare(`DELETE FROM document_items WHERE document_id = ?`).run(req.params.id);
@@ -268,18 +374,31 @@ export async function billingRoutes(app: FastifyInstance) {
   });
 
   // PATCH /api/documents/:id/status
-  app.patch<{ Params: { id: string }; Body: { payment_status: string; payment_mode?: string } }>(
+  app.patch<{ Params: { id: string }; Body: { payment_status: string; payment_mode?: string; paid_amount?: number; partial_payment_mode?: string } }>(
     '/api/documents/:id/status', (req, reply) => {
-      const { payment_status, payment_mode } = req.body;
+      const { payment_status, payment_mode, paid_amount, partial_payment_mode } = req.body;
       const db = getDb();
-      db.prepare(`UPDATE documents SET payment_status=?, payment_mode=COALESCE(?,payment_mode), updated_at=CURRENT_TIMESTAMP WHERE id=?`)
-        .run(payment_status, payment_mode || null, req.params.id);
+      const existing = db.prepare(`SELECT * FROM documents WHERE id = ?`).get(req.params.id) as any;
+      if (!existing) return reply.status(404).send({ error: 'Document not found' });
+
+      withTransaction(() => {
+        let finalPaid = existing.paid_amount || 0;
+        if (payment_status === 'PAID') {
+          finalPaid = existing.grand_total;
+          saveCustomerIfPaymentComplete(db, req.params.id, existing.customer_snapshot, existing.customer_phone);
+        } else if (payment_status === 'PARTIAL' && paid_amount !== undefined) {
+          finalPaid = parseFloat(paid_amount as any) || 0;
+        }
+
+        db.prepare(`UPDATE documents SET payment_status=?, payment_mode=COALESCE(?,payment_mode), paid_amount=?, partial_payment_mode=COALESCE(?,partial_payment_mode), updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+          .run(payment_status, payment_mode || null, finalPaid, partial_payment_mode || null, req.params.id);
+      });
       return reply.send(db.prepare(`SELECT * FROM documents WHERE id = ?`).get(req.params.id));
     }
   );
 
   // POST /api/documents/:id/convert - Convert Quotation to Invoice
-  app.post<{ Params: { id: string }; Body: { payment_mode?: string; payment_status?: string } }>(
+  app.post<{ Params: { id: string }; Body: { payment_mode?: string; payment_status?: string; paid_amount?: number; partial_payment_mode?: string } }>(
     '/api/documents/:id/convert', (req, reply) => {
       const db = getDb();
       const quo: any = db.prepare(`SELECT * FROM documents WHERE id = ?`).get(req.params.id);
@@ -289,6 +408,8 @@ export async function billingRoutes(app: FastifyInstance) {
       const items: any[] = db.prepare(`SELECT * FROM document_items WHERE document_id = ?`).all(req.params.id) as any[];
       const payment_mode = req.body?.payment_mode || 'CASH';
       const payment_status = req.body?.payment_status || 'PAID';
+      const paid_amount = req.body?.paid_amount !== undefined ? req.body.paid_amount : (payment_status === 'PAID' ? quo.grand_total : 0);
+      const partial_payment_mode = req.body?.partial_payment_mode || (payment_status === 'PARTIAL' ? 'CASH' : null);
 
       // Enforce stock restrictions if enabled
       if (payment_status !== 'CANCELLED') {
@@ -306,18 +427,28 @@ export async function billingRoutes(app: FastifyInstance) {
           productName: i.product_name
         })));
 
+        let finalPhone = quo.customer_phone;
+        if (payment_status === 'PAID') {
+          finalPhone = saveCustomerIfPaymentComplete(db, null, quo.customer_snapshot, quo.customer_phone);
+        } else if (finalPhone) {
+          const exists = db.prepare('SELECT phone FROM customers WHERE phone = ?').get(finalPhone);
+          if (!exists) finalPhone = null;
+        }
+
         db.prepare(`
           INSERT INTO documents (
             id, doc_type, doc_number, parent_doc_id, revision_number, doc_date,
             customer_phone, customer_snapshot, gross_subtotal, discount_pct, discount_amount,
             taxable_amount, cgst_total, sgst_total, round_off, grand_total,
-            payment_mode, payment_status, selected_upi_id, notes, terms_and_conditions, hide_tax_on_invoice
-          ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            payment_mode, payment_status, selected_upi_id, notes, terms_and_conditions, hide_tax_on_invoice,
+            paid_amount, partial_payment_mode
+          ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         `).run(
-          invoiceId, 'INVOICE', invoiceNum, quo.id, 1, new Date().toISOString().split('T')[0],
-          quo.customer_phone, quo.customer_snapshot, quo.gross_subtotal, quo.discount_pct, quo.discount_amount,
+          invoiceId, 'INVOICE', invoiceNum, null, 1, new Date().toISOString().split('T')[0],
+          finalPhone, quo.customer_snapshot, quo.gross_subtotal, quo.discount_pct, quo.discount_amount,
           quo.taxable_amount, quo.cgst_total, quo.sgst_total, quo.round_off, quo.grand_total,
-          payment_mode, payment_status, quo.selected_upi_id, quo.notes, quo.terms_and_conditions || null, quo.hide_tax_on_invoice || 0
+          payment_mode, payment_status, quo.selected_upi_id, quo.notes, quo.terms_and_conditions || null, quo.hide_tax_on_invoice || 0,
+          paid_amount, partial_payment_mode
         );
 
         const insertItem = db.prepare(`
@@ -334,6 +465,9 @@ export async function billingRoutes(app: FastifyInstance) {
             item.purchase_price || 0
           );
         }
+
+        // Delete the quotation from records so it is removed
+        db.prepare(`DELETE FROM documents WHERE id = ?`).run(quo.id);
       });
 
       const newInvoice = db.prepare(`SELECT * FROM documents WHERE id = ?`).get(invoiceId);
@@ -341,6 +475,20 @@ export async function billingRoutes(app: FastifyInstance) {
       return reply.status(201).send({ ...newInvoice as any, items: newItems });
     }
   );
+
+  // DELETE /api/documents/:id - Delete quotation or document
+  app.delete<{ Params: { id: string } }>('/api/documents/:id', (req, reply) => {
+    const db = getDb();
+    const doc = db.prepare(`SELECT * FROM documents WHERE id = ?`).get(req.params.id) as any;
+    if (!doc) return reply.status(404).send({ error: 'Document not found' });
+    withTransaction(() => {
+      if (doc.doc_type === 'INVOICE' && doc.payment_status !== 'CANCELLED') {
+        restoreStockOnCancel(req.params.id);
+      }
+      db.prepare(`DELETE FROM documents WHERE id = ?`).run(req.params.id);
+    });
+    return reply.send({ success: true });
+  });
 
   // ── POS Memory Slots ───────────────────────────────────────────────────────
 

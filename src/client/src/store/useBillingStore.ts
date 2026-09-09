@@ -8,7 +8,7 @@ export interface CartItem extends LineItem {
 }
 
 export interface CustomerDraft {
-  phone: string
+  phone?: string
   name: string
   email?: string
   gstin?: string
@@ -29,6 +29,9 @@ export interface BillingState {
   selectedUpiId: string | null
   hideTaxOnInvoice: boolean
   selectedTerms: string[]
+  paidAmount: number
+  partialPaymentMode: 'CASH' | 'UPI'
+  convertingFromQuotationId: string | null
 
   // Editing existing doc
   editingDocId: string | null
@@ -49,6 +52,9 @@ export interface BillingState {
   setSelectedUpiId: (id: string | null) => void
   setHideTaxOnInvoice: (h: boolean) => void
   setSelectedTerms: (terms: string[]) => void
+  setPaidAmount: (amt: number) => void
+  setPartialPaymentMode: (mode: 'CASH' | 'UPI') => void
+  setConvertingFromQuotationId: (id: string | null) => void
 
   addItem: (item: Omit<CartItem, 'id'>) => void
   updateItem: (id: string, patch: Partial<CartItem>) => void
@@ -74,6 +80,9 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   selectedUpiId: null,
   hideTaxOnInvoice: false,
   selectedTerms: [],
+  paidAmount: 0,
+  partialPaymentMode: 'CASH',
+  convertingFromQuotationId: null,
   editingDocId: null,
   editingDocNumber: null,
   revisionNumber: 1,
@@ -99,6 +108,9 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   setSelectedUpiId: (id) => set({ selectedUpiId: id }),
   setHideTaxOnInvoice: (h) => set({ hideTaxOnInvoice: h }),
   setSelectedTerms: (terms) => set({ selectedTerms: terms }),
+  setPaidAmount: (amt) => set({ paidAmount: amt }),
+  setPartialPaymentMode: (mode) => set({ partialPaymentMode: mode }),
+  setConvertingFromQuotationId: (id) => set({ convertingFromQuotationId: id }),
 
   addItem: (item) => {
     const items = [...get().items, { ...item, id: uuid() }]
@@ -116,6 +128,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
     items: [], customer: null, discountPct: 0, paymentMode: 'CASH', paymentStatus: 'PAID',
     notes: '', selectedUpiId: null, hideTaxOnInvoice: false, selectedTerms: [], docDate: todayIso(), editingDocId: null,
     editingDocNumber: null, revisionNumber: 1, totals: emptyTotals(),
+    paidAmount: 0, partialPaymentMode: 'CASH', convertingFromQuotationId: null,
   }),
 
   loadFromDoc: (doc) => {
@@ -123,9 +136,9 @@ export const useBillingStore = create<BillingState>((set, get) => ({
       id: uuid(), productId: i.product_id, productName: i.product_name,
       hsnSac: i.hsn_sac, unit: i.unit || 'PCS', purchasePrice: i.purchase_price || 0, quantity: i.quantity, unitPrice: i.unit_price, gstRate: i.gst_rate,
     }))
-    const customer = doc.customer_phone ? (() => {
+    const customer = doc.customer_snapshot ? (() => {
       try { return JSON.parse(doc.customer_snapshot) } catch { return null }
-    })() : null
+    })() : (doc.customer_phone ? { phone: doc.customer_phone, name: '' } : null)
     let terms: string[] = []
     if (doc.terms_and_conditions) {
       try {
@@ -138,6 +151,9 @@ export const useBillingStore = create<BillingState>((set, get) => ({
       docDate: doc.doc_date, notes: doc.notes || '', docType: doc.doc_type,
       selectedUpiId: doc.selected_upi_id || null, hideTaxOnInvoice: !!doc.hide_tax_on_invoice,
       selectedTerms: Array.isArray(terms) ? terms : [],
+      paidAmount: doc.paid_amount || 0,
+      partialPaymentMode: doc.partial_payment_mode || 'CASH',
+      convertingFromQuotationId: null,
       editingDocId: doc.id,
       editingDocNumber: doc.doc_number, revisionNumber: doc.revision_number || 1,
       totals: calcTotals(items, doc.discount_pct || 0),
@@ -148,15 +164,18 @@ export const useBillingStore = create<BillingState>((set, get) => ({
       id: uuid(), productId: i.product_id, productName: i.product_name,
       hsnSac: i.hsn_sac, unit: i.unit || 'PCS', purchasePrice: i.purchase_price || 0, quantity: i.quantity, unitPrice: i.unit_price, gstRate: i.gst_rate,
     }))
-    const customer = doc.customer_phone ? (() => {
+    const customer = doc.customer_snapshot ? (() => {
       try { return JSON.parse(doc.customer_snapshot) } catch { return null }
-    })() : null
+    })() : (doc.customer_phone ? { phone: doc.customer_phone, name: '' } : null)
     set({
       items, customer, discountPct: doc.discount_pct || 0,
       paymentMode: 'CASH', paymentStatus: 'PAID',
       docDate: todayIso(), notes: doc.notes || '', docType: 'INVOICE',
       selectedUpiId: doc.selected_upi_id || null,
       selectedTerms: [],
+      paidAmount: 0,
+      partialPaymentMode: 'CASH',
+      convertingFromQuotationId: doc.id,
       editingDocId: null,
       editingDocNumber: `Converting ${doc.doc_number}`, revisionNumber: 1,
       totals: calcTotals(items, doc.discount_pct || 0),

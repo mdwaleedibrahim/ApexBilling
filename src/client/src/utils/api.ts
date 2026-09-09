@@ -41,14 +41,21 @@ export const api = {
     update: (id: string, body: any) => req<any>(`/documents/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     cancel: (id: string) => req<any>(`/documents/${id}/cancel`, { method: 'PATCH' }),
     convert: (id: string, body?: any) => req<any>(`/documents/${id}/convert`, { method: 'POST', body: JSON.stringify(body || {}) }),
-    setStatus: (id: string, payment_status: string, payment_mode?: string) =>
-      req<any>(`/documents/${id}/status`, { method: 'PATCH', body: JSON.stringify({ payment_status, payment_mode }) }),
+    delete: (id: string) => req<any>(`/documents/${id}`, { method: 'DELETE' }),
+    setStatus: (id: string, payment_status: string, payment_mode?: string, paid_amount?: number, partial_payment_mode?: string) =>
+      req<any>(`/documents/${id}/status`, { method: 'PATCH', body: JSON.stringify({ payment_status, payment_mode, paid_amount, partial_payment_mode }) }),
   },
 
   // ── Customers ─────────────────────────────────────────────────────────────
   customers: {
     list: () => req<any[]>('/customers'),
     search: (q: string) => req<any[]>(`/customers/search?q=${encodeURIComponent(q)}`),
+    lookup: (params: { phone?: string; name?: string }) => {
+      const q = new URLSearchParams()
+      if (params.phone) q.set('phone', params.phone)
+      if (params.name) q.set('name', params.name)
+      return req<{ phoneMatch?: any; nameMatches: any[] }>(`/customers/lookup?${q.toString()}`)
+    },
     get: (phone: string) => req<any>(`/customers/${encodeURIComponent(phone)}`),
     upsert: (body: any) => req<any>('/customers', { method: 'POST', body: JSON.stringify(body) }),
     update: (phone: string, body: any) => req<any>(`/customers/${encodeURIComponent(phone)}`, { method: 'PUT', body: JSON.stringify(body) }),

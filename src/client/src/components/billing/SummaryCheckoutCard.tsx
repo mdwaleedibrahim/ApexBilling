@@ -19,7 +19,9 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
   const store = useBillingStore()
   const { totals, discountPct, setDiscountPct, paymentMode, setPaymentMode,
           paymentStatus, setPaymentStatus, docType, setDocType, notes, setNotes,
-          items, customer, docDate, setDocDate, editingDocId, editingDocNumber } = store
+          items, customer, docDate, setDocDate, editingDocId, editingDocNumber,
+          paidAmount, setPaidAmount, partialPaymentMode, setPartialPaymentMode,
+          convertingFromQuotationId } = store
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showUpiModal, setShowUpiModal] = useState(false)
@@ -70,6 +72,15 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
         }
       }
 
+      let finalPaidAmount = 0
+      let finalPartialMode = null
+      if (pm === 'CREDIT' && ps === 'PARTIAL') {
+        finalPaidAmount = Math.min(totals.grandTotal, Math.max(0, paidAmount))
+        finalPartialMode = partialPaymentMode || 'CASH'
+      } else if (ps === 'PAID') {
+        finalPaidAmount = totals.grandTotal
+      }
+
       const body = {
         doc_type: docType,
         doc_date: docDate,
@@ -82,6 +93,9 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
         discount_pct: discountPct,
         payment_mode: pm,
         payment_status: ps,
+        paid_amount: finalPaidAmount,
+        partial_payment_mode: finalPartialMode,
+        converting_quotation_id: convertingFromQuotationId || undefined,
         notes,
         terms_and_conditions: finalTerms,
         selected_upi_id: selectedUpi,
@@ -266,15 +280,111 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
             )
           )}
 
-          {/* Payment Status for Credit Invoices */}
+          {/* Payment Status & Partial Mode Controls for Credit Invoices */}
           {paymentMode === 'CREDIT' && (
-            <div>
-              <label className="label">Payment Status</label>
-              <select className="input !bg-[#111827] !border-gray-700 text-gray-100" style={{ backgroundColor: '#111827', opacity: 1 }} value={paymentStatus} onChange={e => setPaymentStatus(e.target.value)}>
-                <option value="UNPAID" style={{ backgroundColor: '#111827', color: '#f3f4f6' }}>Unpaid</option>
-                <option value="PARTIAL" style={{ backgroundColor: '#111827', color: '#f3f4f6' }}>Partial</option>
-                <option value="PAID" style={{ backgroundColor: '#111827', color: '#f3f4f6' }}>Paid</option>
-              </select>
+            <div className="space-y-3 p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl">
+              <div>
+                <label className="label text-amber-300 font-medium">Payment Status</label>
+                <select
+                  className="input !bg-[#111827] !border-gray-700 text-gray-100"
+                  style={{ backgroundColor: '#111827', opacity: 1 }}
+                  value={paymentStatus}
+                  onChange={e => setPaymentStatus(e.target.value)}
+                >
+                  <option value="UNPAID" style={{ backgroundColor: '#111827', color: '#f3f4f6' }}>Unpaid (Full Credit)</option>
+                  <option value="PARTIAL" style={{ backgroundColor: '#111827', color: '#f3f4f6' }}>Partial Payment</option>
+                  <option value="PAID" style={{ backgroundColor: '#111827', color: '#f3f4f6' }}>Paid in Full</option>
+                </select>
+              </div>
+
+              {/* Requirement 3: Partial Payment Details (Amount + Cash/UPI Options) */}
+              {paymentStatus === 'PARTIAL' && (
+                <div className="space-y-3 pt-2 border-t border-amber-500/20">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="label !mb-0 text-gray-300 font-semibold">Partial Amount Paid</label>
+                      <span className="text-xs text-gray-400">Total: {formatINR(totals.grandTotal)}</span>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">₹</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={totals.grandTotal}
+                        step={1}
+                        className="input pl-7 font-semibold text-emerald-400"
+                        placeholder="Enter amount paid"
+                        value={paidAmount || ''}
+                        onChange={e => {
+                          const val = parseFloat(e.target.value) || 0
+                          setPaidAmount(Math.min(totals.grandTotal, Math.max(0, val)))
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-xs mt-1.5 px-1">
+                      <span className="text-gray-400">Remaining Balance:</span>
+                      <span className="font-bold text-amber-400">
+                        {formatINR(Math.max(0, totals.grandTotal - (paidAmount || 0)))}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="label text-gray-300 font-semibold">Partial Payment Mode</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPartialPaymentMode('CASH')}
+                        className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-all ${
+                          partialPaymentMode === 'CASH'
+                            ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 ring-1 ring-emerald-400'
+                            : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                        }`}
+                      >
+                        <Banknote size={15} /> Cash
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPartialPaymentMode('UPI')}
+                        className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-all ${
+                          partialPaymentMode === 'UPI'
+                            ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30 ring-1 ring-brand-400'
+                            : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                        }`}
+                      >
+                        <QrCode size={15} /> UPI / QR
+                      </button>
+                    </div>
+                  </div>
+
+                  {partialPaymentMode === 'UPI' && (
+                    upiAccounts.length >= 2 ? (
+                      <div>
+                        <label className="label text-xs">UPI Account for Partial Payment</label>
+                        <select
+                          className="input text-xs font-mono !bg-[#111827] !border-gray-700 text-gray-100"
+                          style={{ backgroundColor: '#111827', opacity: 1 }}
+                          value={store.selectedUpiId || upiAccounts.find((a: any) => a.is_default)?.upi_id || upiAccounts[0]?.upi_id}
+                          onChange={e => store.setSelectedUpiId(e.target.value)}
+                        >
+                          {upiAccounts.map((a: any) => (
+                            <option key={a.id} value={a.upi_id} style={{ backgroundColor: '#111827', color: '#f3f4f6' }}>
+                              {a.label} — {a.upi_id} ({a.payee_name})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-brand-300 bg-[#111827] border border-gray-700 rounded-xl p-2 flex items-center justify-between" style={{ backgroundColor: '#111827' }}>
+                        <span>UPI Payee:</span>
+                        <span className="font-mono font-semibold text-emerald-400">
+                          {sellerProfile?.active_upi_id || upiAccounts[0]?.upi_id || (sellerProfile?.phone ? `${sellerProfile.phone}@upi` : 'Default')}
+                        </span>
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
             </div>
           )}
         </>
@@ -292,27 +402,67 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
       {/* Action Buttons */}
       <div className="space-y-2">
         {docType === 'INVOICE' ? (
-          <>
-            {/* F7: Cash Checkout */}
-            <button onClick={() => handleSubmit('CASH', 'PAID')} disabled={loading}
-              className="btn-primary w-full justify-center py-3 text-base font-semibold">
-              <Banknote size={18} /> {loading ? 'Saving…' : (editingDocId ? 'Update Invoice' : '⚡ Cash Checkout (F7)')}
-            </button>
-            {/* F8: UPI Checkout */}
-            {!editingDocId && (
-              <button onClick={handleUpiCheckout} disabled={loading}
-                className="btn-secondary w-full justify-center py-2.5">
-                <QrCode size={16} /> UPI / QR Checkout (F8)
+          paymentMode === 'CREDIT' ? (
+            <>
+              {/* Credit Invoice Save Action */}
+              <button
+                onClick={() => handleSubmit('CREDIT', paymentStatus)}
+                disabled={loading}
+                className="btn-primary w-full justify-center py-3 text-base font-semibold bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 border-0 shadow-lg shadow-amber-600/30"
+              >
+                <Clock size={18} />{' '}
+                {loading
+                  ? 'Saving…'
+                  : editingDocId
+                  ? 'Update Credit Invoice'
+                  : paymentStatus === 'PARTIAL'
+                  ? `Save Invoice (Paid ${formatINR(paidAmount || 0)} via ${partialPaymentMode})`
+                  : paymentStatus === 'PAID'
+                  ? 'Save Credit Invoice (Paid)'
+                  : 'Save Credit Invoice (Unpaid)'}
               </button>
-            )}
-            {/* F4: Switch to Quotation */}
-            {!editingDocId && (
-              <button onClick={() => setDocType('QUOTATION')} disabled={loading}
-                className="btn-ghost w-full justify-center py-2 text-xs">
-                💾 Switch to Quotation Mode (F4)
+              {/* Quick Cash Checkout shortcut */}
+              <button
+                onClick={() => handleSubmit('CASH', 'PAID')}
+                disabled={loading}
+                className="btn-secondary w-full justify-center py-2 text-xs"
+              >
+                <Banknote size={14} /> Quick Cash Checkout (F7)
               </button>
-            )}
-          </>
+              {/* Quick UPI Checkout shortcut */}
+              {!editingDocId && (
+                <button
+                  onClick={handleUpiCheckout}
+                  disabled={loading}
+                  className="btn-ghost w-full justify-center py-1.5 text-xs text-brand-300"
+                >
+                  <QrCode size={14} /> Quick UPI / QR Checkout (F8)
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              {/* F7: Cash Checkout */}
+              <button onClick={() => handleSubmit('CASH', 'PAID')} disabled={loading}
+                className="btn-primary w-full justify-center py-3 text-base font-semibold">
+                <Banknote size={18} /> {loading ? 'Saving…' : (editingDocId ? 'Update Invoice' : '⚡ Cash Checkout (F7)')}
+              </button>
+              {/* F8: UPI Checkout */}
+              {!editingDocId && (
+                <button onClick={handleUpiCheckout} disabled={loading}
+                  className="btn-secondary w-full justify-center py-2.5">
+                  <QrCode size={16} /> UPI / QR Checkout (F8)
+                </button>
+              )}
+              {/* F4: Switch to Quotation */}
+              {!editingDocId && (
+                <button onClick={() => setDocType('QUOTATION')} disabled={loading}
+                  className="btn-ghost w-full justify-center py-2 text-xs">
+                  💾 Switch to Quotation Mode (F4)
+                </button>
+              )}
+            </>
+          )
         ) : (
           <>
             {/* Quotation Action: Save Quotation */}

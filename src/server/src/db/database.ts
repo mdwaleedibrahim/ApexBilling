@@ -65,6 +65,8 @@ export function getDb(): DatabaseSync {
     } catch {}
     try { _db.exec('ALTER TABLE documents ADD COLUMN hide_tax_on_invoice INTEGER DEFAULT 0') } catch {}
     try { _db.exec('ALTER TABLE documents ADD COLUMN terms_and_conditions TEXT') } catch {}
+    try { _db.exec('ALTER TABLE documents ADD COLUMN paid_amount DECIMAL(12,2) DEFAULT 0.00') } catch {}
+    try { _db.exec('ALTER TABLE documents ADD COLUMN partial_payment_mode TEXT') } catch {}
     try { _db.exec('ALTER TABLE document_items ADD COLUMN purchase_price DECIMAL(10,2) DEFAULT 0') } catch {}
     try { _db.exec('ALTER TABLE document_items ADD COLUMN unit TEXT DEFAULT \'PCS\'') } catch {}
     try { _db.exec('CREATE INDEX IF NOT EXISTS idx_document_items_doc_id ON document_items(document_id)') } catch {}

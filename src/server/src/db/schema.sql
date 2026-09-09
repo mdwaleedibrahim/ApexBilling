@@ -92,6 +92,8 @@ CREATE TABLE IF NOT EXISTS documents (
     notes TEXT,
     terms_and_conditions TEXT,
     hide_tax_on_invoice INTEGER DEFAULT 0,
+    paid_amount DECIMAL(12,2) DEFAULT 0.00,
+    partial_payment_mode TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

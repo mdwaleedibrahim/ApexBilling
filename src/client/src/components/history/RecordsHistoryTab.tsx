@@ -135,6 +135,11 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
               )}
               {docs.map(doc => {
                 const snap = (() => { try { return JSON.parse(doc.customer_snapshot) } catch { return {} } })()
+                const phoneDisplay = (doc.customer_phone && !doc.customer_phone.startsWith('NO_PHONE_'))
+                  ? doc.customer_phone
+                  : (snap.phone && !snap.phone.startsWith('NO_PHONE_') ? snap.phone : '')
+                const customerName = snap.name || (phoneDisplay ? `Customer (${phoneDisplay})` : '—')
+
                 return (
                   <tr key={doc.id} className="tr">
                     <td className="td font-mono text-xs text-brand-300">{doc.doc_number}</td>
@@ -142,8 +147,18 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
                       <span className={doc.doc_type === 'INVOICE' ? 'badge-paid' : 'badge-draft'}>{doc.doc_type}</span>
                     </td>
                     <td className="td text-gray-400">{formatDate(doc.doc_date)}</td>
-                    <td className="td">{snap.name || '—'}<br/><span className="text-xs text-gray-500">{doc.customer_phone || ''}</span></td>
-                    <td className="td text-right font-medium text-emerald-400">{formatINR(doc.grand_total)}</td>
+                    <td className="td">
+                      <span className="font-medium text-gray-200">{customerName}</span>
+                      {phoneDisplay && <><br/><span className="text-xs text-gray-400 font-mono">{phoneDisplay}</span></>}
+                    </td>
+                    <td className="td text-right">
+                      <span className="font-medium text-emerald-400 block">{formatINR(doc.grand_total)}</span>
+                      {doc.payment_status === 'PARTIAL' && (
+                        <span className="text-[11px] text-amber-400 block">
+                          Paid: {formatINR(doc.paid_amount || 0)}
+                        </span>
+                      )}
+                    </td>
                     <td className="td"><span className={STATUS_BADGE[doc.payment_status] || 'badge-draft'}>{doc.payment_status}</span></td>
                     <td className="td text-center text-gray-500 text-xs">v{doc.revision_number}</td>
                     <td className="td">

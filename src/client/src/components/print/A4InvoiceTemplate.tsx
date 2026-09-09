@@ -10,13 +10,16 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
   const defaultUpiAcc = profile?.upiAccounts?.find((a: any) => a.is_default) || profile?.upiAccounts?.[0]
   const upiId = doc.selected_upi_id || profile?.active_upi_id || defaultUpiAcc?.upi_id || (profile?.phone ? `${profile.phone}@upi` : null)
   const payeeName = defaultUpiAcc?.payee_name || profile?.business_name || 'Merchant'
-  const upiLink = upiId
-    ? buildUpiLink({ upiId, payeeName, amount: doc.grand_total, docNumber: doc.doc_number })
-    : null
-  
+
   const isQuotation = doc.doc_type === 'QUOTATION'
   const isPaid = !isQuotation && doc.payment_status === 'PAID'
   const isOverdue = !isQuotation && doc.payment_status === 'UNPAID'
+  const isPartial = !isQuotation && doc.payment_status === 'PARTIAL'
+  const balanceDue = Math.max(0, doc.grand_total - (doc.paid_amount || 0))
+  const qrAmount = isPartial ? balanceDue : doc.grand_total
+  const upiLink = upiId
+    ? buildUpiLink({ upiId, payeeName, amount: qrAmount, docNumber: doc.doc_number })
+    : null
   const hideTax = !!doc.hide_tax_on_invoice
 
   const accentColor = isQuotation ? '#0284c7' : '#4338ca' // Sky blue for Quotations, Deep Indigo for Invoices
@@ -103,9 +106,11 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
             </span>
           </div>
           <p style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '0 0 2px 0' }}>
-            {snap.name || 'Walk-in Customer'}
+            {snap.name || (snap.phone && !snap.phone.startsWith('NO_PHONE_') ? `Customer (${snap.phone})` : 'Walk-in Customer')}
           </p>
-          {snap.phone && <p style={{ margin: '2px 0', fontSize: 11, color: '#475569' }}>Phone: <strong>{snap.phone}</strong></p>}
+          {snap.phone && !snap.phone.startsWith('NO_PHONE_') && (
+            <p style={{ margin: '2px 0', fontSize: 11, color: '#475569' }}>Phone: <strong>{snap.phone}</strong></p>
+          )}
           {snap.billing_address && <p style={{ margin: '2px 0', fontSize: 11, color: '#475569' }}>{snap.billing_address}</p>}
           {snap.gstin && <p style={{ margin: '2px 0', fontSize: 11, color: '#475569' }}>GSTIN: <strong>{snap.gstin}</strong></p>}
         </div>
@@ -119,22 +124,51 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
                 Payment Information:
               </span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
-              <div>
-                <span style={{ fontSize: 10, color: '#64748b', display: 'block' }}>Payment Mode</span>
-                <strong style={{ fontSize: 13, color: '#0f172a' }}>{doc.payment_mode || 'CASH'}</strong>
+            {isPartial ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
+                <div>
+                  <span style={{ fontSize: 10, color: '#64748b', display: 'block' }}>Payment Mode</span>
+                  <strong style={{ fontSize: 13, color: '#0f172a' }}>
+                    {doc.payment_mode === 'CREDIT' ? `CREDIT (${doc.partial_payment_mode || 'Cash'})` : (doc.payment_mode || 'CASH')}
+                  </strong>
+                </div>
+                <div>
+                  <span style={{ fontSize: 10, color: '#64748b', display: 'block' }}>Status</span>
+                  <span style={{
+                    display: 'inline-block', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6, marginTop: 2,
+                    background: '#fef3c7',
+                    color: '#b45309'
+                  }}>
+                    PARTIAL
+                  </span>
+                </div>
+                <div>
+                  <span style={{ fontSize: 10, color: '#64748b', display: 'block' }}>Amount Paid</span>
+                  <strong style={{ fontSize: 13, color: '#16a34a' }}>{formatINR(doc.paid_amount || 0)}</strong>
+                </div>
+                <div>
+                  <span style={{ fontSize: 10, color: '#64748b', display: 'block' }}>Balance Due</span>
+                  <strong style={{ fontSize: 13, color: '#dc2626' }}>{formatINR(balanceDue)}</strong>
+                </div>
               </div>
-              <div>
-                <span style={{ fontSize: 10, color: '#64748b', display: 'block' }}>Status</span>
-                <span style={{
-                  display: 'inline-block', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6, marginTop: 2,
-                  background: isPaid ? '#dcfce7' : '#fef3c7',
-                  color: isPaid ? '#15803d' : '#b45309'
-                }}>
-                  {doc.payment_status}
-                </span>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
+                <div>
+                  <span style={{ fontSize: 10, color: '#64748b', display: 'block' }}>Payment Mode</span>
+                  <strong style={{ fontSize: 13, color: '#0f172a' }}>{doc.payment_mode || 'CASH'}</strong>
+                </div>
+                <div>
+                  <span style={{ fontSize: 10, color: '#64748b', display: 'block' }}>Status</span>
+                  <span style={{
+                    display: 'inline-block', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6, marginTop: 2,
+                    background: isPaid ? '#dcfce7' : '#fef3c7',
+                    color: isPaid ? '#15803d' : '#b45309'
+                  }}>
+                    {doc.payment_status}
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </div>
@@ -341,10 +375,12 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
               !hideTax ? ['CGST Total', formatINR(doc.cgst_total)] : null,
               !hideTax ? ['SGST Total', formatINR(doc.sgst_total)] : null,
               doc.round_off !== 0 ? ['Round Off', (doc.round_off > 0 ? '+' : '') + formatINR(Math.abs(doc.round_off))] : null,
+              isPartial ? ['Amount Paid', formatINR(doc.paid_amount || 0)] : null,
+              isPartial ? ['Balance Due', formatINR(balanceDue)] : null,
             ].filter(Boolean).map(([label, value]: any, idx) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', fontSize: 11, borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
-                <span style={{ color: '#64748b' }}>{label}</span>
-                <span style={{ fontWeight: 600, color: '#334155' }}>{value}</span>
+                <span style={{ color: label === 'Balance Due' ? '#dc2626' : (label === 'Amount Paid' ? '#16a34a' : '#64748b'), fontWeight: isPartial && (label === 'Balance Due' || label === 'Amount Paid') ? 700 : 400 }}>{label}</span>
+                <span style={{ fontWeight: 600, color: label === 'Balance Due' ? '#dc2626' : (label === 'Amount Paid' ? '#16a34a' : '#334155') }}>{value}</span>
               </div>
             ))}
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: headerBg, color: 'white' }}>
@@ -357,7 +393,7 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
           {(profile?.enable_scan_to_pay !== 0 && profile?.enable_scan_to_pay !== false) && !isQuotation && upiLink && (
             <div style={{ textAlign: 'center', marginTop: 14, padding: 12, border: '1px dashed #cbd5e1', borderRadius: 10, background: '#f8fafc' }}>
               <p style={{ fontSize: 10, fontWeight: 800, color: accentColor, margin: '0 0 6px 0', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                ⚡ Scan to Pay
+                {isPartial ? `⚡ Scan to Pay Balance Due (${formatINR(balanceDue)})` : '⚡ Scan to Pay'}
               </p>
               <div style={{ display: 'flex', justifyContent: 'center', padding: 6, background: 'white', borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', width: 'fit-content', margin: '4px auto' }}>
                 <QRCodeSVG value={upiLink} size={105} />
