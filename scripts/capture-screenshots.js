@@ -28,8 +28,9 @@ const screenshots = [
   { name: '03-records-history.png', url: 'http://localhost:54321/?tab=history' },
   { name: '04-invoice-preview.png', url: 'http://localhost:54321/?tab=history&view=first' },
   { name: '05-inventory.png', url: 'http://localhost:54321/?tab=inventory' },
-  { name: '06-customers.png', url: 'http://localhost:54321/?tab=customers' },
-  { name: '07-settings.png', url: 'http://localhost:54321/?settings=true' }
+  { name: '06-customer-analytics.png', url: 'http://localhost:54321/?tab=analytics' },
+  { name: '07-customers.png', url: 'http://localhost:54321/?tab=customers' },
+  { name: '08-settings.png', url: 'http://localhost:54321/?settings=true' }
 ];
 
 for (const s of screenshots) {

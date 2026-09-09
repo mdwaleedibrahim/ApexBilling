@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-v2.1.0-blue.svg" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-v2.3.0-blue.svg" alt="Version" />
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Web-purple.svg" alt="Platform" />
   <img src="https://img.shields.io/badge/Storage-SQLite%20(WAL%20Mode)-success.svg" alt="SQLite" />
   <img src="https://img.shields.io/badge/GST-Compliant%20Engine-emerald.svg" alt="GST Compliant" />
@@ -25,45 +25,58 @@
 - **5 Concurrent Memory Slots (`Alt+1..5`)**: Switch and hold multiple customer carts simultaneously without data loss or UI slowdown.
 - **High-Speed Keyboard Navigation**: Complete entire billing workflows using keyboard hotkeys (`F2` search, `F4` quotation, `F7` cash, `F8` UPI QR).
 - **Live SKU & Barcode Search**: Instant product lookup with keyboard arrow navigation and quick auto-fill.
-- **Purchase Price & Margin Protection**: Optional inline purchase price display with real-time alert highlighting if selling price falls below cost.
+- **Independent Pricing & MRP**: Uses active `Price` for billing, discounts, and PnL while `MRP` is displayed informatively below the description.
+- **Dual Discount Engine (`%` and `₹`)**: Apply percentage discounts or fixed currency amounts (rendered as "Additional discount"), protected by automatic loss prevention.
+- **Loss Prevention Safeguards**: Validates bills in real time to prevent discounts from causing the grand total to fall below purchase cost.
+- **Purchase Price & Margin Protection**: Inline purchase price indicator (`Pur. Price` in blue) with alert highlighting if selling price falls below cost.
 - **Stock-Limit Safeguards**: Proactive stock quantity checking with an executive confirmation dialog to either cap or bypass limits.
 - **Live Estimated Bill Profit**: See live taxable margin and gross profit for every bill before finalizing.
 - **Quick Product Modal (`Alt+N`)**: Add brand-new inventory items directly from the checkout table without leaving the POS screen.
 
-### 📊 2. Executive Sales & PnL Analytics Dashboard
+### 👥 2. Customer Analytics & Lifetime Intelligence
+- **Multi-Timeframe KPI Summary**: Instant sales count and revenue performance across *Today*, *This Week*, *This Month*, *This Year*, and *All-Time*.
+- **Aggregated Purchase Insights**: All items purchased by the customer sorted by total quantity in descending order with spend totals.
+- **Filtered Document History**: Dedicated register of all customer invoices and quotations with full action parity (View, Print, WhatsApp Share, Convert to Invoice, Edit, Cancel).
+- **Direct Directory Shortcuts**: Jump directly to customer analytics with a single click from the Customers Directory.
+- **Opaque Autocomplete Combobox**: Fast, distraction-free customer search with phone, name, and credit indicators.
+
+### 📊 3. Executive Sales & PnL Analytics Dashboard
 - **Real-Time Revenue Metrics**: Instant KPI summary cards for *Today*, *This Week*, *This Month*, and *This Year*.
 - **Profit & Loss (PnL) Engine**: Automatic breakdown of *Gross Revenue*, *Cost of Goods Sold (COGS)*, *GST Tax Liability*, and *Gross Net Profit* with dynamic margin percentage.
 - **12-Month Sales Trend Breakdown**: Interactive monthly sales chart to track seasonal trends and business growth.
 - **Customer Spend Drill-down**: Click on metrics to inspect ranked customer spending breakdowns.
 - **CSV Sales Report Export**: 1-click export of financial reports for accounting and audit compliance.
 
-### 🧾 3. Executive Invoice & Thermal Receipt Layouts
-- **Modern Executive A4 GST Tax Invoice**: Clean typography, structured seller/buyer info, itemized HSN table, CGST/SGST split, bank details, authorized signatory, and UPI QR code.
+### 🧾 4. Executive Invoice & Thermal Receipt Layouts
+- **Zero-Blank-Page A4 GST Tax Invoice**: Clean typography, structured seller/buyer info, itemized HSN table, CGST/SGST split, bank details, authorized signatory, and dynamic UPI QR code with zero extra trailing blank pages.
+- **Native WhatsApp PDF Sharing**: Share generated A4 PDF documents directly with customers via native Windows WhatsApp with custom messages.
 - **80mm ESC/POS Thermal Receipts**: Streamlined thermal layout for retail counters and high-traffic POS environments.
-- **Quotation / Estimate Support (`F4`)**: Issue professional quotes with validity notes and convert them to tax invoices in a single click.
+- **Quotation / Estimate Support (`F4`)**: Issue professional quotes with auto-saved customer records, validity notes, and 1-click tax invoice conversion.
 
-### 📱 4. Dynamic NPCI UPI QR Engine
+### 📱 5. Dynamic NPCI UPI QR Engine
 - **Instant Scan-to-Pay**: Generates standard NPCI-compliant UPI deep links (`upi://pay?pa=...&pn=...&am=...&tn=...`) rendered on screen and printed invoices.
 - **Multi-UPI Accounts Manager**: Configure multiple merchant handles (e.g., HDFC, ICICI, SBI) and set active default accounts.
 - **Instant QR Verification**: Works with PhonePe, Google Pay, Paytm, BHIM, and all banking UPI apps.
 
-### 🔄 5. Records Management & Atomic Stock Reconciler
+### 🔄 6. Records Management & Atomic Stock Reconciler
 - **Unified Register**: Search and filter past invoices and quotations by type, date range, customer, or payment status.
 - **Atomic Stock Restoration**: Editing a historical invoice automatically restocks old items, validates new stock levels, recalculates tax totals, and increments revision numbers (`v1` → `v2`).
 - **1-Click Quotation Conversion**: Convert any quotation directly into an active invoice without retyping line items.
 - **Invoice Cancellation**: Void invoices with automatic inventory replenishment.
 
-### 📦 6. Inventory & SKU Management
+### 📦 7. Inventory & SKU Management
 - **Multi-Unit Product Catalog**: Support for `PCS`, `KG`, `LTR`, `MTR`, `BOX`, `PKT`, `NOS`, `SET`, `PAIR`, `DOZ`, and custom units.
+- **Dedicated Price vs. MRP Columns**: Clear distinction between calculated selling price and packaging MRP.
 - **Stock Health Indicators**: Visual status tags for *In Stock*, *Low Stock*, and *Out of Stock*.
 - **High-Speed CSV Bulk Importer**: Upload 2,000+ SKUs with pricing, HSN codes, and initial stock quantities in under 1.5 seconds.
 
-### 👥 7. Customer Directory & Ledger
+### 👥 8. Customer Directory & Ledger
 - **Phone-Number-Indexed Master**: Fast lookup by customer phone number, name, or GSTIN.
+- **Automatic Registration**: Adding a customer during billing OR quotation creation automatically saves them to the master database.
 - **Outstanding Balance Tracker**: Monitor customer credit, pending dues, and payment history.
-- **Inline Customer Registration**: Typing a new customer phone and name during billing automatically saves them to the master database.
+- **Analytics Shortcut**: Direct icon button next to every customer to view their complete analytics profile.
 
-### ⚙️ 8. Administration & Data Resiliency
+### ⚙️ 9. Administration & Data Resiliency
 - **Business Profile**: Configure Company Name, Trade Name, GSTIN, PAN, Phone, Email, Address, and Bank Account Details.
 - **POS Feature Toggles**: Control visibility of purchase prices, profit margins, and stock limit constraints.
 - **1-Click JSON Backup & Restore**: Export full database snapshots for offsite archival and restore seamlessly.
@@ -85,32 +98,38 @@ High-speed checkout with 5 hold slots, live SKU search, purchase price protectio
 ---
 
 ### 3. Executive A4 GST Invoice & Quotation Preview
-Clean, high-impact A4 tax invoice template featuring itemized GST breakdown, bank payment info, and dynamic NPCI QR code.
+Clean, high-impact A4 tax invoice template featuring itemized GST breakdown, bank payment info, zero blank pages, and dynamic NPCI QR code.
 ![Invoice Preview](docs/screenshots/04-invoice-preview.png)
 
 ---
 
 ### 4. Records & Document History
-Filter and manage historical invoices, track revision numbers, void transactions, or convert quotations to tax invoices.
+Filter and manage historical invoices, share via WhatsApp, track revision numbers, void transactions, or convert quotations to tax invoices.
 ![Records History](docs/screenshots/03-records-history.png)
 
 ---
 
 ### 5. Inventory & Multi-Unit Catalog
-Track stock quantities, HSN/SAC codes, profit margins, and tax rates with batch CSV import/export support.
+Track stock quantities, HSN/SAC codes, distinct Price vs. MRP columns, profit margins, and tax rates with batch CSV import/export support.
 ![Inventory Catalog](docs/screenshots/05-inventory.png)
 
 ---
 
-### 6. Customer Master & Credit Directory
-Search customer records, track outstanding balances, and view transaction histories.
-![Customer Directory](docs/screenshots/06-customers.png)
+### 6. Customer Analytics & Lifetime Intelligence
+Inspect individual customer metrics across Day, Week, Month, Year, and All-Time with aggregated purchased items and customer document records.
+![Customer Analytics](docs/screenshots/06-customer-analytics.png)
 
 ---
 
-### 7. Seller Profile, Multi-UPI & Admin Settings
+### 7. Customer Master & Credit Directory
+Search customer records, track outstanding balances, view transaction histories, and jump directly to customer analytics.
+![Customer Directory](docs/screenshots/07-customers.png)
+
+---
+
+### 8. Seller Profile, Multi-UPI & Admin Settings
 Manage business details, banking info, multi-UPI QR accounts, POS display toggles, and data backup/restore.
-![Settings Modal](docs/screenshots/07-settings.png)
+![Settings Modal](docs/screenshots/08-settings.png)
 
 ---
 
@@ -136,7 +155,7 @@ Manage business details, banking info, multi-UPI QR accounts, POS display toggle
 
 ApexBill provides a standalone portable package bundled with an embedded Node.js runtime and SQLite engine:
 
-1. Download or extract the release archive (`ApexBill-v2.1.0-Portable.zip`).
+1. Download or extract the release archive (`ApexBill-v2.3.0-Portable.zip`).
 2. Double-click **`Launch-ApexBill.vbs`** (or **`ApexBill.bat`**).
 3. ApexBill launches immediately in a dedicated desktop application window at `http://localhost:54321`.
 
@@ -210,11 +229,11 @@ powershell -ExecutionPolicy Bypass -File ./scripts/release.ps1
 Upload products in bulk via **Inventory → Import CSV**:
 
 ```csv
-sku,name,hsn_sac,unit,purchase_price,selling_price,tax_rate,stock_qty
-LAP-DELL-3520,Dell Latitude 15 3520 Laptop,84713010,PCS,48500,58990,18,12
-MON-LG-27UP850,LG 27 Inch 4K UHD Monitor,85285200,PCS,22400,29499,18,18
-KB-LOGI-MXMECH,Logitech MX Mechanical Keyboard,84716060,PCS,8200,11495,18,32
-ROL-THERM-80X50,80mm Thermal Paper Rolls Pack of 10,48119000,BOX,380,650,12,150
+sku,name,hsn_sac,unit,purchase_price,selling_price,mrp,tax_rate,stock_qty
+LAP-DELL-3520,Dell Latitude 15 3520 Laptop,84713010,PCS,48500,58990,62990,18,12
+MON-LG-27UP850,LG 27 Inch 4K UHD Monitor,85285200,PCS,22400,29499,32000,18,18
+KB-LOGI-MXMECH,Logitech MX Mechanical Keyboard,84716060,PCS,8200,11495,12995,18,32
+ROL-THERM-80X50,80mm Thermal Paper Rolls Pack of 10,48119000,BOX,380,650,750,12,150
 ```
 
 - **Supported Units**: `PCS`, `KG`, `GM`, `LTR`, `ML`, `MTR`, `BOX`, `PKT`, `NOS`, `SET`, `PAIR`, `DOZ`, `ROLL`, `BAG`, `CTN`.
@@ -249,7 +268,7 @@ ApexBill uses an embedded SQLite database engine with **Write-Ahead Logging (WAL
 | **Backend API** | Fastify (TypeScript) | High-throughput REST backend on port `54321` |
 | **Database** | SQLite (`node:sqlite` / WAL mode) | Fast, embedded, zero-configuration persistence |
 | **QR Engine** | `qrcode.react` | NPCI-compliant dynamic UPI payment QR codes |
-| **Icons & UI** | Lucide React | Clean, modern iconography |
+| **Icons & UI** | Lucide React | Clean, modern iconography & official WhatsApp brand icons |
 | **Packaging** | PowerShell, VBScript, Batch | 1-click standalone portable Windows distribution |
 
 ---
@@ -267,15 +286,16 @@ ApexBill/
 │   │   │   │   ├── history/    # Invoice register & quotation conversion
 │   │   │   │   ├── inventory/  # Product catalog, stock alerts, CSV modal
 │   │   │   │   ├── customers/  # Customer directory & outstanding balances
+│   │   │   │   ├── analytics/  # Customer Analytics, item purchase aggregations
 │   │   │   │   ├── settings/   # Business profile, multi-UPI, data backup
 │   │   │   │   └── print/      # A4 GST Tax Invoice & 80mm ESC/POS templates
 │   │   │   ├── store/          # Zustand stores (billing, slots, dialogs)
-│   │   │   └── utils/          # GST calculation engine & UPI generator
+│   │   │   └── utils/          # GST engine, UPI helper, PDF & WhatsApp helpers
 │   │   └── package.json
 │   └── server/                 # Fastify backend server
 │       ├── src/
 │       │   ├── db/             # SQLite connection, migrations, schema.sql
-│       │   ├── routes/         # REST API endpoints (billing, inventory, etc.)
+│       │   ├── routes/         # REST API endpoints (billing, analytics, inventory, etc.)
 │       │   └── services/       # GST math, stock reconciler, CSV importer
 │       ├── public/             # Compiled frontend assets for unified hosting
 │       └── package.json

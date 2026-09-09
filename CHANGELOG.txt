@@ -3,6 +3,17 @@
 ========================================================================
 
 ========================================================================
+ApexBill Release v2.3.0 - 2026-09-09 21:54:50
+========================================================================
+Changes & Commits in this Build:
+  * feat: add customer analytics tab, quotation customer auto-save, and remove PDF blank pages (9d59740)
+  * feat: decouple MRP from pricing, add fixed discount, loss protection, and WhatsApp PDF sharing (a9b50bc)
+  * QUotation converion cleanup, Partial payment workflow added, ability to add Customer and edit it in the UI (042ea83)
+  * improve project versioning (95d4e8e)
+  * fix changelog (25bbb1e)
+  * reorganize project structure (3fa5c09)
+
+========================================================================
 ApexBill Release v2.2.0 - 2026-09-05 00:07:12
 ========================================================================
 Changes & Commits in this Build:
