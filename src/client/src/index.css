@@ -124,6 +124,9 @@
   .print-container {
     padding: 0 !important;
     width: 100% !important;
+    min-height: auto !important;
+    height: auto !important;
+    max-height: none !important;
   }
   table {
     width: 100% !important;

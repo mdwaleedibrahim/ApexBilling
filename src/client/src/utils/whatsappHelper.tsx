@@ -88,21 +88,6 @@ export async function shareInvoiceViaWhatsApp(
   if (element) {
     try {
       const pdfBlob = await generateInvoicePdfBlob(element, filename)
-      const pdfFile = new File([pdfBlob], filename, { type: 'application/pdf' })
-
-      // Try native Web Share API with file attachment if supported
-      if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-        try {
-          await navigator.share({
-            files: [pdfFile],
-            title: filename,
-            text: textMsg
-          })
-          return
-        } catch (shareErr: any) {
-          if (shareErr?.name === 'AbortError') return
-        }
-      }
 
       // Download the PDF file directly to Downloads
       const url = URL.createObjectURL(pdfBlob)
@@ -118,6 +103,6 @@ export async function shareInvoiceViaWhatsApp(
     }
   }
 
-  // Open native WhatsApp Desktop with customer phone number and clean message without details
+  // Open native WhatsApp Desktop directly with customer phone number
   openWhatsAppChat(phone, textMsg)
 }

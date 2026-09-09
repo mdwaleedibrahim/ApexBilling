@@ -1,6 +1,5 @@
-// components/customers/CustomerDirectory.tsx
 import { useEffect, useState } from 'react'
-import { Search, Plus, Edit, Trash2, Receipt, X, Save, Sparkles } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, Receipt, X, Save, Sparkles, BarChart3 } from 'lucide-react'
 import { api } from '../../utils/api'
 import { formatINR, formatDate } from '../../utils/upiHelper'
 import { INDIAN_STATES } from '../../utils/gstEngine'
@@ -8,7 +7,7 @@ import { normalizePhone } from '../../utils/phoneHelper'
 
 const EMPTY = { phone: '', name: '', email: '', gstin: '', billing_address: '', state_code: '36' }
 
-export default function CustomerDirectory() {
+export default function CustomerDirectory({ onViewAnalytics }: { onViewAnalytics?: (phone: string) => void } = {}) {
   const [customers, setCustomers] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
@@ -177,8 +176,11 @@ export default function CustomerDirectory() {
                     </td>
                     <td className="td">
                       <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => startEdit(c)} className="btn-ghost p-1.5 text-brand-400"><Edit size={14} /></button>
-                        <button onClick={() => del(c.phone)} className="btn-ghost p-1.5 text-red-400"><Trash2 size={14} /></button>
+                        <button onClick={() => onViewAnalytics?.(c.phone)} className="btn-ghost p-1.5 text-purple-400 hover:bg-purple-500/20" title="View Customer Analytics">
+                          <BarChart3 size={14} />
+                        </button>
+                        <button onClick={() => startEdit(c)} className="btn-ghost p-1.5 text-brand-400" title="Edit Customer"><Edit size={14} /></button>
+                        <button onClick={() => del(c.phone)} className="btn-ghost p-1.5 text-red-400" title="Delete Customer"><Trash2 size={14} /></button>
                       </div>
                     </td>
                   </tr>
@@ -198,6 +200,14 @@ export default function CustomerDirectory() {
               </div>
               <button onClick={() => setSelected(null)} className="btn-ghost p-1"><X size={14} /></button>
             </div>
+            {selected.phone && !selected.phone.startsWith('NO_PHONE_') && (
+              <button
+                onClick={() => onViewAnalytics?.(selected.phone)}
+                className="btn-secondary text-xs w-full justify-center flex items-center gap-1.5 py-1.5 !bg-purple-500/15 !text-purple-300 border border-purple-500/30 hover:!bg-purple-500/25"
+              >
+                <BarChart3 size={14} /> View Customer Analytics
+              </button>
+            )}
             <div className="flex items-center gap-2">
               <Receipt size={14} className="text-brand-400" />
               <span className="text-xs font-medium text-gray-400">Invoice History</span>

@@ -153,15 +153,19 @@ export async function billingRoutes(app: FastifyInstance) {
   // ── Documents ──────────────────────────────────────────────────────────────
 
   // GET /api/documents - list all with filters
-  app.get<{ Querystring: { type?: string; status?: string; search?: string; limit?: string } }>(
+  app.get<{ Querystring: { type?: string; status?: string; search?: string; customer_phone?: string; limit?: string } }>(
     '/api/documents', (req, reply) => {
-      const { type, status, search, limit } = req.query;
+      const { type, status, search, customer_phone, limit } = req.query;
       let sql = `SELECT d.*, di_count.item_count FROM documents d
         LEFT JOIN (SELECT document_id, COUNT(*) as item_count FROM document_items GROUP BY document_id) di_count
         ON d.id = di_count.document_id WHERE 1=1`;
       const params: any[] = [];
       if (type && type !== 'undefined') { sql += ' AND d.doc_type = ?'; params.push(type); }
       if (status && status !== 'undefined') { sql += ' AND d.payment_status = ?'; params.push(status); }
+      if (customer_phone && customer_phone !== 'undefined') {
+        sql += ' AND (d.customer_phone = ? OR d.customer_snapshot LIKE ?)';
+        params.push(customer_phone, `%"phone":"${customer_phone}"%`);
+      }
       if (search && search.trim() && search !== 'undefined') { sql += ' AND (d.doc_number LIKE ? OR d.customer_snapshot LIKE ?)'; params.push(`%${search.trim()}%`, `%${search.trim()}%`); }
       sql += ' ORDER BY d.doc_date DESC, d.created_at DESC';
       const safeLimit = Math.max(1, Math.min(1000, parseInt(limit || '100', 10) || 100));
@@ -236,15 +240,10 @@ export async function billingRoutes(app: FastifyInstance) {
       }
 
       // Handle customer linking:
-      // If payment is complete (PAID invoice), save the customer immediately
+      // If quotation, or paid invoice, or customer details are provided, save/link customer immediately
       let finalPhone: string | null = null;
-      if (doc_type === 'INVOICE' && payment_status === 'PAID') {
+      if (doc_type === 'QUOTATION' || (doc_type === 'INVOICE' && payment_status === 'PAID') || customer_phone) {
         finalPhone = saveCustomerIfPaymentComplete(db, null, snapshot, customer_phone);
-      } else if (customer_phone) {
-        const normPhone = normalizePhone(customer_phone);
-        // If not paid yet, link phone only if customer already exists in customers table
-        const exists = db.prepare('SELECT phone FROM customers WHERE phone = ?').get(normPhone);
-        if (exists) finalPhone = normPhone;
       }
 
       db.prepare(`
@@ -351,11 +350,8 @@ export async function billingRoutes(app: FastifyInstance) {
       }
 
       let finalPhone = customer_phone || existing.customer_phone;
-      if (existing.doc_type === 'INVOICE' && newStatus === 'PAID') {
+      if (existing.doc_type === 'QUOTATION' || (existing.doc_type === 'INVOICE' && newStatus === 'PAID') || finalPhone) {
         finalPhone = saveCustomerIfPaymentComplete(db, null, customer_snapshot || existing.customer_snapshot, finalPhone);
-      } else if (finalPhone) {
-        const exists = db.prepare('SELECT phone FROM customers WHERE phone = ?').get(finalPhone);
-        if (!exists) finalPhone = null;
       }
 
       db.prepare(`

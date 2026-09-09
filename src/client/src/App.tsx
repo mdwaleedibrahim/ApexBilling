@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, Receipt, Users, Package,
-  Settings, ChevronRight, Zap, Menu, X, Clock
+  Settings, ChevronRight, Zap, Menu, X, Clock, BarChart3
 } from 'lucide-react'
 import SalesDashboard from './components/dashboard/SalesDashboard'
 import BillingWorkspace from './components/billing/BillingWorkspace'
 import RecordsHistoryTab from './components/history/RecordsHistoryTab'
 import InventoryTable from './components/inventory/InventoryTable'
 import CustomerDirectory from './components/customers/CustomerDirectory'
+import CustomerAnalyticsTab from './components/analytics/CustomerAnalyticsTab'
 import SellerSettingsModal from './components/settings/SellerSettingsModal'
 import { useDialogStore } from './store/useDialogStore'
 
@@ -40,14 +41,15 @@ function CustomDialog() {
   )
 }
 
-type Tab = 'dashboard' | 'billing' | 'history' | 'inventory' | 'customers' | 'settings'
+type Tab = 'dashboard' | 'billing' | 'history' | 'customers' | 'inventory' | 'analytics' | 'settings'
 
 const NAV = [
-  { id: 'dashboard',  label: 'Dashboard',  icon: LayoutDashboard },
-  { id: 'billing',    label: 'POS Billing', icon: Zap },
-  { id: 'history',    label: 'Records',     icon: Receipt },
-  { id: 'customers',  label: 'Customers',   icon: Users },
-  { id: 'inventory',  label: 'Inventory',   icon: Package },
+  { id: 'dashboard',  label: 'Dashboard',   icon: LayoutDashboard },
+  { id: 'billing',    label: 'POS Billing',  icon: Zap },
+  { id: 'history',    label: 'Records',      icon: Receipt },
+  { id: 'customers',  label: 'Customers',    icon: Users },
+  { id: 'inventory',  label: 'Inventory',           icon: Package },
+  { id: 'analytics',  label: 'Customer Analytics',  icon: BarChart3 },
 ] as const
 
 function TopHeaderClock() {
@@ -73,10 +75,14 @@ export default function App() {
   const [tab, setTab] = useState<Tab>(() => {
     const params = new URLSearchParams(window.location.search)
     const t = params.get('tab')
-    if (t && ['dashboard', 'billing', 'history', 'inventory', 'customers'].includes(t)) {
+    if (t && ['dashboard', 'billing', 'history', 'inventory', 'customers', 'analytics'].includes(t)) {
       return t as Tab
     }
     return 'dashboard'
+  })
+  const [analyticsCustomerPhone, setAnalyticsCustomerPhone] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search)
+    return params.get('customer') || null
   })
   const [sidebarOpen, setSidebar] = useState(true)
   const [settingsOpen, setSettings] = useState(() => {
@@ -165,8 +171,21 @@ export default function App() {
           {tab === 'dashboard'  && <SalesDashboard />}
           {tab === 'billing'    && <BillingWorkspace />}
           {tab === 'history'    && <RecordsHistoryTab onEdit={(doc) => { setTab('billing') }} />}
-          {tab === 'customers'  && <CustomerDirectory />}
+          {tab === 'customers'  && (
+            <CustomerDirectory
+              onViewAnalytics={(phone) => {
+                setAnalyticsCustomerPhone(phone)
+                setTab('analytics')
+              }}
+            />
+          )}
           {tab === 'inventory'  && <InventoryTable />}
+          {tab === 'analytics'  && (
+            <CustomerAnalyticsTab
+              initialPhone={analyticsCustomerPhone}
+              onEdit={(doc) => { setTab('billing') }}
+            />
+          )}
         </div>
       </main>
 

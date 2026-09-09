@@ -26,13 +26,19 @@ export const api = {
     topProducts: (period: string) => req<any[]>(`/dashboard/top-products?period=${period}`),
   },
 
+  // ── Analytics ──────────────────────────────────────────────────────────────
+  analytics: {
+    customer: (phone: string) => req<any>(`/analytics/customer/${encodeURIComponent(phone)}`),
+  },
+
   // ── Documents ─────────────────────────────────────────────────────────────
   documents: {
-    list: (params?: { type?: string; status?: string; search?: string }) => {
+    list: (params?: { type?: string; status?: string; search?: string; customer_phone?: string }) => {
       const cleanParams: Record<string, string> = {}
       if (params?.type) cleanParams.type = params.type
       if (params?.status) cleanParams.status = params.status
       if (params?.search) cleanParams.search = params.search
+      if (params?.customer_phone) cleanParams.customer_phone = params.customer_phone
       const q = new URLSearchParams(cleanParams).toString()
       return req<any[]>(`/documents${q ? '?' + q : ''}`)
     },
