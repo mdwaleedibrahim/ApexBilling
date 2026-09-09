@@ -60,7 +60,8 @@ CREATE TABLE IF NOT EXISTS products (
     hsn_sac TEXT,
     unit TEXT DEFAULT 'PCS',
     purchase_price DECIMAL(10,2) DEFAULT 0.00,
-    selling_price DECIMAL(10,2) NOT NULL,
+    selling_price DECIMAL(10,2) NOT NULL, -- Price (selling price for billing & calculations)
+    mrp DECIMAL(10,2) DEFAULT 0.00,        -- MRP (printed on bills, not used in calculation)
     tax_rate DECIMAL(5,2) DEFAULT 18.00,
     stock_qty INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -81,6 +82,7 @@ CREATE TABLE IF NOT EXISTS documents (
     gross_subtotal DECIMAL(12,2) NOT NULL,
     discount_pct DECIMAL(5,2) DEFAULT 0.00,
     discount_amount DECIMAL(12,2) DEFAULT 0.00,
+    additional_discount DECIMAL(12,2) DEFAULT 0.00,
     taxable_amount DECIMAL(12,2) NOT NULL,
     cgst_total DECIMAL(12,2) NOT NULL,
     sgst_total DECIMAL(12,2) NOT NULL,
@@ -117,7 +119,8 @@ CREATE TABLE IF NOT EXISTS document_items (
     sgst_rate DECIMAL(5,2) NOT NULL,
     sgst_amount DECIMAL(10,2) NOT NULL,
     total_amount DECIMAL(10,2) NOT NULL,
-    purchase_price DECIMAL(10,2) DEFAULT 0
+    purchase_price DECIMAL(10,2) DEFAULT 0,
+    mrp DECIMAL(10,2) DEFAULT 0.00
 );
 CREATE INDEX IF NOT EXISTS idx_document_items_doc_id ON document_items(document_id);
 

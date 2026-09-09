@@ -1,10 +1,10 @@
-// components/history/RecordsHistoryTab.tsx — Invoice/Quotation history table with View & Print
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Search, Eye, Edit, XCircle, Printer, X, FileCheck } from 'lucide-react'
 import { api } from '../../utils/api'
 import { formatINR, formatDate } from '../../utils/upiHelper'
 import { useBillingStore } from '../../store/useBillingStore'
 import A4InvoiceTemplate from '../print/A4InvoiceTemplate'
+import { WhatsAppIcon, shareInvoiceViaWhatsApp } from '../../utils/whatsappHelper'
 
 interface Props { onEdit: (doc: any) => void }
 
@@ -22,7 +22,10 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
   const [loading, setLoading] = useState(false)
   const [printDoc, setPrintDoc] = useState<any>(null)
   const [viewDoc, setViewDoc] = useState<any>(null)
+  const [sharingDoc, setSharingDoc] = useState<any>(null)
   const [profile, setProfile] = useState<any>(null)
+  const hiddenPdfRef = useRef<HTMLDivElement>(null)
+  const viewModalPdfRef = useRef<HTMLDivElement>(null)
   const store = useBillingStore()
 
   useEffect(() => {
@@ -89,6 +92,21 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
     const full = await api.documents.get(doc.id)
     setPrintDoc(full)
     setTimeout(() => window.print(), 300)
+  }
+
+  const handleWhatsAppShare = async (doc: any) => {
+    let targetElement: HTMLElement | null = null
+    let fullDoc = doc
+    if (viewDoc && viewDoc.id === doc.id && viewModalPdfRef.current) {
+      targetElement = viewModalPdfRef.current
+      fullDoc = viewDoc
+    } else {
+      fullDoc = (doc.items && doc.items.length) ? doc : await api.documents.get(doc.id)
+      setSharingDoc(fullDoc)
+      await new Promise(r => setTimeout(r, 120))
+      targetElement = hiddenPdfRef.current
+    }
+    await shareInvoiceViaWhatsApp(targetElement, fullDoc, profile)
   }
 
   return (
@@ -164,6 +182,7 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
                     <td className="td">
                       <div className="flex items-center gap-1">
                         <button onClick={() => handleView(doc)} className="btn-ghost p-1.5 text-blue-400" title="View Document"><Eye size={14} /></button>
+                        <button onClick={() => handleWhatsAppShare(doc)} className="btn-ghost p-1.5 text-emerald-400 hover:bg-emerald-500/20" title="Share via WhatsApp"><WhatsAppIcon size={15} className="text-emerald-400" /></button>
                         <button onClick={() => handlePrint(doc)} className="btn-ghost p-1.5 text-gray-300" title="Print"><Printer size={14} /></button>
                         {doc.doc_type === 'QUOTATION' && doc.payment_status !== 'CANCELLED' && (
                           <button onClick={() => handleConvert(doc)} className="btn-ghost p-1.5 text-emerald-400 hover:bg-emerald-500/20" title="Convert to Tax Invoice">
@@ -196,6 +215,13 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
                 <span className="ml-2 text-xs text-gray-400">({viewDoc.doc_type})</span>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleWhatsAppShare(viewDoc)}
+                  className="btn-primary text-xs py-1.5 bg-emerald-600 hover:bg-emerald-500 border-0 flex items-center gap-1.5 shadow-sm shadow-emerald-600/30"
+                  title="Share generated PDF via WhatsApp"
+                >
+                  <WhatsAppIcon size={14} className="text-white" /> WhatsApp
+                </button>
                 {viewDoc.doc_type === 'QUOTATION' && viewDoc.payment_status !== 'CANCELLED' && (
                   <button onClick={() => handleConvert(viewDoc)} className="btn-primary text-xs py-1.5 bg-emerald-600 hover:bg-emerald-500 border-0">
                     <FileCheck size={14} /> Convert to Invoice
@@ -209,7 +235,18 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
                 </button>
               </div>
             </div>
-            <A4InvoiceTemplate doc={viewDoc} profile={profile} />
+            <div ref={viewModalPdfRef}>
+              <A4InvoiceTemplate doc={viewDoc} profile={profile} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hidden target for generating PDF when sharing directly from table row */}
+      {sharingDoc && (
+        <div style={{ position: 'fixed', left: '-9999px', top: 0, width: '210mm', opacity: 0, pointerEvents: 'none' }}>
+          <div ref={hiddenPdfRef}>
+            <A4InvoiceTemplate doc={sharingDoc} profile={profile} />
           </div>
         </div>
       )}

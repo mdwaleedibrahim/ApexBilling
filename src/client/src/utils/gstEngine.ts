@@ -7,7 +7,8 @@ export interface LineItem {
   unit?: string
   purchasePrice?: number
   quantity: number
-  unitPrice: number // Tax inclusive unit price (MRP)
+  unitPrice: number // Tax inclusive unit selling price (Price)
+  mrp?: number       // Maximum retail price (printed on bills, not used in calculation)
   gstRate: number
 }
 
@@ -26,6 +27,7 @@ export interface InvoiceTotals {
   grossSubtotal: number
   discountPct: number
   discountAmount: number
+  additionalDiscount: number
   taxableAmount: number
   cgstTotal: number
   sgstTotal: number
@@ -36,13 +38,27 @@ export interface InvoiceTotals {
 
 const r2 = (n: number) => Math.round(n * 100) / 100
 
-export function calcTotals(items: LineItem[], discountPct = 0): InvoiceTotals {
+export function calcTotals(items: LineItem[], discountPct = 0, additionalDiscount = 0): InvoiceTotals {
   const d = Math.max(0, Math.min(100, discountPct))
-  let grossSubtotal = 0, taxableAmount = 0, cgstTotal = 0, sgstTotal = 0
+  let grossSubtotal = 0
+  for (const item of items) {
+    grossSubtotal += r2(item.quantity * item.unitPrice)
+  }
+  grossSubtotal = r2(grossSubtotal)
+
+  const pctDiscountAmount = r2(grossSubtotal * (d / 100))
+  const remainingAfterPct = Math.max(0, grossSubtotal - pctDiscountAmount)
+  const clampedAdditionalDiscount = Math.max(0, Math.min(remainingAfterPct, additionalDiscount || 0))
+  const totalDiscountAmount = r2(pctDiscountAmount + clampedAdditionalDiscount)
+
+  const effectiveDiscountRate = grossSubtotal > 0 ? (totalDiscountAmount / grossSubtotal) : 0
+
+  let taxableAmount = 0, cgstTotal = 0, sgstTotal = 0
 
   const calcItems: CalcLineItem[] = items.map(item => {
     const grossAmount = r2(item.quantity * item.unitPrice)
-    const grossAfterDiscount = r2(grossAmount * (1 - d / 100))
+    const lineDiscount = r2(grossAmount * effectiveDiscountRate)
+    const grossAfterDiscount = r2(Math.max(0, grossAmount - lineDiscount))
     const gstFactor = 1 + (item.gstRate || 0) / 100
     const taxableValue = r2(grossAfterDiscount / gstFactor)
     const totalGst = r2(grossAfterDiscount - taxableValue)
@@ -52,7 +68,6 @@ export function calcTotals(items: LineItem[], discountPct = 0): InvoiceTotals {
     const sgstAmount = r2(totalGst - cgstAmount)
     const totalAmount = grossAfterDiscount
 
-    grossSubtotal += grossAmount
     taxableAmount += taxableValue
     cgstTotal += cgstAmount
     sgstTotal += sgstAmount
@@ -60,13 +75,11 @@ export function calcTotals(items: LineItem[], discountPct = 0): InvoiceTotals {
     return { ...item, grossAmount, taxableValue, cgstRate, cgstAmount, sgstRate, sgstAmount, totalAmount }
   })
 
-  grossSubtotal = r2(grossSubtotal)
   taxableAmount = r2(taxableAmount)
   cgstTotal = r2(cgstTotal)
   sgstTotal = r2(sgstTotal)
 
-  const rawGrandTotal = r2(grossSubtotal * (1 - d / 100))
-  const discountAmount = r2(grossSubtotal - rawGrandTotal)
+  const rawGrandTotal = r2(Math.max(0, grossSubtotal - totalDiscountAmount))
   const grandTotal = Math.round(rawGrandTotal)
   const roundOff = r2(grandTotal - rawGrandTotal)
 
@@ -74,11 +87,12 @@ export function calcTotals(items: LineItem[], discountPct = 0): InvoiceTotals {
     items: calcItems,
     grossSubtotal,
     discountPct: d,
-    discountAmount,
+    discountAmount: pctDiscountAmount,
+    additionalDiscount: clampedAdditionalDiscount,
     taxableAmount,
     cgstTotal,
     sgstTotal,
-    rawGrandTotal: r2(rawGrandTotal),
+    rawGrandTotal,
     roundOff,
     grandTotal
   }

@@ -17,21 +17,34 @@ interface Props {
 
 export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props) {
   const store = useBillingStore()
-  const { totals, discountPct, setDiscountPct, paymentMode, setPaymentMode,
-          paymentStatus, setPaymentStatus, docType, setDocType, notes, setNotes,
-          items, customer, docDate, setDocDate, editingDocId, editingDocNumber,
+  const { totals, discountPct, setDiscountPct, additionalDiscount, setAdditionalDiscount,
+          paymentMode, setPaymentMode, paymentStatus, setPaymentStatus, docType, setDocType,
+          notes, setNotes, items, customer, docDate, setDocDate, editingDocId, editingDocNumber,
           paidAmount, setPaidAmount, partialPaymentMode, setPartialPaymentMode,
           convertingFromQuotationId } = store
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showUpiModal, setShowUpiModal] = useState(false)
+  const [discountMode, setDiscountMode] = useState<'PCT' | 'RUPEE'>('PCT')
   const submittingRef = useRef(false)
 
   const upiAccounts = sellerProfile?.upiAccounts || []
 
+  const totalPurchaseCost = items.reduce((sum, i) => sum + (i.quantity * (i.purchasePrice || 0)), 0)
+  const isLoss = totalPurchaseCost > 0 && totals.grandTotal < (totalPurchaseCost - 0.01)
+
   const handleSubmit = async (mode?: string, status?: string) => {
     if (submittingRef.current) return
     if (!items.length) { setError('Add at least one item'); return }
+
+    // Enforce loss prevention rule: discount should never cause bill to be sold at a loss
+    if (isLoss) {
+      await useDialogStore.getState().show(
+        `Discounts cannot cause net loss: Grand total (${formatINR(totals.grandTotal)}) is lower than total purchase cost (${formatINR(totalPurchaseCost)}). Please reduce discount.`,
+        false
+      )
+      return
+    }
 
     const belowCostItem = items.find(item => item.purchasePrice && (item.unitPrice * (1 - discountPct / 100)) < item.purchasePrice)
     if (belowCostItem) {
@@ -88,9 +101,10 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
         customer_snapshot: JSON.stringify(customer || {}),
         items: items.map(i => ({
           productId: i.productId, productName: i.productName, hsnSac: i.hsnSac, unit: i.unit,
-          purchasePrice: i.purchasePrice, quantity: i.quantity, unitPrice: i.unitPrice, gstRate: i.gstRate,
+          purchasePrice: i.purchasePrice, quantity: i.quantity, unitPrice: i.unitPrice, mrp: i.mrp, gstRate: i.gstRate,
         })),
         discount_pct: discountPct,
+        additional_discount: totals.additionalDiscount || additionalDiscount || 0,
         payment_mode: pm,
         payment_status: ps,
         paid_amount: finalPaidAmount,
@@ -161,7 +175,6 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
   )
 
   const showProfitLoss = sellerProfile?.show_profit_loss_in_pos !== 0 && sellerProfile?.show_profit_loss_in_pos !== false
-  const totalPurchaseCost = items.reduce((sum, i) => sum + (i.quantity * (i.purchasePrice || 0)), 0)
   const netRevenue = totals.rawGrandTotal
   const profitAmount = netRevenue - totalPurchaseCost
   const profitPct = totalPurchaseCost > 0 ? (profitAmount / totalPurchaseCost) * 100 : (netRevenue > 0 ? 100 : 0)
@@ -191,12 +204,89 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
         <input type="date" className="input" value={docDate} onChange={e => setDocDate(e.target.value)} />
       </div>
 
-      {/* Discount */}
-      <div>
-        <label className="label">Discount %</label>
-        <input type="number" min={0} max={100} step={0.5} className="input"
-          value={discountPct} onChange={e => setDiscountPct(parseFloat(e.target.value) || 0)} />
+      {/* Clubbed Discount Controls (% Discount and Discount ₹) */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="label !mb-0 font-medium">Discount</span>
+          <div className="flex rounded-lg overflow-hidden border border-white/10 text-[11px] p-0.5 bg-white/5">
+            <button
+              type="button"
+              onClick={() => setDiscountMode('PCT')}
+              className={`px-2.5 py-1 rounded font-semibold transition-colors ${
+                discountMode === 'PCT' ? 'bg-brand-600 text-white shadow-sm' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              % Discount
+            </button>
+            <button
+              type="button"
+              onClick={() => setDiscountMode('RUPEE')}
+              className={`px-2.5 py-1 rounded font-semibold transition-colors ${
+                discountMode === 'RUPEE' ? 'bg-brand-600 text-white shadow-sm' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Discount ₹
+            </button>
+          </div>
+        </div>
+
+        {discountMode === 'PCT' ? (
+          <div className="relative">
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={0.5}
+              className="input pr-8"
+              placeholder="0.0"
+              value={discountPct || ''}
+              onChange={e => setDiscountPct(parseFloat(e.target.value) || 0)}
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs pointer-events-none">%</span>
+          </div>
+        ) : (
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs pointer-events-none">₹</span>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              className="input pl-7 font-medium"
+              placeholder="0.00"
+              value={additionalDiscount || ''}
+              onChange={e => setAdditionalDiscount(parseFloat(e.target.value) || 0)}
+            />
+          </div>
+        )}
+
+        {(discountPct > 0 || additionalDiscount > 0) && (
+          <div className="flex items-center justify-between text-[11px] text-amber-400/90 pt-0.5 px-0.5">
+            <span>
+              Applied: {discountPct > 0 ? `${discountPct}%` : ''}
+              {discountPct > 0 && additionalDiscount > 0 ? ' + ' : ''}
+              {additionalDiscount > 0 ? formatINR(additionalDiscount) : ''}
+              {' '}(Total −{formatINR((totals.discountAmount || 0) + (totals.additionalDiscount || 0))})
+            </span>
+            <button
+              type="button"
+              onClick={() => { setDiscountPct(0); setAdditionalDiscount(0); }}
+              className="text-gray-400 hover:text-red-400 transition-colors underline text-[10px]"
+            >
+              Clear
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Loss Guardrail Banner */}
+      {isLoss && (
+        <div className="p-3 bg-red-500/15 border border-red-500/40 rounded-xl text-xs text-red-300 space-y-1">
+          <div className="font-bold flex items-center gap-1 text-red-400">
+            ⚠️ Revenue Loss Guardrail Active
+          </div>
+          <p>Discounts cannot cause bill to sell at a loss! Grand total ({formatINR(totals.grandTotal)}) cannot drop below total purchase cost ({formatINR(totalPurchaseCost)}).</p>
+        </div>
+      )}
 
       {/* Totals */}
       <div className="space-y-2 py-3 border-y border-white/10">
@@ -206,6 +296,7 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
         </label>
         {row('Subtotal',       formatINR(totals.grossSubtotal))}
         {discountPct > 0 && row(`Discount (${discountPct}%)`, `− ${formatINR(totals.discountAmount)}`, 'text-amber-400')}
+        {totals.additionalDiscount > 0 && row('Additional discount', `− ${formatINR(totals.additionalDiscount)}`, 'text-amber-400')}
         {!store.hideTaxOnInvoice && (
           <>
             {row('Taxable Amount', formatINR(totals.taxableAmount))}
@@ -216,7 +307,7 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
         {totals.roundOff !== 0 && row('Round Off', (totals.roundOff >= 0 ? '+' : '') + formatINR(Math.abs(totals.roundOff)))}
         <div className="flex items-center justify-between pt-2 border-t border-white/10">
           <span className="text-base font-bold text-white">Total</span>
-          <span className="text-xl font-bold text-emerald-400">{formatINR(totals.grandTotal)}</span>
+          <span className={`text-xl font-bold ${isLoss ? 'text-red-400' : 'text-emerald-400'}`}>{formatINR(totals.grandTotal)}</span>
         </div>
       </div>
 

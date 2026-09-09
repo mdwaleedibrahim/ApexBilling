@@ -78,8 +78,8 @@ function ensureProductInInventory(db: any, item: any): string {
   const id = randomUUID();
   const sku = 'SKU-' + Date.now().toString(36).toUpperCase() + '-' + Math.floor(Math.random() * 1000);
   db.prepare(`
-    INSERT INTO products (id, sku, name, hsn_sac, unit, purchase_price, selling_price, tax_rate, stock_qty)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO products (id, sku, name, hsn_sac, unit, purchase_price, selling_price, mrp, tax_rate, stock_qty)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     sku,
@@ -88,6 +88,7 @@ function ensureProductInInventory(db: any, item: any): string {
     item.unit || 'PCS',
     item.purchasePrice || 0,
     item.unitPrice || 0,
+    item.mrp || 0,
     item.gstRate ?? 18,
     item.quantity || 0
   );
@@ -183,13 +184,28 @@ export async function billingRoutes(app: FastifyInstance) {
   app.post<{ Body: any }>('/api/documents', (req, reply) => {
     const db = getDb();
     const { doc_type = 'INVOICE', doc_date, customer_phone, customer_snapshot, items: rawItems,
-      discount_pct = 0, payment_mode = 'CASH', payment_status = 'PAID', selected_upi_id, notes,
+      discount_pct = 0, additional_discount = 0, payment_mode = 'CASH', payment_status = 'PAID', selected_upi_id, notes,
       terms_and_conditions, hide_tax_on_invoice = 0, paid_amount = 0, partial_payment_mode,
       converting_quotation_id } = (req.body || {}) as any;
 
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
 
-    const totals = calculateInvoiceTotals(rawItems, discount_pct);
+    const totals = calculateInvoiceTotals(rawItems, discount_pct, additional_discount);
+
+    // Enforce loss prevention: grand total must not be lower than total purchase cost
+    let totalPurchaseCost = 0;
+    for (const item of rawItems) {
+      const pp = parseFloat(item.purchasePrice || 0);
+      const qty = parseFloat(item.quantity || 0);
+      if (pp > 0 && qty > 0) {
+        totalPurchaseCost += pp * qty;
+      }
+    }
+    if (totalPurchaseCost > 0 && totals.grandTotal < totalPurchaseCost - 0.01) {
+      return reply.status(400).send({
+        error: `Discounts cannot exceed allowable limit: Grand total (₹${totals.grandTotal.toFixed(2)}) is lower than total purchase cost (₹${totalPurchaseCost.toFixed(2)}). Loss is not allowed.`
+      });
+    }
 
     // Enforce stock restrictions if enabled
     if (doc_type === 'INVOICE' && payment_status !== 'CANCELLED') {
@@ -233,24 +249,24 @@ export async function billingRoutes(app: FastifyInstance) {
 
       db.prepare(`
         INSERT INTO documents (id, doc_type, doc_number, doc_date, customer_phone, customer_snapshot,
-          gross_subtotal, discount_pct, discount_amount, taxable_amount, cgst_total, sgst_total,
+          gross_subtotal, discount_pct, discount_amount, additional_discount, taxable_amount, cgst_total, sgst_total,
           round_off, grand_total, payment_mode, payment_status, selected_upi_id, notes, terms_and_conditions,
           hide_tax_on_invoice, paid_amount, partial_payment_mode)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `).run(id, doc_type, doc_number, doc_date || new Date().toISOString().slice(0,10),
-        finalPhone, snapshot, totals.grossSubtotal, totals.discountPct, totals.discountAmount,
+        finalPhone, snapshot, totals.grossSubtotal, totals.discountPct, totals.discountAmount, totals.additionalDiscount,
         totals.taxableAmount, totals.cgstTotal, totals.sgstTotal, totals.roundOff, totals.grandTotal,
         payment_mode, payment_status, selected_upi_id || null, notes || null, termsStr,
         hide_tax_on_invoice ? 1 : 0, finalPaidAmount, partial_payment_mode || (payment_status === 'PARTIAL' ? 'CASH' : null));
 
       const insertItem = db.prepare(`
-        INSERT INTO document_items (id, document_id, product_id, product_name, hsn_sac, unit, quantity, unit_price,
+        INSERT INTO document_items (id, document_id, product_id, product_name, hsn_sac, unit, quantity, unit_price, mrp,
           gross_amount, taxable_value, gst_rate, cgst_rate, cgst_amount, sgst_rate, sgst_amount, total_amount, purchase_price)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `);
       for (const item of totals.items) {
         insertItem.run(randomUUID(), id, item.productId || null, item.productName, item.hsnSac || null,
-          item.unit || 'PCS', item.quantity, item.unitPrice, item.grossAmount, item.taxableValue,
+          item.unit || 'PCS', item.quantity, item.unitPrice, item.mrp || 0, item.grossAmount, item.taxableValue,
           item.gstRate, item.cgstRate, item.cgstAmount, item.sgstRate, item.sgstAmount, item.totalAmount,
           item.purchasePrice || 0);
       }
@@ -278,13 +294,29 @@ export async function billingRoutes(app: FastifyInstance) {
     if (!existing) return reply.status(404).send({ error: 'Document not found' });
     if (existing.payment_status === 'CANCELLED') return reply.status(400).send({ error: 'Cannot edit cancelled document' });
 
-    const { items: rawItems, discount_pct = 0, payment_mode, payment_status, notes,
+    const { items: rawItems, discount_pct = 0, additional_discount, payment_mode, payment_status, notes,
       terms_and_conditions, customer_phone, customer_snapshot, hide_tax_on_invoice,
       paid_amount, partial_payment_mode } = (req.body || {}) as any;
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
 
-    const totals = calculateInvoiceTotals(rawItems, discount_pct);
+    const finalAdditionalDiscount = additional_discount !== undefined ? (parseFloat(additional_discount) || 0) : (existing.additional_discount || 0);
+    const totals = calculateInvoiceTotals(rawItems, discount_pct, finalAdditionalDiscount);
     const newStatus = payment_status || existing.payment_status;
+
+    // Enforce loss prevention: grand total must not be lower than total purchase cost
+    let totalPurchaseCost = 0;
+    for (const item of rawItems) {
+      const pp = parseFloat(item.purchasePrice || 0);
+      const qty = parseFloat(item.quantity || 0);
+      if (pp > 0 && qty > 0) {
+        totalPurchaseCost += pp * qty;
+      }
+    }
+    if (totalPurchaseCost > 0 && totals.grandTotal < totalPurchaseCost - 0.01) {
+      return reply.status(400).send({
+        error: `Discounts cannot exceed allowable limit: Grand total (₹${totals.grandTotal.toFixed(2)}) is lower than total purchase cost (₹${totalPurchaseCost.toFixed(2)}). Loss is not allowed.`
+      });
+    }
 
     // Enforce stock restrictions if enabled
     if (existing.doc_type === 'INVOICE' && newStatus !== 'CANCELLED') {
@@ -328,13 +360,13 @@ export async function billingRoutes(app: FastifyInstance) {
 
       db.prepare(`
         UPDATE documents SET customer_phone=?, customer_snapshot=?, gross_subtotal=?, discount_pct=?,
-          discount_amount=?, taxable_amount=?, cgst_total=?, sgst_total=?, round_off=?, grand_total=?,
+          discount_amount=?, additional_discount=?, taxable_amount=?, cgst_total=?, sgst_total=?, round_off=?, grand_total=?,
           payment_mode=?, payment_status=?, notes=?, terms_and_conditions=?, hide_tax_on_invoice=?,
           paid_amount=?, partial_payment_mode=?, revision_number=revision_number+1, updated_at=CURRENT_TIMESTAMP
         WHERE id=?
       `).run(finalPhone,
         typeof customer_snapshot === 'string' ? customer_snapshot : JSON.stringify(customer_snapshot || JSON.parse(existing.customer_snapshot)),
-        totals.grossSubtotal, totals.discountPct, totals.discountAmount, totals.taxableAmount,
+        totals.grossSubtotal, totals.discountPct, totals.discountAmount, totals.additionalDiscount, totals.taxableAmount,
         totals.cgstTotal, totals.sgstTotal, totals.roundOff, totals.grandTotal,
         payment_mode || existing.payment_mode, newStatus,
         notes ?? existing.notes, termsStr, hide_tax_on_invoice !== undefined ? (hide_tax_on_invoice ? 1 : 0) : existing.hide_tax_on_invoice || 0,
@@ -343,13 +375,13 @@ export async function billingRoutes(app: FastifyInstance) {
 
       db.prepare(`DELETE FROM document_items WHERE document_id = ?`).run(req.params.id);
       const insertItem = db.prepare(`
-        INSERT INTO document_items (id, document_id, product_id, product_name, hsn_sac, unit, quantity, unit_price,
+        INSERT INTO document_items (id, document_id, product_id, product_name, hsn_sac, unit, quantity, unit_price, mrp,
           gross_amount, taxable_value, gst_rate, cgst_rate, cgst_amount, sgst_rate, sgst_amount, total_amount, purchase_price)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `);
       for (const item of totals.items) {
         insertItem.run(randomUUID(), req.params.id, item.productId || null, item.productName,
-          item.hsnSac || null, item.unit || 'PCS', item.quantity, item.unitPrice, item.grossAmount, item.taxableValue,
+          item.hsnSac || null, item.unit || 'PCS', item.quantity, item.unitPrice, item.mrp || 0, item.grossAmount, item.taxableValue,
           item.gstRate, item.cgstRate, item.cgstAmount, item.sgstRate, item.sgstAmount, item.totalAmount,
           item.purchasePrice || 0);
       }

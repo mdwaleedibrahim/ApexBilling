@@ -33,24 +33,24 @@ export async function inventoryRoutes(app: FastifyInstance) {
   // POST /api/inventory - create product
   app.post<{ Body: any }>('/api/inventory', (req, reply) => {
     const db = getDb();
-    const { sku, name, hsn_sac, unit, purchase_price, selling_price, tax_rate, stock_qty } = (req.body || {}) as any;
+    const { sku, name, hsn_sac, unit, purchase_price, selling_price, mrp, tax_rate, stock_qty } = (req.body || {}) as any;
     if (!sku || !name || selling_price == null) return reply.status(400).send({ error: 'sku, name, selling_price required' });
     const id = randomUUID();
     db.prepare(`
-      INSERT INTO products (id, sku, name, hsn_sac, unit, purchase_price, selling_price, tax_rate, stock_qty)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, sku, name, hsn_sac || null, unit || 'PCS', purchase_price || 0, selling_price, tax_rate ?? 18, stock_qty || 0);
+      INSERT INTO products (id, sku, name, hsn_sac, unit, purchase_price, selling_price, mrp, tax_rate, stock_qty)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, sku, name, hsn_sac || null, unit || 'PCS', purchase_price || 0, selling_price, mrp || 0, tax_rate ?? 18, stock_qty || 0);
     return reply.status(201).send(db.prepare(`SELECT * FROM products WHERE id = ?`).get(id));
   });
 
   // PUT /api/inventory/:id - update product
   app.put<{ Params: { id: string }; Body: any }>('/api/inventory/:id', (req, reply) => {
     const db = getDb();
-    const { sku, name, hsn_sac, unit, purchase_price, selling_price, tax_rate, stock_qty } = (req.body || {}) as any;
+    const { sku, name, hsn_sac, unit, purchase_price, selling_price, mrp, tax_rate, stock_qty } = (req.body || {}) as any;
     db.prepare(`
-      UPDATE products SET sku=?, name=?, hsn_sac=?, unit=?, purchase_price=?, selling_price=?, tax_rate=?, stock_qty=?, updated_at=CURRENT_TIMESTAMP
+      UPDATE products SET sku=?, name=?, hsn_sac=?, unit=?, purchase_price=?, selling_price=?, mrp=?, tax_rate=?, stock_qty=?, updated_at=CURRENT_TIMESTAMP
       WHERE id=?
-    `).run(sku, name, hsn_sac || null, unit || 'PCS', purchase_price || 0, selling_price, tax_rate ?? 18, stock_qty || 0, req.params.id);
+    `).run(sku, name, hsn_sac || null, unit || 'PCS', purchase_price || 0, selling_price, mrp || 0, tax_rate ?? 18, stock_qty || 0, req.params.id);
     return reply.send(db.prepare(`SELECT * FROM products WHERE id = ?`).get(req.params.id));
   });
 

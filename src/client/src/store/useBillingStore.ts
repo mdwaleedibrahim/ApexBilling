@@ -21,6 +21,7 @@ export interface BillingState {
   items: CartItem[]
   customer: CustomerDraft | null
   discountPct: number
+  additionalDiscount: number
   paymentMode: string
   paymentStatus: string
   docDate: string
@@ -45,6 +46,7 @@ export interface BillingState {
   setDocType: (t: 'INVOICE' | 'QUOTATION') => void
   setCustomer: (c: CustomerDraft | null) => void
   setDiscountPct: (d: number) => void
+  setAdditionalDiscount: (d: number) => void
   setPaymentMode: (m: string) => void
   setPaymentStatus: (s: string) => void
   setDocDate: (d: string) => void
@@ -66,12 +68,13 @@ export interface BillingState {
   resetEdit: () => void
 }
 
-const emptyTotals = (): InvoiceTotals => calcTotals([], 0)
+const emptyTotals = (): InvoiceTotals => calcTotals([], 0, 0)
 
 export const useBillingStore = create<BillingState>((set, get) => ({
   items: [],
   customer: null,
   discountPct: 0,
+  additionalDiscount: 0,
   paymentMode: 'CASH',
   paymentStatus: 'PAID',
   docDate: todayIso(),
@@ -98,8 +101,12 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   },
   setCustomer: (c) => set({ customer: c }),
   setDiscountPct: (d) => {
-    const items = get().items
-    set({ discountPct: d, totals: calcTotals(items, d) })
+    const { items, additionalDiscount } = get()
+    set({ discountPct: d, totals: calcTotals(items, d, additionalDiscount) })
+  },
+  setAdditionalDiscount: (ad) => {
+    const { items, discountPct } = get()
+    set({ additionalDiscount: ad, totals: calcTotals(items, discountPct, ad) })
   },
   setPaymentMode: (m) => set({ paymentMode: m }),
   setPaymentStatus: (s) => set({ paymentStatus: s }),
@@ -114,18 +121,18 @@ export const useBillingStore = create<BillingState>((set, get) => ({
 
   addItem: (item) => {
     const items = [...get().items, { ...item, id: uuid() }]
-    set({ items, totals: calcTotals(items, get().discountPct) })
+    set({ items, totals: calcTotals(items, get().discountPct, get().additionalDiscount) })
   },
   updateItem: (id, patch) => {
     const items = get().items.map(i => i.id === id ? { ...i, ...patch } : i)
-    set({ items, totals: calcTotals(items, get().discountPct) })
+    set({ items, totals: calcTotals(items, get().discountPct, get().additionalDiscount) })
   },
   removeItem: (id) => {
     const items = get().items.filter(i => i.id !== id)
-    set({ items, totals: calcTotals(items, get().discountPct) })
+    set({ items, totals: calcTotals(items, get().discountPct, get().additionalDiscount) })
   },
   clearCart: () => set({
-    items: [], customer: null, discountPct: 0, paymentMode: 'CASH', paymentStatus: 'PAID',
+    items: [], customer: null, discountPct: 0, additionalDiscount: 0, paymentMode: 'CASH', paymentStatus: 'PAID',
     notes: '', selectedUpiId: null, hideTaxOnInvoice: false, selectedTerms: [], docDate: todayIso(), editingDocId: null,
     editingDocNumber: null, revisionNumber: 1, totals: emptyTotals(),
     paidAmount: 0, partialPaymentMode: 'CASH', convertingFromQuotationId: null,
@@ -134,7 +141,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   loadFromDoc: (doc) => {
     const items: CartItem[] = (doc.items || []).map((i: any) => ({
       id: uuid(), productId: i.product_id, productName: i.product_name,
-      hsnSac: i.hsn_sac, unit: i.unit || 'PCS', purchasePrice: i.purchase_price || 0, quantity: i.quantity, unitPrice: i.unit_price, gstRate: i.gst_rate,
+      hsnSac: i.hsn_sac, unit: i.unit || 'PCS', purchasePrice: i.purchase_price || 0, quantity: i.quantity, unitPrice: i.unit_price, mrp: i.mrp || 0, gstRate: i.gst_rate,
     }))
     const customer = doc.customer_snapshot ? (() => {
       try { return JSON.parse(doc.customer_snapshot) } catch { return null }
@@ -145,8 +152,10 @@ export const useBillingStore = create<BillingState>((set, get) => ({
         terms = typeof doc.terms_and_conditions === 'string' ? JSON.parse(doc.terms_and_conditions) : doc.terms_and_conditions
       } catch {}
     }
+    const addlDisc = doc.additional_discount || 0
     set({
       items, customer, discountPct: doc.discount_pct || 0,
+      additionalDiscount: addlDisc,
       paymentMode: doc.payment_mode || 'CASH', paymentStatus: doc.payment_status || 'PAID',
       docDate: doc.doc_date, notes: doc.notes || '', docType: doc.doc_type,
       selectedUpiId: doc.selected_upi_id || null, hideTaxOnInvoice: !!doc.hide_tax_on_invoice,
@@ -156,19 +165,21 @@ export const useBillingStore = create<BillingState>((set, get) => ({
       convertingFromQuotationId: null,
       editingDocId: doc.id,
       editingDocNumber: doc.doc_number, revisionNumber: doc.revision_number || 1,
-      totals: calcTotals(items, doc.discount_pct || 0),
+      totals: calcTotals(items, doc.discount_pct || 0, addlDisc),
     })
   },
   convertQuotationToInvoice: (doc) => {
     const items: CartItem[] = (doc.items || []).map((i: any) => ({
       id: uuid(), productId: i.product_id, productName: i.product_name,
-      hsnSac: i.hsn_sac, unit: i.unit || 'PCS', purchasePrice: i.purchase_price || 0, quantity: i.quantity, unitPrice: i.unit_price, gstRate: i.gst_rate,
+      hsnSac: i.hsn_sac, unit: i.unit || 'PCS', purchasePrice: i.purchase_price || 0, quantity: i.quantity, unitPrice: i.unit_price, mrp: i.mrp || 0, gstRate: i.gst_rate,
     }))
     const customer = doc.customer_snapshot ? (() => {
       try { return JSON.parse(doc.customer_snapshot) } catch { return null }
     })() : (doc.customer_phone ? { phone: doc.customer_phone, name: '' } : null)
+    const addlDisc = doc.additional_discount || 0
     set({
       items, customer, discountPct: doc.discount_pct || 0,
+      additionalDiscount: addlDisc,
       paymentMode: 'CASH', paymentStatus: 'PAID',
       docDate: todayIso(), notes: doc.notes || '', docType: 'INVOICE',
       selectedUpiId: doc.selected_upi_id || null,
@@ -178,7 +189,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
       convertingFromQuotationId: doc.id,
       editingDocId: null,
       editingDocNumber: `Converting ${doc.doc_number}`, revisionNumber: 1,
-      totals: calcTotals(items, doc.discount_pct || 0),
+      totals: calcTotals(items, doc.discount_pct || 0, addlDisc),
     })
   },
   resetEdit: () => set({ editingDocId: null, editingDocNumber: null, revisionNumber: 1 }),

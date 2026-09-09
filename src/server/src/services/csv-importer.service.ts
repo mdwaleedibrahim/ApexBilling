@@ -13,6 +13,7 @@ export interface CsvProductRow {
   unit?: string;
   purchase_price?: number;
   selling_price: number;
+  mrp?: number;
   tax_rate?: number;
   stock_qty?: number;
 }
@@ -27,7 +28,7 @@ export interface ImportResult {
 /**
  * Parse CSV text into product rows.
  * Expected headers (case-insensitive):
- * sku, name, hsn_sac, unit, purchase_price, selling_price, tax_rate, stock_qty
+ * sku, name, hsn_sac, unit, purchase_price, price / selling_price, mrp, tax_rate, stock_qty
  */
 export function parseCsvText(csvText: string): { rows: CsvProductRow[]; errors: Array<{ row: number; message: string }> } {
   const lines = csvText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(Boolean);
@@ -48,9 +49,10 @@ export function parseCsvText(csvText: string): { rows: CsvProductRow[]; errors: 
       errors.push({ row: i + 1, message: `Row ${i + 1}: missing required fields sku or name.` });
       continue;
     }
-    const sellingPrice = parseFloat(obj['selling_price'] || '0');
+    const priceStr = obj['price'] || obj['selling_price'] || '0';
+    const sellingPrice = parseFloat(priceStr);
     if (isNaN(sellingPrice) || sellingPrice < 0) {
-      errors.push({ row: i + 1, message: `Row ${i + 1}: invalid selling_price.` });
+      errors.push({ row: i + 1, message: `Row ${i + 1}: invalid price or selling_price.` });
       continue;
     }
 
@@ -61,6 +63,7 @@ export function parseCsvText(csvText: string): { rows: CsvProductRow[]; errors: 
       unit: obj['unit'] || 'PCS',
       purchase_price: parseFloat(obj['purchase_price'] || '0') || 0,
       selling_price: sellingPrice,
+      mrp: parseFloat(obj['mrp'] || '0') || 0,
       tax_rate: parseFloat(obj['tax_rate'] || '18') || 18,
       stock_qty: parseInt(obj['stock_qty'] || '0', 10) || 0,
     });
@@ -81,12 +84,12 @@ export function upsertProducts(rows: CsvProductRow[]): ImportResult {
 
   const checkExisting = db.prepare(`SELECT id FROM products WHERE sku = ?`);
   const insertStmt = db.prepare(`
-    INSERT INTO products (id, sku, name, hsn_sac, unit, purchase_price, selling_price, tax_rate, stock_qty)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO products (id, sku, name, hsn_sac, unit, purchase_price, selling_price, mrp, tax_rate, stock_qty)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const updateStmt = db.prepare(`
     UPDATE products SET
-      name = ?, hsn_sac = ?, unit = ?, purchase_price = ?, selling_price = ?, tax_rate = ?,
+      name = ?, hsn_sac = ?, unit = ?, purchase_price = ?, selling_price = ?, mrp = ?, tax_rate = ?,
       stock_qty = stock_qty + ?, updated_at = CURRENT_TIMESTAMP
     WHERE sku = ?
   `);
@@ -97,11 +100,11 @@ export function upsertProducts(rows: CsvProductRow[]): ImportResult {
         const existing = checkExisting.get(row.sku) as { id: string } | undefined;
         if (existing) {
           updateStmt.run(row.name, row.hsn_sac || null, row.unit || 'PCS', row.purchase_price || 0,
-            row.selling_price, row.tax_rate ?? 18, row.stock_qty || 0, row.sku);
+            row.selling_price, row.mrp || 0, row.tax_rate ?? 18, row.stock_qty || 0, row.sku);
           updated++;
         } else {
           insertStmt.run(randomUUID(), row.sku, row.name, row.hsn_sac || null, row.unit || 'PCS',
-            row.purchase_price || 0, row.selling_price, row.tax_rate ?? 18, row.stock_qty || 0);
+            row.purchase_price || 0, row.selling_price, row.mrp || 0, row.tax_rate ?? 18, row.stock_qty || 0);
           inserted++;
         }
       } catch (e: any) {

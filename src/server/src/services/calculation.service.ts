@@ -11,7 +11,8 @@ export interface LineItemInput {
   unit?: string;
   purchasePrice?: number;
   quantity: number;
-  unitPrice: number;  // Tax-inclusive unit selling price
+  unitPrice: number;  // Tax-inclusive unit selling price (Price)
+  mrp?: number;        // Maximum retail price (printed on bills, not used in calculation)
   gstRate: number;    // Total GST % (e.g. 18 → CGST 9% + SGST 9%)
 }
 
@@ -30,6 +31,7 @@ export interface InvoiceTotals {
   grossSubtotal: number;
   discountPct: number;
   discountAmount: number;
+  additionalDiscount: number;
   taxableAmount: number;
   cgstTotal: number;
   sgstTotal: number;
@@ -40,24 +42,44 @@ export interface InvoiceTotals {
 
 /**
  * Core calculation engine.
- * Tax is ALWAYS INCLUSIVE of selling price.
- * Applies proportional discount per-line before computing GST split.
+ * Tax is ALWAYS INCLUSIVE of selling price (Price).
+ * Applies proportional discount (% discount and fixed Rupee additional discount) per-line before computing GST split.
  * CGST = SGST = GST / 2.
  */
 export function calculateInvoiceTotals(
   items: LineItemInput[],
-  discountPct: number = 0
+  discountPct: number = 0,
+  additionalDiscount: number = 0
 ): InvoiceTotals {
   const clampedDiscount = Math.max(0, Math.min(100, discountPct));
 
   let grossSubtotal = 0;
+  for (const item of items) {
+    grossSubtotal += round2(item.quantity * item.unitPrice);
+  }
+  grossSubtotal = round2(grossSubtotal);
+
+  // Percentage discount amount
+  const pctDiscountAmount = round2(grossSubtotal * (clampedDiscount / 100));
+
+  // Max allowable additional discount is whatever remains of grossSubtotal
+  const remainingAfterPct = Math.max(0, grossSubtotal - pctDiscountAmount);
+  const clampedAdditionalDiscount = Math.max(0, Math.min(remainingAfterPct, additionalDiscount || 0));
+
+  // Total discount amount combined
+  const totalDiscountAmount = round2(pctDiscountAmount + clampedAdditionalDiscount);
+
+  // Effective discount rate across line items
+  const effectiveDiscountRate = grossSubtotal > 0 ? (totalDiscountAmount / grossSubtotal) : 0;
+
   let taxableAmount = 0;
   let cgstTotal = 0;
   let sgstTotal = 0;
 
   const calculatedItems: CalculatedLineItem[] = items.map((item) => {
     const grossAmount = round2(item.quantity * item.unitPrice);
-    const grossAfterDiscount = round2(grossAmount * (1 - clampedDiscount / 100));
+    const lineDiscount = round2(grossAmount * effectiveDiscountRate);
+    const grossAfterDiscount = round2(Math.max(0, grossAmount - lineDiscount));
 
     // Extract taxable base value from tax-inclusive total
     const gstFactor = 1 + (item.gstRate || 0) / 100;
@@ -70,7 +92,6 @@ export function calculateInvoiceTotals(
     const sgstAmount = round2(totalGst - cgstAmount);
     const totalAmount = grossAfterDiscount;
 
-    grossSubtotal += grossAmount;
     taxableAmount += taxableValue;
     cgstTotal += cgstAmount;
     sgstTotal += sgstAmount;
@@ -87,13 +108,11 @@ export function calculateInvoiceTotals(
     };
   });
 
-  grossSubtotal = round2(grossSubtotal);
   taxableAmount = round2(taxableAmount);
   cgstTotal = round2(cgstTotal);
   sgstTotal = round2(sgstTotal);
 
-  const rawGrandTotal = round2(grossSubtotal * (1 - clampedDiscount / 100));
-  const discountAmount = round2(grossSubtotal - rawGrandTotal);
+  const rawGrandTotal = round2(Math.max(0, grossSubtotal - totalDiscountAmount));
   const roundedGrandTotal = Math.round(rawGrandTotal);
   const roundOff = round2(roundedGrandTotal - rawGrandTotal);
   const grandTotal = roundedGrandTotal;
@@ -102,11 +121,12 @@ export function calculateInvoiceTotals(
     items: calculatedItems,
     grossSubtotal,
     discountPct: clampedDiscount,
-    discountAmount,
+    discountAmount: pctDiscountAmount,
+    additionalDiscount: clampedAdditionalDiscount,
     taxableAmount,
     cgstTotal,
     sgstTotal,
-    rawGrandTotal: round2(rawGrandTotal),
+    rawGrandTotal,
     roundOff,
     grandTotal,
   };

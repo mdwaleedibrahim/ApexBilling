@@ -1,5 +1,4 @@
-// components/billing/BillingWorkspace.tsx — Main POS layout
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { CheckCircle } from 'lucide-react'
 import CustomerSelector from './CustomerSelector'
 import ItemEntryTable from './ItemEntryTable'
@@ -9,11 +8,13 @@ import MemorySlotBar from './MemorySlotBar'
 import A4InvoiceTemplate from '../print/A4InvoiceTemplate'
 import { api } from '../../utils/api'
 import { useBillingStore } from '../../store/useBillingStore'
+import { WhatsAppIcon, shareInvoiceViaWhatsApp } from '../../utils/whatsappHelper'
 
 export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => void } = {}) {
   const [profile, setProfile] = useState<any>(null)
   const [successDoc, setSuccessDoc] = useState<any>(null)
   const [showPrint, setShowPrint] = useState(false)
+  const printTemplateRef = useRef<HTMLDivElement>(null)
   const store = useBillingStore()
 
   const loadProfile = () => {
@@ -42,6 +43,11 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
   const handleSuccess = (doc: any) => {
     setSuccessDoc(doc)
     setShowPrint(true)
+  }
+
+  const handleWhatsAppShare = async () => {
+    if (!successDoc) return
+    await shareInvoiceViaWhatsApp(printTemplateRef.current, successDoc, profile)
   }
 
   return (
@@ -91,7 +97,14 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
                 <span className="font-semibold">{successDoc.doc_type === 'QUOTATION' ? 'Quotation' : 'Invoice'} saved!</span>
                 <span className="text-gray-500 text-sm ml-1">{successDoc.doc_number}</span>
               </div>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleWhatsAppShare}
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-500 flex items-center gap-1.5 shadow-md shadow-emerald-600/20"
+                  title="Share generated PDF via WhatsApp"
+                >
+                  <WhatsAppIcon size={16} className="text-white" /> WhatsApp
+                </button>
                 <button onClick={() => window.print()} className="px-4 py-2 bg-brand-600 text-white rounded-xl text-sm font-medium hover:bg-brand-500">
                   🖨️ Print
                 </button>
@@ -101,7 +114,9 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
                 </button>
               </div>
             </div>
-            <A4InvoiceTemplate doc={successDoc} profile={profile} />
+            <div ref={printTemplateRef}>
+              <A4InvoiceTemplate doc={successDoc} profile={profile} />
+            </div>
           </div>
         </div>
       )}

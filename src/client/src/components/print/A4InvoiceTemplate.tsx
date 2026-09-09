@@ -190,7 +190,7 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
               { id: 'hsn', label: 'HSN/SAC', align: 'left', width: '12%' },
               { id: 'qty', label: 'Qty', align: 'center', width: '8%' },
               { id: 'unit', label: 'Unit', align: 'center', width: '8%' },
-              { id: 'price', label: 'MRP Price', align: 'right', width: '14%' },
+              { id: 'price', label: 'Price', align: 'right', width: '14%' },
               { id: 'total', label: 'Total', align: 'right', width: '16%' },
             ]
           : [
@@ -258,6 +258,11 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
                           >
                             <span style={{ fontWeight: 700, color: '#64748b', marginRight: 6, fontSize: 11 }}>#{i + 1}</span>
                             <span style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', whiteSpace: 'normal' }}>{item.product_name}</span>
+                            {!!item.mrp && (
+                              <div style={{ fontSize: 9.5, color: '#64748b', fontWeight: 500, marginTop: 2 }}>
+                                MRP {item.mrp}
+                              </div>
+                            )}
                           </td>
                         </tr>
                         {/* Subsequent line for pricing, quantity, and tax details */}
@@ -315,7 +320,12 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
                         whiteSpace: 'normal',
                         lineHeight: 1.35,
                       }}>
-                        {item.product_name}
+                        <div>{item.product_name}</div>
+                        {!!item.mrp && (
+                          <div style={{ fontSize: 9.5, color: '#64748b', fontWeight: 500, marginTop: 2 }}>
+                            MRP {item.mrp}
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: '7px 6px', fontSize: 10, color: '#475569', whiteSpace: 'nowrap' }}>{item.hsn_sac || '—'}</td>
                       <td style={{ padding: '7px 6px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>{item.quantity}</td>
@@ -371,6 +381,7 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
             {[
               ['Subtotal', formatINR(doc.gross_subtotal)],
               doc.discount_pct > 0 ? [`Discount (${doc.discount_pct}%)`, `− ${formatINR(doc.discount_amount)}`] : null,
+              (doc.additional_discount && doc.additional_discount > 0) ? ['Additional discount', `− ${formatINR(doc.additional_discount)}`] : null,
               !hideTax ? ['Taxable Value', formatINR(doc.taxable_amount)] : null,
               !hideTax ? ['CGST Total', formatINR(doc.cgst_total)] : null,
               !hideTax ? ['SGST Total', formatINR(doc.sgst_total)] : null,

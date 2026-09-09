@@ -74,7 +74,7 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
         return
       }
     }
-    addItem({ productId: p.id, productName: p.name, hsnSac: p.hsn_sac, unit: p.unit || 'PCS', purchasePrice: p.purchase_price || 0, quantity: 1, unitPrice: p.selling_price, gstRate: p.tax_rate })
+    addItem({ productId: p.id, productName: p.name, hsnSac: p.hsn_sac, unit: p.unit || 'PCS', purchasePrice: p.purchase_price || 0, quantity: 1, unitPrice: p.selling_price, mrp: p.mrp || 0, gstRate: p.tax_rate })
     setSearch(''); setResults([]); setSearchOpen(false)
     searchRef.current?.focus()
   }
@@ -87,13 +87,14 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
       unit: p.unit || 'PCS',
       unitPrice: p.selling_price,
       purchasePrice: p.purchase_price || 0,
+      mrp: p.mrp || 0,
       gstRate: p.tax_rate ?? 18
     })
     setRowSearchId(null)
   }
 
   const addBlank = () => {
-    addItem({ productName: '', hsnSac: '', unit: 'PCS', purchasePrice: 0, quantity: 1, unitPrice: 0, gstRate: 18 })
+    addItem({ productName: '', hsnSac: '', unit: 'PCS', purchasePrice: 0, quantity: 1, unitPrice: 0, mrp: 0, gstRate: 18 })
   }
 
   return (
@@ -128,8 +129,9 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
                     {p.sku && <span className="ml-2 text-xs text-gray-400 font-mono">SKU: {p.sku}</span>}
                   </div>
                   <div className="text-right">
-                    <span className="text-sm font-bold text-emerald-400">MRP: {formatINR(p.selling_price)}</span>
-                    {showPurchasePrice && <span className="ml-2 text-xs text-amber-300">Buy: {formatINR(p.purchase_price)}</span>}
+                    <span className="text-sm font-bold text-emerald-400">Price: {formatINR(p.selling_price)}</span>
+                    {p.mrp ? <span className="ml-2 text-xs text-amber-300">MRP: {formatINR(p.mrp)}</span> : null}
+                    {showPurchasePrice && <span className="ml-2 text-xs text-blue-400 font-medium">Buy: {formatINR(p.purchase_price)}</span>}
                     <span className="ml-2 text-xs text-gray-400">GST {p.tax_rate}%</span>
                   </div>
                 </div>
@@ -154,8 +156,8 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
                 <th className="th w-20">HSN</th>
                 <th className="th w-20">Unit</th>
                 <th className="th w-20">Qty</th>
-                {showPurchasePrice && <th className="th w-28 text-amber-300">Pur. Price</th>}
-                <th className="th w-28">MRP Price</th>
+                {showPurchasePrice && <th className="th w-28 text-blue-400">Pur. Price</th>}
+                <th className="th w-28">Price</th>
                 <th className="th w-20">GST%</th>
                 <th className="th w-28 text-right">Total</th>
                 <th className="th w-8"></th>
@@ -222,11 +224,18 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
                           </div>
                         )}
                       </div>
-                      {!item.productId && item.productName && (
-                        <span className="text-[10px] text-emerald-400/80 font-medium block">
-                          ✨ Manual item · will be auto-saved to inventory
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {!!item.mrp && (
+                          <span className="text-[10px] text-amber-300/80 bg-amber-400/10 px-1.5 py-0.5 rounded font-mono">
+                            MRP {item.mrp}
+                          </span>
+                        )}
+                        {!item.productId && item.productName && (
+                          <span className="text-[10px] text-emerald-400/80 font-medium">
+                            ✨ Manual item · will be auto-saved to inventory
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="td">
                       <input className={`input !bg-transparent !border-transparent !rounded-none w-full text-xs focus:!border-brand-500 focus:!bg-white/5 !px-0 ${isBelowCost ? '!text-red-400' : ''}`}
@@ -266,7 +275,7 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
                         }} />
                     </td>
                     {showPurchasePrice && (
-                      <td className="td text-amber-300/80 font-mono text-xs">
+                      <td className="td text-blue-400 font-mono text-xs">
                         {formatINR(item.purchasePrice || 0)}
                       </td>
                     )}

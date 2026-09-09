@@ -5,7 +5,7 @@ import { api } from '../../utils/api'
 import { formatINR } from '../../utils/upiHelper'
 import { GST_RATES } from '../../utils/gstEngine'
 
-const EMPTY = { sku: '', name: '', hsn_sac: '', unit: 'PCS', purchase_price: 0, selling_price: 0, tax_rate: 18, stock_qty: 0 }
+const EMPTY = { sku: '', name: '', hsn_sac: '', unit: 'PCS', purchase_price: 0, selling_price: 0, mrp: 0, tax_rate: 18, stock_qty: 0 }
 
 export default function InventoryTable() {
   const [products, setProducts] = useState<any[]>([])
@@ -41,7 +41,17 @@ export default function InventoryTable() {
   }
 
   const startEdit = (p: any) => {
-    setForm({ sku: p.sku, name: p.name, hsn_sac: p.hsn_sac || '', unit: p.unit, purchase_price: p.purchase_price, selling_price: p.selling_price, tax_rate: p.tax_rate, stock_qty: p.stock_qty })
+    setForm({
+      sku: p.sku,
+      name: p.name,
+      hsn_sac: p.hsn_sac || '',
+      unit: p.unit,
+      purchase_price: p.purchase_price,
+      selling_price: p.selling_price,
+      mrp: p.mrp || 0,
+      tax_rate: p.tax_rate,
+      stock_qty: p.stock_qty,
+    })
     setEditId(p.id); setShowForm(true)
   }
 
@@ -99,8 +109,9 @@ export default function InventoryTable() {
               </select>
             </div>
             <div><label className="label">HSN/SAC</label><input className="input" value={form.hsn_sac} onChange={e => f('hsn_sac', e.target.value)} placeholder="HSN Code" /></div>
-            <div><label className="label">Purchase Price</label><input type="number" className="input" value={form.purchase_price} onChange={e => f('purchase_price', parseFloat(e.target.value) || 0)} /></div>
-            <div><label className="label">MRP Price *</label><input type="number" className="input" value={form.selling_price} onChange={e => f('selling_price', parseFloat(e.target.value) || 0)} /></div>
+            <div><label className="label">Purchase Price</label><input type="number" step="0.01" className="input" value={form.purchase_price} onChange={e => f('purchase_price', parseFloat(e.target.value) || 0)} /></div>
+            <div><label className="label">Price (Selling) *</label><input type="number" step="0.01" className="input" value={form.selling_price} onChange={e => f('selling_price', parseFloat(e.target.value) || 0)} /></div>
+            <div><label className="label">MRP (Printed)</label><input type="number" step="0.01" className="input" value={form.mrp} onChange={e => f('mrp', parseFloat(e.target.value) || 0)} placeholder="0.00" /></div>
             <div><label className="label">GST %</label>
               <select className="input" value={form.tax_rate} onChange={e => f('tax_rate', parseFloat(e.target.value))}>
                 {GST_RATES.map(r => <option key={r} value={r}>{r}%</option>)}
@@ -121,26 +132,29 @@ export default function InventoryTable() {
           <table className="w-full">
             <thead><tr className="border-b border-white/10">
               <th className="th">SKU</th><th className="th">Name</th><th className="th">HSN</th>
-              <th className="th">Unit</th><th className="th text-right">Purchase Price</th>
-              <th className="th text-right">MRP Price</th><th className="th text-right">GST %</th>
+              <th className="th">Unit</th><th className="th text-right text-blue-400">Purchase Price</th>
+              <th className="th text-right">Price</th>
+              <th className="th text-right">MRP</th>
+              <th className="th text-right">GST %</th>
               <th className="th text-right">Stock</th><th className="th">Actions</th>
             </tr></thead>
             <tbody>
-              {products.length === 0 && <tr><td colSpan={9} className="td text-center text-gray-500 py-8">No products. Add one or import CSV.</td></tr>}
+              {products.length === 0 && <tr><td colSpan={10} className="td text-center text-gray-500 py-8">No products. Add one or import CSV.</td></tr>}
               {products.map(p => (
                 <tr key={p.id} className="tr">
                   <td className="td font-mono text-xs text-gray-400">{p.sku}</td>
                   <td className="td font-medium">{p.name}</td>
                   <td className="td text-gray-500 text-xs">{p.hsn_sac || '—'}</td>
                   <td className="td text-gray-400">{p.unit}</td>
-                  <td className="td text-right text-gray-400">{formatINR(p.purchase_price)}</td>
+                  <td className="td text-right text-blue-400 font-mono text-xs">{formatINR(p.purchase_price)}</td>
                   <td className="td text-right font-medium text-emerald-400">{formatINR(p.selling_price)}</td>
+                  <td className="td text-right text-amber-300/80">{p.mrp ? formatINR(p.mrp) : '—'}</td>
                   <td className="td text-right text-xs text-gray-400">{p.tax_rate}%</td>
                   <td className={`td text-right font-medium ${p.stock_qty <= 5 ? 'text-red-400' : 'text-gray-200'}`}>{p.stock_qty}</td>
                   <td className="td">
                     <div className="flex gap-1">
-                      <button onClick={() => startEdit(p)} className="btn-ghost p-1.5 text-brand-400"><Edit size={14} /></button>
-                      <button onClick={() => del(p.id)} className="btn-ghost p-1.5 text-red-400"><Trash2 size={14} /></button>
+                      <button onClick={() => startEdit(p)} className="btn-ghost p-1.5 text-brand-400" title="Edit Product"><Edit size={14} /></button>
+                      <button onClick={() => del(p.id)} className="btn-ghost p-1.5 text-red-400" title="Delete Product"><Trash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>
