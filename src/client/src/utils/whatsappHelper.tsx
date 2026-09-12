@@ -4,6 +4,7 @@
  */
 import React from 'react'
 import { generateInvoicePdfBlob } from './pdfHelper'
+import { useDialogStore } from '../store/useDialogStore'
 
 export function WhatsAppIcon({ size = 16, className = "" }: { size?: number; className?: string }) {
   return (
@@ -84,7 +85,7 @@ export async function shareInvoiceViaWhatsApp(
     : (doc.customer_snapshot || {})
   const phone = doc.customer_phone || snap.phone || ''
   if (!phone || phone.startsWith('NO_PHONE_')) {
-    alert('No customer phone number found in this document to share via WhatsApp.')
+    await useDialogStore.getState().show('No customer phone number found in this document to share via WhatsApp.', false, 'WhatsApp Share')
     return
   }
 

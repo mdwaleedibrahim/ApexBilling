@@ -3,6 +3,7 @@ import { Search, Eye, Edit, XCircle, Printer, X, FileCheck } from 'lucide-react'
 import { api } from '../../utils/api'
 import { formatINR, formatDate } from '../../utils/upiHelper'
 import { useBillingStore } from '../../store/useBillingStore'
+import { useDialogStore } from '../../store/useDialogStore'
 import A4InvoiceTemplate from '../print/A4InvoiceTemplate'
 import { WhatsAppIcon, shareInvoiceViaWhatsApp } from '../../utils/whatsappHelper'
 
@@ -76,7 +77,8 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
   }
 
   const handleCancel = async (doc: any) => {
-    if (!confirm(`Cancel ${doc.doc_number}? Stock will be restored.`)) return
+    const ok = await useDialogStore.getState().show(`Cancel ${doc.doc_number}? Stock will be restored.`, true, 'Cancel Invoice')
+    if (!ok) return
     await api.documents.cancel(doc.id)
     load()
   }

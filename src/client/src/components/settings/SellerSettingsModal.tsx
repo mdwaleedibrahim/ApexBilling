@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { api } from '../../utils/api'
 import { INDIAN_STATES } from '../../utils/gstEngine'
+import { useDialogStore } from '../../store/useDialogStore'
 
 export default function SellerSettingsModal({ onClose }: { onClose: () => void }) {
   const [profile, setProfile] = useState<any>(null)
@@ -49,13 +50,13 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
       : scope === 'customers' ? 'all Customers/Clients'
       : 'ALL data (billing, inventory, customers)'
 
-    const first = window.confirm(`⚠️ Warning: This will permanently delete ${scopeLabel}.\n\nThis action CANNOT be undone. Are you sure?`)
+    const first = await useDialogStore.getState().show(`⚠️ Warning: This will permanently delete ${scopeLabel}.\n\nThis action CANNOT be undone. Are you sure?`, true, 'Danger Zone Warning')
     if (!first) return
 
-    const second = window.confirm(`🚨 Final confirmation: Permanently delete ${scopeLabel}?\n\nType YES in the next prompt to confirm.`)
+    const second = await useDialogStore.getState().show(`🚨 Final confirmation: Permanently delete ${scopeLabel}?\n\nClick OK to proceed to text confirmation.`, true, 'Final Confirmation')
     if (!second) return
 
-    const typed = window.prompt(`Type  DELETE  (all caps) to confirm permanent deletion of ${scopeLabel}:`)
+    const typed = await useDialogStore.getState().prompt(`Type DELETE (all caps) to confirm permanent deletion of ${scopeLabel}:`, 'DELETE', 'Confirm Action')
     if (typed?.trim() !== 'DELETE') {
       setCleanupMsg({ type: 'error', text: 'Cleanup cancelled — confirmation text did not match.' })
       return
@@ -158,7 +159,8 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
   // 1-Click Restore
   const handleRestore = async () => {
     if (!selectedBackupFile) return
-    if (!window.confirm('WARNING: Restoring will replace current database records with the backup data. Continue?')) return
+    const ok = await useDialogStore.getState().show('WARNING: Restoring will replace current database records with the backup data. Continue?', true, 'Restore Database')
+    if (!ok) return
     setLoading(true)
     try {
       await api.admin.restoreBackup(selectedBackupFile)

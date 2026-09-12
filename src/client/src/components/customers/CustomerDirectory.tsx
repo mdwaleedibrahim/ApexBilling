@@ -4,6 +4,7 @@ import { api } from '../../utils/api'
 import { formatINR, formatDate } from '../../utils/upiHelper'
 import { INDIAN_STATES } from '../../utils/gstEngine'
 import { normalizePhone } from '../../utils/phoneHelper'
+import { useDialogStore } from '../../store/useDialogStore'
 
 const EMPTY = { phone: '', name: '', email: '', gstin: '', billing_address: '', state_code: '36' }
 
@@ -38,7 +39,8 @@ export default function CustomerDirectory({ onViewAnalytics }: { onViewAnalytics
   }
 
   const del = async (phone: string) => {
-    if (!confirm('Delete this customer?')) return
+    const ok = await useDialogStore.getState().show('Delete this customer?', true, 'Confirm Deletion')
+    if (!ok) return
     await api.customers.delete(phone); load(); if (selected?.phone === phone) setSelected(null)
   }
 

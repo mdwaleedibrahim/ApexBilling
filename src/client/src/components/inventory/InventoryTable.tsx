@@ -4,6 +4,7 @@ import { Plus, Trash2, Edit, Upload, Search, Save, X } from 'lucide-react'
 import { api } from '../../utils/api'
 import { formatINR } from '../../utils/upiHelper'
 import { GST_RATES } from '../../utils/gstEngine'
+import { useDialogStore } from '../../store/useDialogStore'
 
 const EMPTY = { sku: '', name: '', hsn_sac: '', unit: 'PCS', purchase_price: 0, selling_price: 0, mrp: 0, tax_rate: 18, stock_qty: 0 }
 
@@ -36,7 +37,8 @@ export default function InventoryTable() {
   }
 
   const del = async (id: string) => {
-    if (!confirm('Delete this product?')) return
+    const ok = await useDialogStore.getState().show('Delete this product?', true, 'Confirm Deletion')
+    if (!ok) return
     await api.inventory.delete(id); load()
   }
 

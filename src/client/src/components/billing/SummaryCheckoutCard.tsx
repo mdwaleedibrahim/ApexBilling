@@ -261,8 +261,9 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
           <span className="font-medium">✏️ Editing {editingDocNumber} (Rev {store.revisionNumber + 1})</span>
           <button
             type="button"
-            onClick={() => {
-              if (confirm('Discard changes and cancel editing?')) {
+            onClick={async () => {
+              const ok = await useDialogStore.getState().show('Discard changes and cancel editing?', true, 'Discard Changes')
+              if (ok) {
                 store.clearCart()
               }
             }}
