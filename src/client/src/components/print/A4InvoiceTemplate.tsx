@@ -55,7 +55,7 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
             {profile.business_name}
           </h1>
           {profile.trade_name && (
-            <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 600, color: accentColor, background: isQuotation ? '#e0f2fe' : '#e0e7ff', padding: '2px 8px', borderRadius: 6, lineHeight: 1.3, marginBottom: 6 }}>
+            <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 700, color: accentColor, background: 'white', border: `1px solid ${accentColor}`, padding: '2px 8px', borderRadius: 6, lineHeight: 1.3, marginBottom: 6 }}>
               {profile.trade_name}
             </span>
           )}
@@ -136,7 +136,8 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
                             <span style={{ fontSize: 10, color: '#64748b', display: 'block', marginBottom: 2 }}>Status</span>
                             <span style={{
                               display: 'inline-block', fontSize: 10, fontWeight: 700, lineHeight: 1.2,
-                              padding: '3px 8px', borderRadius: 4, background: '#fef3c7', color: '#b45309',
+                              padding: '3px 8px', borderRadius: 4, background: 'white', color: '#b45309',
+                              border: '1px solid #b45309',
                               textAlign: 'center', verticalAlign: 'middle', boxSizing: 'border-box'
                             }}>
                               PARTIAL
@@ -167,8 +168,10 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
                             <span style={{ fontSize: 10, color: '#64748b', display: 'block', marginBottom: 2 }}>Status</span>
                             <span style={{
                               display: 'inline-block', fontSize: 11, fontWeight: 700, lineHeight: 1.2,
-                              padding: '3px 8px', borderRadius: 4, background: isPaid ? '#dcfce7' : '#fef3c7',
-                              color: isPaid ? '#15803d' : '#b45309', textAlign: 'center', verticalAlign: 'middle', boxSizing: 'border-box'
+                              padding: '3px 8px', borderRadius: 4, background: 'white',
+                              color: isPaid ? '#15803d' : '#b45309',
+                              border: `1px solid ${isPaid ? '#15803d' : '#b45309'}`,
+                              textAlign: 'center', verticalAlign: 'middle', boxSizing: 'border-box'
                             }}>
                               {doc.payment_status}
                             </span>

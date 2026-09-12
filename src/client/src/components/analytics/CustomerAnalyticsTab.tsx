@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import ReactDOM from 'react-dom'
 import {
   Search, Users, Calendar, ShoppingBag, DollarSign, Package,
   Eye, Edit, XCircle, Printer, X, FileCheck, ArrowDownWideNarrow,
@@ -27,6 +28,7 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPhone, setSelectedPhone] = useState<string | null>(initialPhone || null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [dropdownRect, setDropdownRect] = useState<DOMRect | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   
   // Analytics state
@@ -206,7 +208,7 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
         </div>
 
         {/* Autocomplete Customer Combobox */}
-        <div className="relative min-w-[340px] max-w-lg w-full" ref={dropdownRef}>
+        <div className="relative min-w-[340px] max-w-lg w-full" ref={dropdownRef} style={{ position: 'relative' }}>
           <div className="relative flex items-center">
             <Search size={14} className="absolute left-3.5 text-gray-400 pointer-events-none" />
             <input
@@ -217,9 +219,11 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
               placeholder="Search or select client by name / phone…"
               value={searchTerm}
               onFocus={() => {
+                if (inputRef.current) setDropdownRect(inputRef.current.getBoundingClientRect())
                 setDropdownOpen(true)
               }}
               onChange={(e) => {
+                if (inputRef.current) setDropdownRect(inputRef.current.getBoundingClientRect())
                 setSearchTerm(e.target.value)
                 setDropdownOpen(true)
               }}
@@ -258,56 +262,91 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
             </div>
           </div>
 
-          {dropdownOpen && (
+          {dropdownOpen && dropdownRect && ReactDOM.createPortal(
             <div
-              className="absolute top-full left-0 right-0 mt-1.5 bg-[#111827] border border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden divide-y divide-gray-800"
-              style={{ backgroundColor: '#111827', opacity: 1 }}
+              style={{
+                position: 'fixed',
+                top: dropdownRect.bottom + 6,
+                left: dropdownRect.left,
+                width: dropdownRect.width,
+                zIndex: 9999,
+                borderRadius: '12px',
+                overflow: 'hidden',
+                background: '#0f172a',
+                border: '1px solid #334155',
+                boxShadow: '0 25px 70px rgba(0,0,0,0.95)',
+              }}
             >
+              {/* Header */}
               <div
-                className="px-3 py-1.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center justify-between border-b border-gray-800"
-                style={{ backgroundColor: '#1f2937' }}
+                style={{
+                  padding: '8px 12px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  background: '#1e293b',
+                  borderBottom: '1px solid #334155',
+                  color: '#94a3b8',
+                }}
               >
                 <span>{searchTerm.trim() && !isExactSelected ? 'Matching Clients' : 'All Clients'}</span>
-                <span className="text-brand-400 font-mono">{filteredCustomers.length} clients</span>
+                <span style={{ color: '#818cf8', fontFamily: 'monospace' }}>{filteredCustomers.length} clients</span>
               </div>
-              <div className="max-h-72 overflow-y-auto divide-y divide-gray-800" style={{ backgroundColor: '#111827' }}>
+
+              {/* Scrollable list */}
+              <div style={{ maxHeight: '320px', overflowY: 'auto', background: '#0f172a' }}>
                 {filteredCustomers.length === 0 ? (
-                  <div className="p-4 text-center text-xs text-gray-400" style={{ backgroundColor: '#111827' }}>
-                    No clients found matching "{searchTerm}"
+                  <div style={{ padding: '20px', textAlign: 'center', fontSize: '12px', color: '#64748b' }}>
+                    No clients found matching &ldquo;{searchTerm}&rdquo;
                   </div>
                 ) : (
-                  filteredCustomers.map(c => (
-                    <div
-                      key={c.phone}
-                      onClick={() => {
-                        setSelectedPhone(c.phone)
-                        setSearchTerm(`${c.name} (${c.phone})`)
-                        setDropdownOpen(false)
-                      }}
-                      className={`p-3 cursor-pointer transition-colors flex items-center justify-between ${
-                        selectedPhone === c.phone ? 'bg-brand-600 text-white' : 'hover:bg-gray-800 text-gray-200'
-                      }`}
-                      style={{ backgroundColor: selectedPhone === c.phone ? '#2563eb' : '#111827' }}
-                    >
-                      <div>
-                        <div className="text-xs font-semibold text-white">{c.name}</div>
-                        <div className={`text-[11px] font-mono ${selectedPhone === c.phone ? 'text-blue-100' : 'text-gray-400'}`}>{c.phone}</div>
+                  filteredCustomers.map(c => {
+                    const isSelected = selectedPhone === c.phone
+                    return (
+                      <div
+                        key={c.phone}
+                        onClick={() => {
+                          setSelectedPhone(c.phone)
+                          setSearchTerm(`${c.name} (${c.phone})`)
+                          setDropdownOpen(false)
+                        }}
+                        style={{
+                          padding: '10px 14px',
+                          borderBottom: '1px solid #1e293b',
+                          background: isSelected ? '#1d4ed8' : '#0f172a',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                        }}
+                        onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#1e293b' }}
+                        onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#0f172a' }}
+                      >
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#f1f5f9' }}>{c.name}</div>
+                          <div style={{ fontSize: '11px', fontFamily: 'monospace', color: isSelected ? '#bfdbfe' : '#64748b', marginTop: '2px' }}>{c.phone}</div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          {c.outstanding_balance > 0 ? (
+                            <>
+                              <span style={{ fontSize: '10px', color: '#f87171', display: 'block', fontWeight: 500 }}>Due</span>
+                              <span style={{ fontSize: '11px', fontFamily: 'monospace', color: '#f87171' }}>{formatINR(c.outstanding_balance)}</span>
+                            </>
+                          ) : (
+                            <span style={{ fontSize: '10px', fontFamily: 'monospace', color: '#34d399' }}>Clear</span>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-right">
-                        {c.outstanding_balance > 0 ? (
-                          <>
-                            <span className="text-[10px] text-red-400 font-medium block">Due</span>
-                            <span className="text-xs font-mono text-red-400">{formatINR(c.outstanding_balance)}</span>
-                          </>
-                        ) : (
-                          <span className="text-[10px] text-emerald-400 font-mono">Clean Balance</span>
-                        )}
-                      </div>
-                    </div>
-                  ))
+                    )
+                  })
                 )}
               </div>
-            </div>
+            </div>,
+            document.body
           )}
         </div>
       </div>

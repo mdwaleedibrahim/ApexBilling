@@ -62,7 +62,17 @@ export function openWhatsAppChat(phone: string, text: string): void {
 }
 
 /**
- * Shares only the generated Invoice/Quotation PDF via WhatsApp without breakdown details
+ * Shares the Invoice/Quotation PDF via WhatsApp.
+ *
+ * Strategy:
+ * 1. Generate the PDF blob.
+ * 2. Try Web Share API (navigator.share with files) — works on Windows 11 / Android
+ *    and opens the OS share sheet so the user can pick WhatsApp directly with the
+ *    PDF already attached.
+ * 3. If Web Share API is unsupported or fails, fall back to:
+ *    a. Download the PDF to the user's machine.
+ *    b. Open WhatsApp Web (https://web.whatsapp.com/send?phone=...) with the
+ *       text pre-filled so the user can manually attach the downloaded PDF.
  */
 export async function shareInvoiceViaWhatsApp(
   element: HTMLElement | null,
@@ -85,24 +95,55 @@ export async function shareInvoiceViaWhatsApp(
     storeName: profile?.business_name || 'ApexBill'
   })
 
+  // --- Step 1: Generate PDF blob ---
+  let pdfBlob: Blob | null = null
   if (element) {
     try {
-      const pdfBlob = await generateInvoicePdfBlob(element, filename)
-
-      // Download the PDF file directly to Downloads
-      const url = URL.createObjectURL(pdfBlob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
+      pdfBlob = await generateInvoicePdfBlob(element, filename)
     } catch (e) {
-      console.warn('PDF generation error, continuing to WhatsApp URI:', e)
+      console.warn('PDF generation failed:', e)
     }
   }
 
-  // Open native WhatsApp Desktop directly with customer phone number
-  openWhatsAppChat(phone, textMsg)
+  // --- Step 2: Try Web Share API with file attachment (Windows 11 / Android) ---
+  if (pdfBlob && typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    const pdfFile = new File([pdfBlob], filename, { type: 'application/pdf' })
+    const shareData: ShareData = {
+      title: filename,
+      text: textMsg,
+      files: [pdfFile],
+    }
+
+    if (navigator.canShare && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData)
+        // Share succeeded — no need for fallback
+        return
+      } catch (err: any) {
+        // User cancelled (AbortError) — do not fall through to download/WhatsApp
+        if (err?.name === 'AbortError') return
+        console.warn('Web Share API failed, falling back:', err)
+      }
+    }
+  }
+
+  // --- Step 3: Fallback — download PDF + open WhatsApp Web ---
+  if (pdfBlob) {
+    // Download the PDF so the user can attach it manually
+    const url = URL.createObjectURL(pdfBlob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  // Open WhatsApp Web (supports phones that don't have the desktop app)
+  // The text is pre-filled; the user attaches the downloaded PDF manually.
+  const cleanedPhone = cleanPhoneForWhatsApp(phone)
+  const encodedText = encodeURIComponent(textMsg)
+  const whatsappWebUrl = `https://web.whatsapp.com/send?phone=${cleanedPhone}&text=${encodedText}`
+  window.open(whatsappWebUrl, '_blank')
 }
