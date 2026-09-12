@@ -142,14 +142,15 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
               <th className="th">Date</th>
               <th className="th">Customer</th>
               <th className="th text-right">Amount</th>
+              <th className="th text-right">Pending</th>
               <th className="th">Status</th>
               <th className="th">Rev</th>
               <th className="th">Actions</th>
             </tr></thead>
             <tbody>
-              {loading && <tr><td colSpan={8} className="td text-center text-gray-500 py-8">Loading…</td></tr>}
+              {loading && <tr><td colSpan={9} className="td text-center text-gray-500 py-8">Loading…</td></tr>}
               {!loading && docs.length === 0 && (
-                <tr><td colSpan={8} className="td text-center text-gray-500 py-8">No records found.</td></tr>
+                <tr><td colSpan={9} className="td text-center text-gray-500 py-8">No records found.</td></tr>
               )}
               {docs.map(doc => {
                 const snap = (() => { try { return JSON.parse(doc.customer_snapshot) } catch { return {} } })()
@@ -157,6 +158,9 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
                   ? doc.customer_phone
                   : (snap.phone && !snap.phone.startsWith('NO_PHONE_') ? snap.phone : '')
                 const customerName = snap.name || (phoneDisplay ? `Customer (${phoneDisplay})` : '—')
+                const pendingAmount = doc.doc_type === 'INVOICE' && doc.payment_status !== 'CANCELLED'
+                  ? Math.max(0, doc.grand_total - (doc.paid_amount || 0))
+                  : 0
 
                 return (
                   <tr key={doc.id} className="tr">
@@ -175,6 +179,15 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
                         <span className="text-[11px] text-amber-400 block">
                           Paid: {formatINR(doc.paid_amount || 0)}
                         </span>
+                      )}
+                    </td>
+                    <td className="td text-right">
+                      {pendingAmount > 0 ? (
+                        <span className="font-semibold text-red-400 font-mono text-xs block">
+                          {formatINR(pendingAmount)}
+                        </span>
+                      ) : (
+                        <span className="text-gray-500 text-xs">—</span>
                       )}
                     </td>
                     <td className="td"><span className={STATUS_BADGE[doc.payment_status] || 'badge-draft'}>{doc.payment_status}</span></td>

@@ -42,9 +42,17 @@ export async function customerRoutes(app: FastifyInstance) {
     const normQ = normalizePhone(q);
     const db = getDb();
     const rows = db.prepare(`
-      SELECT * FROM customers
-      WHERE phone LIKE ? OR phone LIKE ? OR name LIKE ?
-      ORDER BY name COLLATE NOCASE
+      SELECT c.*,
+        COALESCE((
+          SELECT SUM(d.grand_total - d.paid_amount)
+          FROM documents d
+          WHERE d.customer_phone = c.phone
+            AND d.doc_type = 'INVOICE'
+            AND d.payment_status IN ('UNPAID', 'PARTIAL')
+        ), 0) AS outstanding_balance
+      FROM customers c
+      WHERE c.phone LIKE ? OR c.phone LIKE ? OR c.name LIKE ?
+      ORDER BY c.name COLLATE NOCASE
       LIMIT 20
     `).all(`${q}%`, `${normQ}%`, `%${q}%`);
     return reply.send(rows);
@@ -53,7 +61,18 @@ export async function customerRoutes(app: FastifyInstance) {
   // GET /api/customers
   app.get('/api/customers', (_req, reply) => {
     const db = getDb();
-    const rows = db.prepare(`SELECT * FROM customers ORDER BY name COLLATE NOCASE`).all();
+    const rows = db.prepare(`
+      SELECT c.*,
+        COALESCE((
+          SELECT SUM(d.grand_total - d.paid_amount)
+          FROM documents d
+          WHERE d.customer_phone = c.phone
+            AND d.doc_type = 'INVOICE'
+            AND d.payment_status IN ('UNPAID', 'PARTIAL')
+        ), 0) AS outstanding_balance
+      FROM customers c
+      ORDER BY c.name COLLATE NOCASE
+    `).all();
     return reply.send(rows);
   });
 
@@ -61,7 +80,18 @@ export async function customerRoutes(app: FastifyInstance) {
   app.get<{ Params: { phone: string } }>('/api/customers/:phone', (req, reply) => {
     const db = getDb();
     const phone = normalizePhone(req.params.phone);
-    const customer = db.prepare(`SELECT * FROM customers WHERE phone = ? OR phone = ?`).get(phone, req.params.phone);
+    const customer = db.prepare(`
+      SELECT c.*,
+        COALESCE((
+          SELECT SUM(d.grand_total - d.paid_amount)
+          FROM documents d
+          WHERE d.customer_phone = c.phone
+            AND d.doc_type = 'INVOICE'
+            AND d.payment_status IN ('UNPAID', 'PARTIAL')
+        ), 0) AS outstanding_balance
+      FROM customers c
+      WHERE c.phone = ? OR c.phone = ?
+    `).get(phone, req.params.phone);
     if (!customer) return reply.status(404).send({ error: 'Customer not found' });
     return reply.send(customer);
   });

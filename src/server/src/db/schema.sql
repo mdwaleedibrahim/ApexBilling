@@ -96,6 +96,8 @@ CREATE TABLE IF NOT EXISTS documents (
     hide_tax_on_invoice INTEGER DEFAULT 0,
     paid_amount DECIMAL(12,2) DEFAULT 0.00,
     partial_payment_mode TEXT,
+    payment_history TEXT DEFAULT '[]',
+    qr_amount_type TEXT DEFAULT 'FULL',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

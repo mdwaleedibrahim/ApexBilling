@@ -149,6 +149,20 @@ function saveCustomerIfPaymentComplete(db: any, docId: string | null, customerSn
   return phone;
 }
 
+/** Recompute and persist outstanding_balance for a customer from live invoice data */
+function recalcCustomerBalance(db: any, phone: string | null | undefined): void {
+  if (!phone || phone.startsWith('NO_PHONE_')) return;
+  const row = db.prepare(`
+    SELECT COALESCE(SUM(grand_total - paid_amount), 0) AS bal
+    FROM documents
+    WHERE customer_phone = ?
+      AND doc_type = 'INVOICE'
+      AND payment_status IN ('UNPAID', 'PARTIAL')
+  `).get(phone) as any;
+  db.prepare(`UPDATE customers SET outstanding_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE phone = ?`)
+    .run(row?.bal ?? 0, phone);
+}
+
 export async function billingRoutes(app: FastifyInstance) {
   // ── Documents ──────────────────────────────────────────────────────────────
 
@@ -190,7 +204,7 @@ export async function billingRoutes(app: FastifyInstance) {
     const { doc_type = 'INVOICE', doc_date, customer_phone, customer_snapshot, items: rawItems,
       discount_pct = 0, additional_discount = 0, payment_mode = 'CASH', payment_status = 'PAID', selected_upi_id, notes,
       terms_and_conditions, hide_tax_on_invoice = 0, paid_amount = 0, partial_payment_mode,
-      converting_quotation_id } = (req.body || {}) as any;
+      converting_quotation_id, qr_amount_type = 'FULL' } = (req.body || {}) as any;
 
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
 
@@ -225,13 +239,22 @@ export async function billingRoutes(app: FastifyInstance) {
       : null;
 
     let finalPaidAmount = 0;
+    let finalStatus = payment_status;
     if (doc_type === 'INVOICE') {
-      if (payment_status === 'PAID') {
+      const candidatePaid = parseFloat(paid_amount) || 0;
+      if (finalStatus === 'PAID' || (candidatePaid > 0 && candidatePaid >= totals.grandTotal - 0.01)) {
         finalPaidAmount = totals.grandTotal;
-      } else if (payment_status === 'PARTIAL') {
-        finalPaidAmount = parseFloat(paid_amount) || 0;
+        finalStatus = 'PAID';
+      } else if (finalStatus === 'PARTIAL') {
+        finalPaidAmount = candidatePaid;
       }
     }
+
+    const initialHistory = finalPaidAmount > 0 ? [{
+      date: doc_date || new Date().toISOString().slice(0, 10),
+      amount: finalPaidAmount,
+      mode: partial_payment_mode || payment_mode || 'CASH'
+    }] : [];
 
     withTransaction(() => {
       // Ensure all items (including manual ones) exist in inventory
@@ -242,7 +265,7 @@ export async function billingRoutes(app: FastifyInstance) {
       // Handle customer linking:
       // If quotation, or paid invoice, or customer details are provided, save/link customer immediately
       let finalPhone: string | null = null;
-      if (doc_type === 'QUOTATION' || (doc_type === 'INVOICE' && payment_status === 'PAID') || customer_phone) {
+      if (doc_type === 'QUOTATION' || (doc_type === 'INVOICE' && finalStatus === 'PAID') || customer_phone) {
         finalPhone = saveCustomerIfPaymentComplete(db, null, snapshot, customer_phone);
       }
 
@@ -250,13 +273,14 @@ export async function billingRoutes(app: FastifyInstance) {
         INSERT INTO documents (id, doc_type, doc_number, doc_date, customer_phone, customer_snapshot,
           gross_subtotal, discount_pct, discount_amount, additional_discount, taxable_amount, cgst_total, sgst_total,
           round_off, grand_total, payment_mode, payment_status, selected_upi_id, notes, terms_and_conditions,
-          hide_tax_on_invoice, paid_amount, partial_payment_mode)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          hide_tax_on_invoice, paid_amount, partial_payment_mode, payment_history, qr_amount_type)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `).run(id, doc_type, doc_number, doc_date || new Date().toISOString().slice(0,10),
         finalPhone, snapshot, totals.grossSubtotal, totals.discountPct, totals.discountAmount, totals.additionalDiscount,
         totals.taxableAmount, totals.cgstTotal, totals.sgstTotal, totals.roundOff, totals.grandTotal,
-        payment_mode, payment_status, selected_upi_id || null, notes || null, termsStr,
-        hide_tax_on_invoice ? 1 : 0, finalPaidAmount, partial_payment_mode || (payment_status === 'PARTIAL' ? 'CASH' : null));
+        payment_mode, finalStatus, selected_upi_id || null, notes || null, termsStr,
+        hide_tax_on_invoice ? 1 : 0, finalPaidAmount, partial_payment_mode || (finalStatus === 'PARTIAL' ? 'CASH' : null),
+        JSON.stringify(initialHistory), qr_amount_type || 'FULL');
 
       const insertItem = db.prepare(`
         INSERT INTO document_items (id, document_id, product_id, product_name, hsn_sac, unit, quantity, unit_price, mrp,
@@ -281,8 +305,10 @@ export async function billingRoutes(app: FastifyInstance) {
       }
     });
 
-    const doc = db.prepare(`SELECT * FROM documents WHERE id = ?`).get(id);
+    const doc = db.prepare(`SELECT * FROM documents WHERE id = ?`).get(id) as any;
     const items = db.prepare(`SELECT * FROM document_items WHERE document_id = ?`).all(id);
+    // Recalc customer balance after new document
+    if (doc?.customer_phone) recalcCustomerBalance(db, doc.customer_phone);
     return reply.status(201).send({ ...doc as any, items });
   });
 
@@ -295,7 +321,7 @@ export async function billingRoutes(app: FastifyInstance) {
 
     const { items: rawItems, discount_pct = 0, additional_discount, payment_mode, payment_status, notes,
       terms_and_conditions, customer_phone, customer_snapshot, hide_tax_on_invoice,
-      paid_amount, partial_payment_mode } = (req.body || {}) as any;
+      paid_amount, partial_payment_mode, qr_amount_type } = (req.body || {}) as any;
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
 
     const finalAdditionalDiscount = additional_discount !== undefined ? (parseFloat(additional_discount) || 0) : (existing.additional_discount || 0);
@@ -328,14 +354,41 @@ export async function billingRoutes(app: FastifyInstance) {
       : existing.terms_and_conditions;
 
     let finalPaidAmount = existing.paid_amount || 0;
+    let finalStatus = newStatus;
     if (existing.doc_type === 'INVOICE') {
-      if (newStatus === 'PAID') {
+      const candidatePaid = paid_amount !== undefined ? (parseFloat(paid_amount) || 0) : (existing.paid_amount || 0);
+      if (finalStatus === 'PAID' || candidatePaid >= totals.grandTotal - 0.01) {
         finalPaidAmount = totals.grandTotal;
-      } else if (newStatus === 'PARTIAL') {
-        finalPaidAmount = paid_amount !== undefined ? (parseFloat(paid_amount) || 0) : (existing.paid_amount || 0);
+        finalStatus = 'PAID';
+      } else if (finalStatus === 'PARTIAL') {
+        finalPaidAmount = candidatePaid;
       } else {
         finalPaidAmount = 0;
       }
+    }
+
+    // Payment history tracking
+    let history: any[] = [];
+    try {
+      history = existing.payment_history ? JSON.parse(existing.payment_history) : [];
+      if (!Array.isArray(history)) history = [];
+    } catch {
+      history = [];
+    }
+    if (history.length === 0 && (existing.paid_amount || 0) > 0) {
+      history.push({
+        date: existing.doc_date,
+        amount: existing.paid_amount || 0,
+        mode: existing.partial_payment_mode || existing.payment_mode || 'CASH'
+      });
+    }
+    if (finalPaidAmount > (existing.paid_amount || 0)) {
+      const delta = Math.round((finalPaidAmount - (existing.paid_amount || 0)) * 100) / 100;
+      history.push({
+        date: new Date().toISOString().slice(0, 10),
+        amount: delta,
+        mode: partial_payment_mode || payment_mode || existing.partial_payment_mode || 'CASH'
+      });
     }
 
     withTransaction(() => {
@@ -350,7 +403,7 @@ export async function billingRoutes(app: FastifyInstance) {
       }
 
       let finalPhone = customer_phone || existing.customer_phone;
-      if (existing.doc_type === 'QUOTATION' || (existing.doc_type === 'INVOICE' && newStatus === 'PAID') || finalPhone) {
+      if (existing.doc_type === 'QUOTATION' || (existing.doc_type === 'INVOICE' && finalStatus === 'PAID') || finalPhone) {
         finalPhone = saveCustomerIfPaymentComplete(db, null, customer_snapshot || existing.customer_snapshot, finalPhone);
       }
 
@@ -358,16 +411,16 @@ export async function billingRoutes(app: FastifyInstance) {
         UPDATE documents SET customer_phone=?, customer_snapshot=?, gross_subtotal=?, discount_pct=?,
           discount_amount=?, additional_discount=?, taxable_amount=?, cgst_total=?, sgst_total=?, round_off=?, grand_total=?,
           payment_mode=?, payment_status=?, notes=?, terms_and_conditions=?, hide_tax_on_invoice=?,
-          paid_amount=?, partial_payment_mode=?, revision_number=revision_number+1, updated_at=CURRENT_TIMESTAMP
+          paid_amount=?, partial_payment_mode=?, payment_history=?, qr_amount_type=?, revision_number=revision_number+1, updated_at=CURRENT_TIMESTAMP
         WHERE id=?
       `).run(finalPhone,
         typeof customer_snapshot === 'string' ? customer_snapshot : JSON.stringify(customer_snapshot || JSON.parse(existing.customer_snapshot)),
         totals.grossSubtotal, totals.discountPct, totals.discountAmount, totals.additionalDiscount, totals.taxableAmount,
         totals.cgstTotal, totals.sgstTotal, totals.roundOff, totals.grandTotal,
-        payment_mode || existing.payment_mode, newStatus,
+        payment_mode || existing.payment_mode, finalStatus,
         notes ?? existing.notes, termsStr, hide_tax_on_invoice !== undefined ? (hide_tax_on_invoice ? 1 : 0) : existing.hide_tax_on_invoice || 0,
         finalPaidAmount, partial_payment_mode !== undefined ? partial_payment_mode : existing.partial_payment_mode,
-        req.params.id);
+        JSON.stringify(history), qr_amount_type || 'DELTA', req.params.id);
 
       db.prepare(`DELETE FROM document_items WHERE document_id = ?`).run(req.params.id);
       const insertItem = db.prepare(`
@@ -383,8 +436,10 @@ export async function billingRoutes(app: FastifyInstance) {
       }
     });
 
-    const doc = db.prepare(`SELECT * FROM documents WHERE id = ?`).get(req.params.id);
+    const doc = db.prepare(`SELECT * FROM documents WHERE id = ?`).get(req.params.id) as any;
     const items = db.prepare(`SELECT * FROM document_items WHERE document_id = ?`).all(req.params.id);
+    // Recalc customer balance after edit
+    if (doc?.customer_phone) recalcCustomerBalance(db, doc.customer_phone);
     return reply.send({ ...doc as any, items });
   });
 
@@ -398,6 +453,8 @@ export async function billingRoutes(app: FastifyInstance) {
       if (doc.doc_type === 'INVOICE') restoreStockOnCancel(req.params.id);
       db.prepare(`UPDATE documents SET payment_status='CANCELLED', updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(req.params.id);
     });
+    // Recalc customer balance after cancel
+    if (doc.customer_phone) recalcCustomerBalance(db, doc.customer_phone);
     return reply.send({ success: true });
   });
 
@@ -411,16 +468,37 @@ export async function billingRoutes(app: FastifyInstance) {
 
       withTransaction(() => {
         let finalPaid = existing.paid_amount || 0;
-        if (payment_status === 'PAID') {
+        let finalStatus = payment_status;
+        if (finalStatus === 'PAID') {
           finalPaid = existing.grand_total;
           saveCustomerIfPaymentComplete(db, req.params.id, existing.customer_snapshot, existing.customer_phone);
-        } else if (payment_status === 'PARTIAL' && paid_amount !== undefined) {
+        } else if (finalStatus === 'PARTIAL' && paid_amount !== undefined) {
           finalPaid = parseFloat(paid_amount as any) || 0;
+          if (finalPaid >= existing.grand_total - 0.01) {
+            finalPaid = existing.grand_total;
+            finalStatus = 'PAID';
+            saveCustomerIfPaymentComplete(db, req.params.id, existing.customer_snapshot, existing.customer_phone);
+          }
         }
 
-        db.prepare(`UPDATE documents SET payment_status=?, payment_mode=COALESCE(?,payment_mode), paid_amount=?, partial_payment_mode=COALESCE(?,partial_payment_mode), updated_at=CURRENT_TIMESTAMP WHERE id=?`)
-          .run(payment_status, payment_mode || null, finalPaid, partial_payment_mode || null, req.params.id);
+        let history: any[] = [];
+        try {
+          history = existing.payment_history ? JSON.parse(existing.payment_history) : [];
+          if (!Array.isArray(history)) history = [];
+        } catch { history = []; }
+        if (history.length === 0 && (existing.paid_amount || 0) > 0) {
+          history.push({ date: existing.doc_date, amount: existing.paid_amount || 0, mode: existing.partial_payment_mode || existing.payment_mode || 'CASH' });
+        }
+        if (finalPaid > (existing.paid_amount || 0)) {
+          const delta = Math.round((finalPaid - (existing.paid_amount || 0)) * 100) / 100;
+          history.push({ date: new Date().toISOString().slice(0, 10), amount: delta, mode: partial_payment_mode || payment_mode || 'CASH' });
+        }
+
+        db.prepare(`UPDATE documents SET payment_status=?, payment_mode=COALESCE(?,payment_mode), paid_amount=?, partial_payment_mode=COALESCE(?,partial_payment_mode), payment_history=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+          .run(finalStatus, payment_mode || null, finalPaid, partial_payment_mode || null, JSON.stringify(history), req.params.id);
       });
+      // Recalc customer balance after status patch
+      if (existing.customer_phone) recalcCustomerBalance(db, existing.customer_phone);
       return reply.send(db.prepare(`SELECT * FROM documents WHERE id = ?`).get(req.params.id));
     }
   );
@@ -498,8 +576,10 @@ export async function billingRoutes(app: FastifyInstance) {
         db.prepare(`DELETE FROM documents WHERE id = ?`).run(quo.id);
       });
 
-      const newInvoice = db.prepare(`SELECT * FROM documents WHERE id = ?`).get(invoiceId);
+      const newInvoice = db.prepare(`SELECT * FROM documents WHERE id = ?`).get(invoiceId) as any;
       const newItems = db.prepare(`SELECT * FROM document_items WHERE document_id = ?`).all(invoiceId);
+      // Recalc customer balance after quotation-to-invoice conversion
+      if (newInvoice?.customer_phone) recalcCustomerBalance(db, newInvoice.customer_phone);
       return reply.status(201).send({ ...newInvoice as any, items: newItems });
     }
   );

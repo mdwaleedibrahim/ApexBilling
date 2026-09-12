@@ -68,6 +68,8 @@ export function getDb(): DatabaseSync {
     try { _db.exec('ALTER TABLE documents ADD COLUMN paid_amount DECIMAL(12,2) DEFAULT 0.00') } catch {}
     try { _db.exec('ALTER TABLE documents ADD COLUMN partial_payment_mode TEXT') } catch {}
     try { _db.exec('ALTER TABLE documents ADD COLUMN additional_discount DECIMAL(12,2) DEFAULT 0.00') } catch {}
+    try { _db.exec('ALTER TABLE documents ADD COLUMN payment_history TEXT DEFAULT \'[]\'') } catch {}
+    try { _db.exec('ALTER TABLE documents ADD COLUMN qr_amount_type TEXT DEFAULT \'FULL\'') } catch {}
     try { _db.exec('ALTER TABLE products ADD COLUMN mrp DECIMAL(10,2) DEFAULT 0.00') } catch {}
     try { _db.exec('ALTER TABLE document_items ADD COLUMN purchase_price DECIMAL(10,2) DEFAULT 0') } catch {}
     try { _db.exec('ALTER TABLE document_items ADD COLUMN unit TEXT DEFAULT \'PCS\'') } catch {}
@@ -75,6 +77,27 @@ export function getDb(): DatabaseSync {
     try { _db.exec('CREATE INDEX IF NOT EXISTS idx_document_items_doc_id ON document_items(document_id)') } catch {}
     try { _db.exec('CREATE INDEX IF NOT EXISTS idx_documents_customer_phone ON documents(customer_phone)') } catch {}
     try { _db.exec('CREATE INDEX IF NOT EXISTS idx_documents_analytics ON documents(doc_type, payment_status, doc_date)') } catch {}
+    try {
+      _db.exec(`
+        UPDATE documents
+        SET payment_status = 'PAID'
+        WHERE doc_type = 'INVOICE'
+          AND payment_status = 'PARTIAL'
+          AND paid_amount >= grand_total - 0.01
+      `)
+    } catch {}
+    try {
+      _db.exec(`
+        UPDATE customers
+        SET outstanding_balance = COALESCE((
+          SELECT SUM(grand_total - paid_amount)
+          FROM documents
+          WHERE customer_phone = customers.phone
+            AND doc_type = 'INVOICE'
+            AND payment_status IN ('UNPAID', 'PARTIAL')
+        ), 0)
+      `)
+    } catch {}
     console.log(`[DB] SQLite connected → ${DB_PATH}`)
   }
   return _db

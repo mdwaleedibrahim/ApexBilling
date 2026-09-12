@@ -15,12 +15,62 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
   const isPaid = !isQuotation && doc.payment_status === 'PAID'
   const isOverdue = !isQuotation && doc.payment_status === 'UNPAID'
   const isPartial = !isQuotation && doc.payment_status === 'PARTIAL'
+  const isCredit = !isQuotation && doc.payment_mode === 'CREDIT'
   const balanceDue = Math.max(0, doc.grand_total - (doc.paid_amount || 0))
-  const qrAmount = isPartial ? balanceDue : doc.grand_total
+  // Parse payment history for credit invoices
+  const paymentHistory: Array<{ date: string; amount: number; mode?: string }> = (() => {
+    try {
+      if (doc.payment_history) {
+        const parsed = typeof doc.payment_history === 'string' ? JSON.parse(doc.payment_history) : doc.payment_history
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      }
+    } catch {}
+    if ((doc.paid_amount || 0) > 0 && isCredit) {
+      return [{ date: doc.doc_date, amount: doc.paid_amount || 0, mode: doc.partial_payment_mode || 'CASH' }]
+    }
+    return []
+  })()
+
+  // Current partial payment: always use the current partial payment transaction amount, not total partial payments
+  const currentPartialPayment = paymentHistory.length > 0
+    ? (paymentHistory[paymentHistory.length - 1]?.amount || doc.paid_amount || 0)
+    : (doc.paid_amount || 0)
+
+  // QR amount calculation:
+  // For partial payments: always show current partial payment
+  // For updated invoices: always default to delta unless explicitly set to FULL
+  const isUpdatedInvoice = (doc.revision_number && doc.revision_number > 1) || paymentHistory.length > 1
+  const isQrDelta = (doc.qr_amount_type === 'DELTA' || (!doc.qr_amount_type && isUpdatedInvoice)) && paymentHistory.length > 0 && doc.qr_amount_type !== 'FULL'
+  const deltaAmount = isQrDelta ? (paymentHistory[paymentHistory.length - 1]?.amount || currentPartialPayment) : 0
+
+  const qrAmount = isPartial
+    ? currentPartialPayment
+    : (isQrDelta && deltaAmount > 0 ? deltaAmount : doc.grand_total)
+
+  const qrHeader = isPartial
+    ? `⚡ Scan to pay partial amount (${formatINR(currentPartialPayment)})`
+    : (isQrDelta && deltaAmount > 0
+      ? `⚡ Scan to pay delta amount (${formatINR(deltaAmount)})`
+      : '⚡ Scan to Pay')
+
   const upiLink = upiId
     ? buildUpiLink({ upiId, payeeName, amount: qrAmount, docNumber: doc.doc_number })
     : null
   const hideTax = !!doc.hide_tax_on_invoice
+
+  const formatPaymentDate = (dStr: string) => {
+    if (!dStr) return ''
+    const parts = dStr.split('T')[0].split('-')
+    if (parts.length === 3 && parts[0].length === 4) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`
+    }
+    const d = new Date(dStr)
+    if (isNaN(d.getTime())) return dStr
+    const day = String(d.getDate()).padStart(2, '0')
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const year = d.getFullYear()
+    return `${day}-${month}-${year}`
+  }
 
   const accentColor = isQuotation ? '#0284c7' : '#4338ca' // Sky blue for Quotations, Deep Indigo for Invoices
   const headerBg = isQuotation ? 'linear-gradient(135deg, #0c4a6e, #0369a1)' : 'linear-gradient(135deg, #1e1b4b, #3730a3)'
@@ -400,8 +450,8 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
               !hideTax ? ['CGST Total', formatINR(doc.cgst_total)] : null,
               !hideTax ? ['SGST Total', formatINR(doc.sgst_total)] : null,
               doc.round_off !== 0 ? ['Round Off', (doc.round_off > 0 ? '+' : '') + formatINR(Math.abs(doc.round_off))] : null,
-              isPartial ? ['Amount Paid', formatINR(doc.paid_amount || 0)] : null,
-              isPartial ? ['Balance Due', formatINR(balanceDue)] : null,
+              (!isCredit && isPartial) ? ['Amount Paid', formatINR(doc.paid_amount || 0)] : null,
+              (!isCredit && isPartial) ? ['Balance Due', formatINR(balanceDue)] : null,
             ].filter(Boolean).map(([label, value]: any, idx) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', fontSize: 11, borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
                 <span style={{ color: label === 'Balance Due' ? '#dc2626' : (label === 'Amount Paid' ? '#16a34a' : '#64748b'), fontWeight: isPartial && (label === 'Balance Due' || label === 'Amount Paid') ? 700 : 400 }}>{label}</span>
@@ -412,13 +462,35 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
               <span style={{ fontSize: 13, fontWeight: 700 }}>Grand Total</span>
               <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.01em' }}>{formatINR(doc.grand_total)}</span>
             </div>
+
+            {/* Requirement 3: In case of Credit partial & full payments, show all partial payments history with date above Total amount paid, and Total amount paid before Balance due */}
+            {isCredit && (
+              <div style={{ borderTop: '1px solid #e2e8f0', background: '#ffffff' }}>
+                {paymentHistory.map((p, idx) => (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', fontSize: 10.5, borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#ffffff' : '#fcfcfd' }}>
+                    <span style={{ color: '#475569', fontWeight: 500 }}>
+                      Amount paid: {formatPaymentDate(p.date)}{p.mode ? ` ${p.mode}` : ''}
+                    </span>
+                    <span style={{ fontWeight: 600, color: '#0f172a' }}>{formatINR(p.amount)}</span>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', fontSize: 11, borderBottom: '1px solid #e2e8f0', background: '#f0fdf4' }}>
+                  <span style={{ color: '#16a34a', fontWeight: 700 }}>Total amount paid</span>
+                  <span style={{ fontWeight: 700, color: '#16a34a' }}>{formatINR(doc.paid_amount || 0)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', fontSize: 11, background: balanceDue > 0 ? '#fef2f2' : '#f8fafc' }}>
+                  <span style={{ color: balanceDue > 0 ? '#dc2626' : '#64748b', fontWeight: 700 }}>Balance due</span>
+                  <span style={{ fontWeight: 700, color: balanceDue > 0 ? '#dc2626' : '#64748b' }}>{formatINR(balanceDue)}</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* UPI Scan to Pay Card (Invoices only) */}
           {(profile?.enable_scan_to_pay !== 0 && profile?.enable_scan_to_pay !== false) && !isQuotation && upiLink && (
             <div style={{ textAlign: 'center', marginTop: 14, padding: 12, border: '1px dashed #cbd5e1', borderRadius: 10, background: '#f8fafc' }}>
               <p style={{ fontSize: 10, fontWeight: 800, color: accentColor, margin: '0 0 6px 0', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                {isPartial ? `⚡ Scan to Pay Balance Due (${formatINR(balanceDue)})` : '⚡ Scan to Pay'}
+                {qrHeader}
               </p>
               <div style={{ display: 'flex', justifyContent: 'center', padding: 6, background: 'white', borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', width: 'fit-content', margin: '4px auto' }}>
                 <QRCodeSVG value={upiLink} size={105} />

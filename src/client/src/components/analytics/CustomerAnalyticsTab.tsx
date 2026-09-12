@@ -611,6 +611,7 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
                 <th className="th">Type</th>
                 <th className="th text-center">Items</th>
                 <th className="th text-right">Total</th>
+                <th className="th text-right">Pending</th>
                 <th className="th">Payment Status</th>
                 <th className="th text-center">Rev</th>
                 <th className="th text-right">Actions</th>
@@ -619,45 +620,59 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
             <tbody className="divide-y divide-white/5">
               {docs.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="td text-center text-gray-500 py-8">
+                  <td colSpan={9} className="td text-center text-gray-500 py-8">
                     No documents found matching the filters for this customer.
                   </td>
                 </tr>
               ) : (
-                docs.map(doc => (
-                  <tr key={doc.id} className="tr hover:bg-white/5">
-                    <td className="td font-mono font-medium text-brand-300">
-                      {doc.doc_number}
-                    </td>
-                    <td className="td text-xs text-gray-400 font-mono">
-                      {formatDate(doc.doc_date)}
-                    </td>
-                    <td className="td">
-                      <span className={doc.doc_type === 'INVOICE' ? 'badge-invoice' : 'badge-quotation'}>
-                        {doc.doc_type}
-                      </span>
-                    </td>
-                    <td className="td text-center font-mono text-xs text-gray-400">
-                      {doc.item_count || '—'}
-                    </td>
-                    <td className="td text-right">
-                      <span className="font-medium text-emerald-400 block font-mono">
-                        {formatINR(doc.grand_total)}
-                      </span>
-                      {doc.payment_status === 'PARTIAL' && (
-                        <span className="text-[11px] text-amber-400 block font-mono">
-                          Paid: {formatINR(doc.paid_amount || 0)}
+                docs.map(doc => {
+                  const pendingAmount = doc.doc_type === 'INVOICE' && doc.payment_status !== 'CANCELLED'
+                    ? Math.max(0, doc.grand_total - (doc.paid_amount || 0))
+                    : 0
+
+                  return (
+                    <tr key={doc.id} className="tr hover:bg-white/5">
+                      <td className="td font-mono font-medium text-brand-300">
+                        {doc.doc_number}
+                      </td>
+                      <td className="td text-xs text-gray-400 font-mono">
+                        {formatDate(doc.doc_date)}
+                      </td>
+                      <td className="td">
+                        <span className={doc.doc_type === 'INVOICE' ? 'badge-invoice' : 'badge-quotation'}>
+                          {doc.doc_type}
                         </span>
-                      )}
-                    </td>
-                    <td className="td">
-                      <span className={STATUS_BADGE[doc.payment_status] || 'badge-draft'}>
-                        {doc.payment_status}
-                      </span>
-                    </td>
-                    <td className="td text-center text-gray-500 text-xs font-mono">
-                      v{doc.revision_number}
-                    </td>
+                      </td>
+                      <td className="td text-center font-mono text-xs text-gray-400">
+                        {doc.item_count || '—'}
+                      </td>
+                      <td className="td text-right">
+                        <span className="font-medium text-emerald-400 block font-mono">
+                          {formatINR(doc.grand_total)}
+                        </span>
+                        {doc.payment_status === 'PARTIAL' && (
+                          <span className="text-[11px] text-amber-400 block font-mono">
+                            Paid: {formatINR(doc.paid_amount || 0)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="td text-right">
+                        {pendingAmount > 0 ? (
+                          <span className="font-semibold text-red-400 font-mono text-xs block">
+                            {formatINR(pendingAmount)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-500 text-xs font-mono">—</span>
+                        )}
+                      </td>
+                      <td className="td">
+                        <span className={STATUS_BADGE[doc.payment_status] || 'badge-draft'}>
+                          {doc.payment_status}
+                        </span>
+                      </td>
+                      <td className="td text-center text-gray-500 text-xs font-mono">
+                        v{doc.revision_number}
+                      </td>
                     <td className="td text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button
@@ -711,7 +726,7 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
                       </div>
                     </td>
                   </tr>
-                ))
+                )})
               )}
             </tbody>
           </table>

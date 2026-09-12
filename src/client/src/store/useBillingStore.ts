@@ -31,13 +31,19 @@ export interface BillingState {
   hideTaxOnInvoice: boolean
   selectedTerms: string[]
   paidAmount: number
+  previouslyPaidAmount: number  // amount already paid before this edit session (Credit invoices)
   partialPaymentMode: 'CASH' | 'UPI'
+  qrAmountType: 'DELTA' | 'FULL'
   convertingFromQuotationId: string | null
 
   // Editing existing doc
   editingDocId: string | null
   editingDocNumber: string | null
   revisionNumber: number
+  originalGrandTotal: number | null
+  originalPaidAmount: number | null
+  originalPaymentStatus: string | null
+  originalPaymentMode: string | null
 
   // Computed totals (kept in sync)
   totals: InvoiceTotals
@@ -57,6 +63,7 @@ export interface BillingState {
   setPaidAmount: (amt: number) => void
   setPartialPaymentMode: (mode: 'CASH' | 'UPI') => void
   setConvertingFromQuotationId: (id: string | null) => void
+  setQrAmountType: (t: 'DELTA' | 'FULL') => void
 
   addItem: (item: Omit<CartItem, 'id'>) => void
   updateItem: (id: string, patch: Partial<CartItem>) => void
@@ -84,11 +91,17 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   hideTaxOnInvoice: false,
   selectedTerms: [],
   paidAmount: 0,
+  previouslyPaidAmount: 0,
   partialPaymentMode: 'CASH',
+  qrAmountType: 'DELTA',
   convertingFromQuotationId: null,
   editingDocId: null,
   editingDocNumber: null,
   revisionNumber: 1,
+  originalGrandTotal: null,
+  originalPaidAmount: null,
+  originalPaymentStatus: null,
+  originalPaymentMode: null,
   totals: emptyTotals(),
 
   setDocType: (t) => {
@@ -118,6 +131,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   setPaidAmount: (amt) => set({ paidAmount: amt }),
   setPartialPaymentMode: (mode) => set({ partialPaymentMode: mode }),
   setConvertingFromQuotationId: (id) => set({ convertingFromQuotationId: id }),
+  setQrAmountType: (t) => set({ qrAmountType: t }),
 
   addItem: (item) => {
     const items = [...get().items, { ...item, id: uuid() }]
@@ -134,8 +148,8 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   clearCart: () => set({
     items: [], customer: null, discountPct: 0, additionalDiscount: 0, paymentMode: 'CASH', paymentStatus: 'PAID',
     notes: '', selectedUpiId: null, hideTaxOnInvoice: false, selectedTerms: [], docDate: todayIso(), editingDocId: null,
-    editingDocNumber: null, revisionNumber: 1, totals: emptyTotals(),
-    paidAmount: 0, partialPaymentMode: 'CASH', convertingFromQuotationId: null,
+    editingDocNumber: null, revisionNumber: 1, originalGrandTotal: 0, originalPaidAmount: 0, originalPaymentStatus: '', originalPaymentMode: '', totals: emptyTotals(),
+    paidAmount: 0, previouslyPaidAmount: 0, partialPaymentMode: 'CASH', qrAmountType: 'DELTA', convertingFromQuotationId: null,
   }),
 
   loadFromDoc: (doc) => {
@@ -153,6 +167,13 @@ export const useBillingStore = create<BillingState>((set, get) => ({
       } catch {}
     }
     const addlDisc = doc.additional_discount || 0
+    const alreadyPaid = doc.paid_amount || 0
+    const grandTotal = doc.grand_total || 0
+    const isCreditEdit = doc.payment_mode === 'CREDIT'
+    // For Credit invoices being edited, prefill paidAmount with the remaining balance
+    const initPaidAmount = isCreditEdit && doc.payment_status !== 'PAID'
+      ? Math.max(0, grandTotal - alreadyPaid)
+      : alreadyPaid
     set({
       items, customer, discountPct: doc.discount_pct || 0,
       additionalDiscount: addlDisc,
@@ -160,11 +181,17 @@ export const useBillingStore = create<BillingState>((set, get) => ({
       docDate: doc.doc_date, notes: doc.notes || '', docType: doc.doc_type,
       selectedUpiId: doc.selected_upi_id || null, hideTaxOnInvoice: !!doc.hide_tax_on_invoice,
       selectedTerms: Array.isArray(terms) ? terms : [],
-      paidAmount: doc.paid_amount || 0,
+      paidAmount: initPaidAmount,
+      previouslyPaidAmount: isCreditEdit ? alreadyPaid : 0,
       partialPaymentMode: doc.partial_payment_mode || 'CASH',
+      qrAmountType: 'DELTA', // Always select Delta by default for QR code generation in Cash & UPI payment if invoice is updated
       convertingFromQuotationId: null,
       editingDocId: doc.id,
       editingDocNumber: doc.doc_number, revisionNumber: doc.revision_number || 1,
+      originalGrandTotal: grandTotal,
+      originalPaidAmount: alreadyPaid,
+      originalPaymentStatus: doc.payment_status || 'PAID',
+      originalPaymentMode: doc.payment_mode || 'CASH',
       totals: calcTotals(items, doc.discount_pct || 0, addlDisc),
     })
   },
