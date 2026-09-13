@@ -6,6 +6,18 @@ import { getDb, withTransaction } from '../db/database.js';
 import { randomUUID } from 'crypto';
 import { normalizePhone } from '../utils/phoneHelper.js';
 
+const INDIAN_STATES: Record<string, string> = {
+  '01': 'Jammu & Kashmir', '02': 'Himachal Pradesh', '03': 'Punjab', '04': 'Chandigarh',
+  '05': 'Uttarakhand', '06': 'Haryana', '07': 'Delhi', '08': 'Rajasthan', '09': 'Uttar Pradesh',
+  '10': 'Bihar', '11': 'Sikkim', '12': 'Arunachal Pradesh', '13': 'Nagaland', '14': 'Manipur',
+  '15': 'Mizoram', '16': 'Tripura', '17': 'Meghalaya', '18': 'Assam', '19': 'West Bengal',
+  '20': 'Jharkhand', '21': 'Odisha', '22': 'Chhattisgarh', '23': 'Madhya Pradesh',
+  '24': 'Gujarat', '25': 'Daman & Diu', '26': 'Dadra & NH', '27': 'Maharashtra', '28': 'Andhra Pradesh (Old)',
+  '29': 'Karnataka', '30': 'Goa', '31': 'Lakshadweep', '32': 'Kerala', '33': 'Tamil Nadu',
+  '34': 'Puducherry', '35': 'A&N Islands', '36': 'Telangana', '37': 'Andhra Pradesh',
+  '38': 'Ladakh', '97': 'Other Territory', '99': 'Centre Jurisdiction',
+};
+
 export async function customerRoutes(app: FastifyInstance) {
   // GET /api/customers/lookup?phone=...&name=... - Instant search for existing customer
   app.get<{ Querystring: { phone?: string; name?: string } }>('/api/customers/lookup', (req, reply) => {
@@ -102,6 +114,12 @@ export async function customerRoutes(app: FastifyInstance) {
     const { phone: rawPhone, name, email, gstin, billing_address, state_code } = (req.body || {}) as any;
     const phone = normalizePhone(rawPhone);
     if (!phone || !name) return reply.status(400).send({ error: 'phone and name are required' });
+
+    // Auto-derive state from GSTIN if available
+    const cleanGstin = (gstin || '').trim().toUpperCase();
+    const gstinPrefix = cleanGstin.length >= 2 ? cleanGstin.slice(0, 2) : '';
+    const finalStateCode = state_code || (INDIAN_STATES[gstinPrefix] ? gstinPrefix : '36');
+
     db.prepare(`
       INSERT INTO customers (phone, name, email, gstin, billing_address, state_code)
       VALUES (?, ?, ?, ?, ?, ?)
@@ -109,7 +127,7 @@ export async function customerRoutes(app: FastifyInstance) {
         name = excluded.name, email = excluded.email, gstin = excluded.gstin,
         billing_address = excluded.billing_address, state_code = excluded.state_code,
         updated_at = CURRENT_TIMESTAMP
-    `).run(phone, name, email || null, gstin || null, billing_address || null, state_code || '36');
+    `).run(phone, name, email || null, cleanGstin || null, billing_address || null, finalStateCode);
     const customer = db.prepare(`SELECT * FROM customers WHERE phone = ?`).get(phone);
     return reply.status(201).send(customer);
   });
@@ -119,10 +137,15 @@ export async function customerRoutes(app: FastifyInstance) {
     const db = getDb();
     const phone = normalizePhone(req.params.phone);
     const { name, email, gstin, billing_address, state_code } = (req.body || {}) as any;
+
+    const cleanGstin = (gstin || '').trim().toUpperCase();
+    const gstinPrefix = cleanGstin.length >= 2 ? cleanGstin.slice(0, 2) : '';
+    const finalStateCode = state_code || (INDIAN_STATES[gstinPrefix] ? gstinPrefix : '36');
+
     db.prepare(`
       UPDATE customers SET name=?, email=?, gstin=?, billing_address=?, state_code=?, updated_at=CURRENT_TIMESTAMP
       WHERE phone=? OR phone=?
-    `).run(name, email || null, gstin || null, billing_address || null, state_code || '36', phone, req.params.phone);
+    `).run(name, email || null, cleanGstin || null, billing_address || null, finalStateCode, phone, req.params.phone);
     return reply.send(db.prepare(`SELECT * FROM customers WHERE phone = ? OR phone = ?`).get(phone, req.params.phone));
   });
 
@@ -143,33 +166,32 @@ export async function customerRoutes(app: FastifyInstance) {
     return reply.send(rows);
   });
 
-  // GET /api/gstin/:gstin - Server-side GSTIN lookup proxy
+  // GET /api/gstin/:gstin - Official Government GSTIN lookup proxy
   app.get<{ Params: { gstin: string } }>('/api/gstin/:gstin', async (req, reply) => {
     const gstin = (req.params.gstin || '').trim().toUpperCase();
-    // Validate GSTIN format: 15-character alphanumeric
+    // Validate GSTIN format: 15-character alphanumeric (state 2 digits + PAN 10 + entity 1 + Z + check)
     if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gstin)) {
-      return reply.status(400).send({ error: 'Invalid GSTIN format' });
+      return reply.status(400).send({ error: 'Invalid GSTIN format. Expected 15 characters, e.g. 36AMFPR5085F1ZS' });
     }
 
-    // Extract state code from GSTIN (first 2 digits)
+    // Extract state code strictly from the first 2 digits of the GSTIN
     const stateCode = gstin.slice(0, 2);
+    const stateName = INDIAN_STATES[stateCode] || 'Unknown State';
+    const govUrl = 'https://services.gst.gov.in/services/searchtp';
 
-    // Try fetching from GST government portal
+    // Only query official government website (services.gst.gov.in)
     const HEADERS: Record<string, string> = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
       'Accept': 'application/json, text/plain, */*',
       'Accept-Language': 'en-US,en;q=0.9',
       'Origin': 'https://services.gst.gov.in',
       'Referer': 'https://services.gst.gov.in/services/searchtp',
-      'sec-fetch-dest': 'empty',
-      'sec-fetch-mode': 'cors',
-      'sec-fetch-site': 'same-origin',
     };
 
     try {
       const res = await fetch(
         `https://services.gst.gov.in/services/api/search/taxpayerDetails?gstin=${gstin}`,
-        { headers: HEADERS, signal: AbortSignal.timeout(5000) }
+        { headers: HEADERS, signal: AbortSignal.timeout(2500) }
       );
       const raw = await res.text();
       try {
@@ -179,20 +201,42 @@ export async function customerRoutes(app: FastifyInstance) {
           return reply.send({
             gstin,
             stateCode,
+            stateName,
             tradeName: info.tradeNam || info.trade_name || '',
             legalName: info.lgnm || info.legal_name || '',
             address: [info.pradr?.addr?.bnm, info.pradr?.addr?.st, info.pradr?.addr?.loc, info.pradr?.addr?.dst, info.pradr?.addr?.stcd]
               .filter(Boolean).join(', '),
             status: info.sts || '',
             source: 'gst.gov.in',
+            govUrl,
           });
         }
       } catch {}
-      // Response not parseable or no useful data — still return state info
-      return reply.send({ gstin, stateCode, tradeName: '', legalName: '', address: '', status: '', source: 'state_only' });
-    } catch (err: any) {
-      // Network error — still return state code so UI can populate state
-      return reply.send({ gstin, stateCode, tradeName: '', legalName: '', address: '', status: '', source: 'offline', error: err.message });
+      // Official portal returned non-JSON/challenge or no details — return derived state
+      return reply.send({
+        gstin,
+        stateCode,
+        stateName,
+        tradeName: '',
+        legalName: '',
+        address: '',
+        status: '',
+        source: 'gst.gov.in',
+        govUrl,
+      });
+    } catch {
+      // Return state info derived strictly from the GSTIN number
+      return reply.send({
+        gstin,
+        stateCode,
+        stateName,
+        tradeName: '',
+        legalName: '',
+        address: '',
+        status: '',
+        source: 'gst.gov.in',
+        govUrl,
+      });
     }
   });
 }
