@@ -105,9 +105,33 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
             {profile.business_name}
           </h1>
           {profile.trade_name && (
-            <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 700, color: accentColor, background: 'white', border: `1px solid ${accentColor}`, padding: '2px 8px', borderRadius: 6, lineHeight: 1.3, marginBottom: 6 }}>
-              {profile.trade_name}
-            </span>
+            <div style={{ marginTop: 4, marginBottom: 6 }}>
+              <table style={{
+                display: 'inline-table',
+                borderCollapse: 'collapse',
+                border: `1px solid ${accentColor}`,
+                borderRadius: 4,
+                background: '#ffffff',
+                margin: 0,
+              }}>
+                <tbody>
+                  <tr>
+                    <td style={{
+                      padding: '2px 8px',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: accentColor,
+                      lineHeight: '14px',
+                      textAlign: 'center',
+                      verticalAlign: 'middle',
+                      border: 'none',
+                    }}>
+                      {profile.trade_name}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           )}
           <p style={{ margin: '3px 0 0 0', color: '#475569', fontSize: 12, lineHeight: 1.4 }}>
             {profile.address_line1}{profile.address_line2 ? ', ' + profile.address_line2 : ''}
@@ -177,30 +201,47 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
                       <tbody>
                         <tr>
                           <td style={{ width: '50%', verticalAlign: 'top', paddingBottom: 6 }}>
-                            <span style={{ fontSize: 10, color: '#64748b', display: 'block' }}>Payment Mode</span>
-                            <strong style={{ fontSize: 12, color: '#0f172a' }}>
+                            <span style={{ fontSize: 10, color: '#64748b', display: 'block', marginBottom: 3 }}>Payment Mode</span>
+                            <strong style={{ fontSize: 12, color: '#0f172a', lineHeight: '18px', display: 'inline-block' }}>
                               {doc.payment_mode === 'CREDIT' ? `CREDIT (${doc.partial_payment_mode || 'Cash'})` : (doc.payment_mode || 'CASH')}
                             </strong>
                           </td>
                           <td style={{ width: '50%', verticalAlign: 'top', paddingBottom: 6 }}>
-                            <span style={{ fontSize: 10, color: '#64748b', display: 'block', marginBottom: 2 }}>Status</span>
-                            <span style={{
-                              display: 'inline-block', fontSize: 10, fontWeight: 700, lineHeight: 1.2,
-                              padding: '3px 8px', borderRadius: 4, background: 'white', color: '#b45309',
+                            <span style={{ fontSize: 10, color: '#64748b', display: 'block', marginBottom: 3 }}>Status</span>
+                            <table style={{
+                              display: 'inline-table',
+                              borderCollapse: 'collapse',
                               border: '1px solid #b45309',
-                              textAlign: 'center', verticalAlign: 'middle', boxSizing: 'border-box'
+                              borderRadius: 4,
+                              background: '#ffffff',
+                              margin: 0,
                             }}>
-                              PARTIAL
-                            </span>
+                              <tbody>
+                                <tr>
+                                  <td style={{
+                                    padding: '2px 8px',
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    color: '#b45309',
+                                    lineHeight: '14px',
+                                    textAlign: 'center',
+                                    verticalAlign: 'middle',
+                                    border: 'none',
+                                  }}>
+                                    PARTIAL
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
                           </td>
                         </tr>
                         <tr>
                           <td style={{ width: '50%', verticalAlign: 'top' }}>
-                            <span style={{ fontSize: 10, color: '#64748b', display: 'block' }}>Amount Paid</span>
+                            <span style={{ fontSize: 10, color: '#64748b', display: 'block', marginBottom: 3 }}>Amount Paid</span>
                             <strong style={{ fontSize: 12, color: '#16a34a' }}>{formatINR(doc.paid_amount || 0)}</strong>
                           </td>
                           <td style={{ width: '50%', verticalAlign: 'top' }}>
-                            <span style={{ fontSize: 10, color: '#64748b', display: 'block' }}>Balance Due</span>
+                            <span style={{ fontSize: 10, color: '#64748b', display: 'block', marginBottom: 3 }}>Balance Due</span>
                             <strong style={{ fontSize: 12, color: '#dc2626' }}>{formatINR(balanceDue)}</strong>
                           </td>
                         </tr>
@@ -211,20 +252,36 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
                       <tbody>
                         <tr>
                           <td style={{ width: '50%', verticalAlign: 'top' }}>
-                            <span style={{ fontSize: 10, color: '#64748b', display: 'block' }}>Payment Mode</span>
-                            <strong style={{ fontSize: 13, color: '#0f172a' }}>{doc.payment_mode || 'CASH'}</strong>
+                            <span style={{ fontSize: 10, color: '#64748b', display: 'block', marginBottom: 3 }}>Payment Mode</span>
+                            <strong style={{ fontSize: 13, color: '#0f172a', lineHeight: '18px', display: 'inline-block' }}>{doc.payment_mode || 'CASH'}</strong>
                           </td>
                           <td style={{ width: '50%', verticalAlign: 'top' }}>
-                            <span style={{ fontSize: 10, color: '#64748b', display: 'block', marginBottom: 2 }}>Status</span>
-                            <span style={{
-                              display: 'inline-block', fontSize: 11, fontWeight: 700, lineHeight: 1.2,
-                              padding: '3px 8px', borderRadius: 4, background: 'white',
-                              color: isPaid ? '#15803d' : '#b45309',
+                            <span style={{ fontSize: 10, color: '#64748b', display: 'block', marginBottom: 3 }}>Status</span>
+                            <table style={{
+                              display: 'inline-table',
+                              borderCollapse: 'collapse',
                               border: `1px solid ${isPaid ? '#15803d' : '#b45309'}`,
-                              textAlign: 'center', verticalAlign: 'middle', boxSizing: 'border-box'
+                              borderRadius: 4,
+                              background: '#ffffff',
+                              margin: 0,
                             }}>
-                              {doc.payment_status}
-                            </span>
+                              <tbody>
+                                <tr>
+                                  <td style={{
+                                    padding: '2px 8px',
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    color: isPaid ? '#15803d' : '#b45309',
+                                    lineHeight: '14px',
+                                    textAlign: 'center',
+                                    verticalAlign: 'middle',
+                                    border: 'none',
+                                  }}>
+                                    {doc.payment_status}
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
                           </td>
                         </tr>
                       </tbody>
