@@ -21,7 +21,6 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
   const [typeFilter, setTypeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [loading, setLoading] = useState(false)
-  const [printDoc, setPrintDoc] = useState<any>(null)
   const [viewDoc, setViewDoc] = useState<any>(null)
   const [sharingDoc, setSharingDoc] = useState<any>(null)
   const [profile, setProfile] = useState<any>(null)
@@ -91,8 +90,8 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
   }
 
   const handlePrint = async (doc: any) => {
-    const full = await api.documents.get(doc.id)
-    setPrintDoc(full)
+    const full = (doc.items && doc.items.length) ? doc : await api.documents.get(doc.id)
+    setViewDoc(full)
     setTimeout(() => window.print(), 300)
   }
 
@@ -112,7 +111,8 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
   }
 
   return (
-    <div className="p-6 space-y-4">
+    <>
+      <div className="no-print p-6 space-y-4">
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-48">
@@ -219,6 +219,7 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
           </table>
         </div>
       </div>
+    </div>
 
       {/* View Document Modal */}
       {viewDoc && (
@@ -242,7 +243,7 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
                     <FileCheck size={14} /> Convert to Invoice
                   </button>
                 )}
-                <button onClick={() => { setPrintDoc(viewDoc); setTimeout(() => window.print(), 300) }} className="btn-primary text-xs py-1.5">
+                <button onClick={() => window.print()} className="btn-primary text-xs py-1.5">
                   <Printer size={14} /> Print
                 </button>
                 <button onClick={() => setViewDoc(null)} className="btn-ghost text-gray-400 hover:text-white p-1">
@@ -266,12 +267,6 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
         </div>
       )}
 
-      {/* Hidden print target */}
-      {printDoc && (
-        <div className="print-only fixed inset-0 bg-white z-[999]">
-          <A4InvoiceTemplate doc={printDoc} profile={profile} />
-        </div>
-      )}
-    </div>
+    </>
   )
 }

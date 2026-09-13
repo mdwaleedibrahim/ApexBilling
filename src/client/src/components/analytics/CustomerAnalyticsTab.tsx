@@ -46,7 +46,6 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
   // Modals & Refs
   const [profile, setProfile] = useState<any>(null)
   const [viewDoc, setViewDoc] = useState<any>(null)
-  const [printDoc, setPrintDoc] = useState<any>(null)
   const [sharingDoc, setSharingDoc] = useState<any>(null)
   const [highlightIndex, setHighlightIndex] = useState(0)
   const hiddenPdfRef = useRef<HTMLDivElement>(null)
@@ -169,8 +168,8 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
   }
 
   const handlePrint = async (doc: any) => {
-    const full = await api.documents.get(doc.id)
-    setPrintDoc(full)
+    const full = (doc.items && doc.items.length) ? doc : await api.documents.get(doc.id)
+    setViewDoc(full)
     setTimeout(() => window.print(), 300)
   }
 
@@ -209,7 +208,8 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <>
+      <div className="no-print p-6 space-y-6 max-w-7xl mx-auto">
       {/* ── Top Header & Customer Autocomplete Combobox ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 glass-card p-4 rounded-2xl border border-white/10">
         <div className="flex items-center gap-3">
@@ -771,6 +771,7 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
           </table>
         </div>
       </div>
+    </div>
 
       {/* ── View Document Modal (Exact A4 Preview Parity) ── */}
       {viewDoc && (
@@ -794,7 +795,7 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
                     <FileCheck size={14} /> Convert to Invoice
                   </button>
                 )}
-                <button onClick={() => { setPrintDoc(viewDoc); setTimeout(() => window.print(), 300) }} className="btn-primary text-xs py-1.5">
+                <button onClick={() => window.print()} className="btn-primary text-xs py-1.5">
                   <Printer size={14} /> Print
                 </button>
                 <button onClick={() => setViewDoc(null)} className="btn-ghost text-gray-400 hover:text-white p-1">
@@ -809,17 +810,12 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
         </div>
       )}
 
-      {/* ── Hidden Print Container ── */}
-      <div className="print-only">
-        {printDoc && <A4InvoiceTemplate doc={printDoc} profile={profile} />}
-      </div>
-
       {/* ── Hidden target for generating PDF when sharing directly from table row ── */}
       <div style={{ position: 'fixed', left: '-9999px', top: '-9999px', width: '800px', opacity: 0, pointerEvents: 'none' }}>
         <div ref={hiddenPdfRef}>
           {sharingDoc && <A4InvoiceTemplate doc={sharingDoc} profile={profile} />}
         </div>
       </div>
-    </div>
+    </>
   )
 }
