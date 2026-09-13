@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, Plus, Edit, Trash2, Receipt, X, Save, Sparkles, BarChart3 } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, Receipt, X, Save, Sparkles, BarChart3, RefreshCw } from 'lucide-react'
 import { api } from '../../utils/api'
 import { formatINR, formatDate } from '../../utils/upiHelper'
 import { INDIAN_STATES } from '../../utils/gstEngine'
@@ -17,6 +17,8 @@ export default function CustomerDirectory({ onViewAnalytics }: { onViewAnalytics
   const [selected, setSelected] = useState<any>(null)
   const [invoices, setInvoices] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [gstinLoading, setGstinLoading] = useState(false)
+  const [gstinToast, setGstinToast] = useState<{ type: 'success' | 'warn' | 'error'; msg: string } | null>(null)
 
   const load = async () => {
     const q = search.trim()
@@ -57,6 +59,40 @@ export default function CustomerDirectory({ onViewAnalytics }: { onViewAnalytics
   }
 
   const f = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }))
+
+  const lookupGstin = async () => {
+    const gstin = form.gstin?.trim().toUpperCase()
+    if (!gstin || gstin.length !== 15) {
+      setGstinToast({ type: 'warn', msg: 'Enter a valid 15-character GSTIN first.' })
+      setTimeout(() => setGstinToast(null), 3000)
+      return
+    }
+    setGstinLoading(true)
+    setGstinToast(null)
+    try {
+      const result = await api.customers.gstinLookup(gstin)
+      // Always update state code from GSTIN
+      const update: any = { gstin: result.gstin || gstin, state_code: result.stateCode || form.state_code }
+      if (result.source === 'gst.gov.in' && (result.tradeName || result.legalName)) {
+        if (!form.name?.trim() && (result.tradeName || result.legalName)) {
+          update.name = result.tradeName || result.legalName
+        }
+        if (!form.billing_address?.trim() && result.address) {
+          update.billing_address = result.address
+        }
+        setForm((p: any) => ({ ...p, ...update }))
+        setGstinToast({ type: 'success', msg: `Found: ${result.tradeName || result.legalName}` })
+      } else {
+        setForm((p: any) => ({ ...p, ...update }))
+        setGstinToast({ type: 'warn', msg: 'State code auto-filled. Business name not available from GST portal (portal may be down or restricted).' })
+      }
+    } catch {
+      setGstinToast({ type: 'error', msg: 'Could not reach GST portal. Check internet connection.' })
+    } finally {
+      setGstinLoading(false)
+      setTimeout(() => setGstinToast(null), 5000)
+    }
+  }
 
   // Check for existing customer when adding
   const normFormPhone = normalizePhone(form.phone)
@@ -140,7 +176,28 @@ export default function CustomerDirectory({ onViewAnalytics }: { onViewAnalytics
             </div>
             <div><label className="label">Name *</label><input className="input" value={form.name} onChange={e => f('name', e.target.value)} placeholder="Customer Name" /></div>
             <div><label className="label">Email</label><input className="input" value={form.email} onChange={e => f('email', e.target.value)} placeholder="email@example.com" /></div>
-            <div><label className="label">GSTIN</label><input className="input uppercase" value={form.gstin} onChange={e => f('gstin', e.target.value)} placeholder="22AAAAA0000A1Z5" /></div>
+            <div>
+              <label className="label">GSTIN</label>
+              <div className="flex gap-1.5">
+                <input className="input uppercase flex-1" value={form.gstin} onChange={e => f('gstin', e.target.value.toUpperCase())} placeholder="22AAAAA0000A1Z5" maxLength={15} />
+                <button
+                  type="button"
+                  onClick={lookupGstin}
+                  disabled={gstinLoading || !form.gstin?.trim()}
+                  className="btn-secondary px-2.5 shrink-0"
+                  title="Fetch business details from GSTIN"
+                >
+                  <RefreshCw size={14} className={gstinLoading ? 'animate-spin' : ''} />
+                </button>
+              </div>
+              {gstinToast && (
+                <p className={`text-[11px] mt-1.5 px-2 py-1 rounded-lg ${
+                  gstinToast.type === 'success' ? 'text-emerald-300 bg-emerald-500/10' :
+                  gstinToast.type === 'warn' ? 'text-amber-300 bg-amber-500/10' :
+                  'text-red-300 bg-red-500/10'
+                }`}>{gstinToast.msg}</p>
+              )}
+            </div>
             <div><label className="label">State</label>
               <select className="input" value={form.state_code} onChange={e => f('state_code', e.target.value)}>
                 {Object.entries(INDIAN_STATES).map(([code, name]) => <option key={code} value={code}>{code} — {name}</option>)}

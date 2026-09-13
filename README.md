@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-v2.3.0-blue.svg" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-v2.4.0-blue.svg" alt="Version" />
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Web-purple.svg" alt="Platform" />
   <img src="https://img.shields.io/badge/Storage-SQLite%20(WAL%20Mode)-success.svg" alt="SQLite" />
   <img src="https://img.shields.io/badge/GST-Compliant%20Engine-emerald.svg" alt="GST Compliant" />
@@ -25,6 +25,10 @@
 - **5 Concurrent Memory Slots (`Alt+1..5`)**: Switch and hold multiple customer carts simultaneously without data loss or UI slowdown.
 - **High-Speed Keyboard Navigation**: Complete entire billing workflows using keyboard hotkeys (`F2` search, `F4` quotation, `F7` cash, `F8` UPI QR).
 - **Live SKU & Barcode Search**: Instant product lookup with keyboard arrow navigation and quick auto-fill.
+- **Credit Invoicing & Partial Payments**: Customer-tied Credit mode (registered users only) with support for partial upfront payments via Cash or UPI, aggregate paid amounts tracking, and live remaining balance due calculation.
+- **Intelligent Mode Locking & Delta Collection**: Settled invoices automatically lock payment modes when total is unchanged. If total increases, payment modes re-enable specifically for the extra/delta amount.
+- **Delta vs. Full QR Generation**: When updating Cash or UPI invoices with changed totals, an in-POS toggle generates QR codes for the delta amount (default) or the full amount.
+- **1-Click Cancel Edit**: Dedicated discard button beside the editing banner to quickly exit invoice editing without saving accidental changes.
 - **Independent Pricing & MRP**: Uses active `Price` for billing, discounts, and PnL while `MRP` is displayed informatively below the description.
 - **Dual Discount Engine (`%` and `₹`)**: Apply percentage discounts or fixed currency amounts (rendered as "Additional discount"), protected by automatic loss prevention.
 - **Loss Prevention Safeguards**: Validates bills in real time to prevent discounts from causing the grand total to fall below purchase cost.
@@ -48,7 +52,9 @@
 - **CSV Sales Report Export**: 1-click export of financial reports for accounting and audit compliance.
 
 ### 🧾 4. Executive Invoice & Thermal Receipt Layouts
-- **Zero-Blank-Page A4 GST Tax Invoice**: Clean typography, structured seller/buyer info, itemized HSN table, CGST/SGST split, bank details, authorized signatory, and dynamic UPI QR code with zero extra trailing blank pages.
+- **Zero-Blank-Page A4 GST Tax Invoice**: Clean typography, structured seller/buyer info, itemized HSN table, CGST/SGST split, bank details, authorized signatory, dynamic UPI QR code, and zero extra trailing blank pages.
+- **Multi-Payment Audit Trail**: Transparent breakdown of all historical partial payments with exact transaction timestamps, payment modes (Cash / UPI), cumulative total paid, and outstanding balance due.
+- **Context-Aware Dynamic QR**: Generates dynamic UPI QR codes customized for the remaining balance due or installment amount with clear payment instructions.
 - **Native WhatsApp PDF Sharing**: Share generated A4 PDF documents directly with customers via native Windows WhatsApp with custom messages.
 - **80mm ESC/POS Thermal Receipts**: Streamlined thermal layout for retail counters and high-traffic POS environments.
 - **Quotation / Estimate Support (`F4`)**: Issue professional quotes with auto-saved customer records, validity notes, and 1-click tax invoice conversion.
@@ -60,6 +66,7 @@
 
 ### 🔄 6. Records Management & Atomic Stock Reconciler
 - **Unified Register**: Search and filter past invoices and quotations by type, date range, customer, or payment status.
+- **Dedicated Pending Balance Tracker**: View outstanding credit balances for invoices directly in the main records register table.
 - **Atomic Stock Restoration**: Editing a historical invoice automatically restocks old items, validates new stock levels, recalculates tax totals, and increments revision numbers (`v1` → `v2`).
 - **1-Click Quotation Conversion**: Convert any quotation directly into an active invoice without retyping line items.
 - **Invoice Cancellation**: Void invoices with automatic inventory replenishment.
@@ -78,6 +85,7 @@
 
 ### ⚙️ 9. Administration & Data Resiliency
 - **Business Profile**: Configure Company Name, Trade Name, GSTIN, PAN, Phone, Email, Address, and Bank Account Details.
+- **Universal In-App Styled Dialog System**: Replaced intrusive browser-native popups (`confirm()`, `alert()`) with beautiful dark glassmorphism modal dialogs featuring keyboard bindings (`Enter` to confirm, `Esc` to cancel).
 - **POS Feature Toggles**: Control visibility of purchase prices, profit margins, and stock limit constraints.
 - **1-Click JSON Backup & Restore**: Export full database snapshots for offsite archival and restore seamlessly.
 
@@ -155,7 +163,7 @@ Manage business details, banking info, multi-UPI QR accounts, POS display toggle
 
 ApexBill provides a standalone portable package bundled with an embedded Node.js runtime and SQLite engine:
 
-1. Download or extract the release archive (`ApexBill-v2.3.0-Portable.zip`).
+1. Download or extract the release archive (`ApexBill-v2.4.0-Portable.zip`).
 2. Double-click **`Launch-ApexBill.vbs`** (or **`ApexBill.bat`**).
 3. ApexBill launches immediately in a dedicated desktop application window at `http://localhost:54321`.
 

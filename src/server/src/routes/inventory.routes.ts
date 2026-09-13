@@ -3,7 +3,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { getDb, withTransaction } from '../db/database.js';
-import { parseCsvText, upsertProducts } from '../services/csv-importer.service.js';
+import { parseCsvText, upsertProducts, generateInventoryCsv } from '../services/csv-importer.service.js';
 import { randomUUID } from 'crypto';
 
 export async function inventoryRoutes(app: FastifyInstance) {
@@ -60,12 +60,22 @@ export async function inventoryRoutes(app: FastifyInstance) {
     return reply.send({ success: true });
   });
 
+  // GET /api/inventory/export-csv - export inventory as CSV
+  app.get('/api/inventory/export-csv', (_req, reply) => {
+    const csv = generateInventoryCsv();
+    const today = new Date().toISOString().slice(0, 10);
+    return reply
+      .header('Content-Type', 'text/csv; charset=utf-8')
+      .header('Content-Disposition', `attachment; filename="inventory-export-${today}.csv"`)
+      .send(csv);
+  });
+
   // POST /api/inventory/import-csv - CSV batch import
-  app.post<{ Body: { csv: string } }>('/api/inventory/import-csv', (req, reply) => {
-    const { csv } = req.body;
+  app.post<{ Body: { csv: string; stock_mode?: 'replace' | 'add' } }>('/api/inventory/import-csv', (req, reply) => {
+    const { csv, stock_mode } = req.body || {};
     if (!csv) return reply.status(400).send({ error: 'csv field required' });
     const { rows, errors: parseErrors } = parseCsvText(csv);
-    const result = upsertProducts(rows);
+    const result = upsertProducts(rows, stock_mode || 'replace');
     result.errors.push(...parseErrors);
     return reply.send(result);
   });

@@ -84,11 +84,14 @@
   }
 }
 
-/* Print styles — Retain top header & page numbers, suppress browser URL (localhost:5173) */
+/* Print styles — Multi-page A4 splitting, suppress browser URLs & app chrome */
 @media print {
   @page {
     margin: 8mm 10mm 12mm 10mm;
     size: A4 portrait;
+    @top-left { content: none !important; }
+    @top-right { content: none !important; }
+    @top-center { content: none !important; }
     @bottom-left {
       content: none !important;
     }
@@ -98,43 +101,105 @@
       color: #6b7280;
     }
   }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   html, body {
     background: white !important;
     color: black !important;
     margin: 0 !important;
     padding: 0 !important;
     width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
-  .no-print { display: none !important; }
-  .print-only { display: block !important; }
 
-  /* Ensure modal and A4 template autofit A4 page perfectly */
+  #root, main, .flex.h-screen {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
+    position: static !important;
+    background: white !important;
+  }
+
+  aside, header, nav, .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+    position: static !important;
+    inset: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    z-index: auto !important;
+  }
+
+  /* Ensure modal and A4 template autofit A4 page perfectly and split across multiple pages */
   .modal-backdrop {
     position: static !important;
     padding: 0 !important;
     background: transparent !important;
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
   }
+
   .modal-backdrop > div {
     max-width: 100% !important;
     max-height: none !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     overflow: visible !important;
+    height: auto !important;
+    background: transparent !important;
+    border: none !important;
   }
+
   .print-container {
     padding: 0 !important;
     width: 100% !important;
+    max-width: 100% !important;
     min-height: auto !important;
     height: auto !important;
     max-height: none !important;
+    overflow: visible !important;
   }
+
+  .items-table-wrapper {
+    overflow: visible !important;
+    border-radius: 0 !important;
+  }
+
   table {
     width: 100% !important;
     table-layout: fixed !important;
   }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tbody {
+    display: table-row-group !important;
+  }
+
   tr {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
+
+  .avoid-break {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
 }
+
 .print-only { display: none; }

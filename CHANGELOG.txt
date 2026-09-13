@@ -3,6 +3,17 @@
 ========================================================================
 
 ========================================================================
+ApexBill Release v2.4.0 - 2026-09-12 18:31:04
+========================================================================
+Changes & Commits in this Build:
+  * Implment native app popups (53b869e)
+  * feat: Add credit payment option, ability to update invoices and generate payment for delta or full amount. (db99bb1)
+  * feat: update customer analytics tab, A4 invoice template, and WhatsApp invoice share (863b20e)
+  * docs: update README and application screenshots with latest features (a0c8b16)
+  * feat: add customer analytics tab, quotation customer auto-save, and remove PDF blank pages (9d59740)
+  * feat: decouple MRP from pricing, add fixed discount, loss protection, and WhatsApp PDF sharing (a9b50bc)
+
+========================================================================
 ApexBill Release v2.3.0 - 2026-09-09 21:54:50
 ========================================================================
 Changes & Commits in this Build:

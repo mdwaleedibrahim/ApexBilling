@@ -67,6 +67,7 @@ export const api = {
     update: (phone: string, body: any) => req<any>(`/customers/${encodeURIComponent(phone)}`, { method: 'PUT', body: JSON.stringify(body) }),
     delete: (phone: string) => req<any>(`/customers/${encodeURIComponent(phone)}`, { method: 'DELETE' }),
     invoices: (phone: string) => req<any[]>(`/customers/${encodeURIComponent(phone)}/invoices`),
+    gstinLookup: (gstin: string) => req<any>(`/gstin/${encodeURIComponent(gstin)}`),
   },
 
   // ── Inventory ─────────────────────────────────────────────────────────────
@@ -77,7 +78,9 @@ export const api = {
     create: (body: any) => req<any>('/inventory', { method: 'POST', body: JSON.stringify(body) }),
     update: (id: string, body: any) => req<any>(`/inventory/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     delete: (id: string) => req<any>(`/inventory/${id}`, { method: 'DELETE' }),
-    importCsv: (csv: string) => req<any>('/inventory/import-csv', { method: 'POST', body: JSON.stringify({ csv }) }),
+    importCsv: (csv: string, stock_mode: 'replace' | 'add' = 'replace') =>
+      req<any>('/inventory/import-csv', { method: 'POST', body: JSON.stringify({ csv, stock_mode }) }),
+    exportCsvUrl: () => '/api/inventory/export-csv',
   },
 
   // ── Settings ──────────────────────────────────────────────────────────────

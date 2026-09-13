@@ -48,9 +48,11 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
   const [viewDoc, setViewDoc] = useState<any>(null)
   const [printDoc, setPrintDoc] = useState<any>(null)
   const [sharingDoc, setSharingDoc] = useState<any>(null)
+  const [highlightIndex, setHighlightIndex] = useState(0)
   const hiddenPdfRef = useRef<HTMLDivElement>(null)
   const viewModalPdfRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const portalRef = useRef<HTMLDivElement>(null)
 
   const store = useBillingStore()
 
@@ -78,7 +80,12 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
   // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(target) &&
+        (!portalRef.current || !portalRef.current.contains(target))
+      ) {
         setDropdownOpen(false)
       }
     }
@@ -195,6 +202,12 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
       )
     : customers
 
+  const handleSelectCustomer = (c: any) => {
+    setSelectedPhone(c.phone)
+    setSearchTerm(`${c.name} (${c.phone})`)
+    setDropdownOpen(false)
+  }
+
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* ── Top Header & Customer Autocomplete Combobox ── */}
@@ -218,7 +231,7 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
               type="text"
               className="input !pl-9 !pr-16 !py-2 w-full text-sm font-medium bg-[#111827] focus:border-brand-500 rounded-xl"
               style={{ backgroundColor: '#111827' }}
-              placeholder="Search or select client by name / phone…"
+              placeholder="Search or select client by name / phone… (Enter to select)"
               value={searchTerm}
               onFocus={() => {
                 if (inputRef.current) setDropdownRect(inputRef.current.getBoundingClientRect())
@@ -227,7 +240,30 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
               onChange={(e) => {
                 if (inputRef.current) setDropdownRect(inputRef.current.getBoundingClientRect())
                 setSearchTerm(e.target.value)
+                setHighlightIndex(0)
                 setDropdownOpen(true)
+              }}
+              onKeyDown={(e) => {
+                if (!dropdownOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                  if (inputRef.current) setDropdownRect(inputRef.current.getBoundingClientRect())
+                  setDropdownOpen(true)
+                  return
+                }
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  setHighlightIndex(prev => Math.min(prev + 1, Math.max(0, filteredCustomers.length - 1)))
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  setHighlightIndex(prev => Math.max(prev - 1, 0))
+                } else if (e.key === 'Enter') {
+                  e.preventDefault()
+                  if (filteredCustomers.length > 0) {
+                    const chosen = filteredCustomers[highlightIndex] || filteredCustomers[0]
+                    handleSelectCustomer(chosen)
+                  }
+                } else if (e.key === 'Escape') {
+                  setDropdownOpen(false)
+                }
               }}
             />
 
@@ -266,6 +302,7 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
 
           {dropdownOpen && dropdownRect && ReactDOM.createPortal(
             <div
+              ref={portalRef}
               style={{
                 position: 'fixed',
                 top: dropdownRect.bottom + 6,
@@ -306,27 +343,27 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
                     No clients found matching &ldquo;{searchTerm}&rdquo;
                   </div>
                 ) : (
-                  filteredCustomers.map(c => {
+                  filteredCustomers.map((c, idx) => {
                     const isSelected = selectedPhone === c.phone
+                    const isHighlighted = idx === highlightIndex
                     return (
                       <div
                         key={c.phone}
-                        onClick={() => {
-                          setSelectedPhone(c.phone)
-                          setSearchTerm(`${c.name} (${c.phone})`)
-                          setDropdownOpen(false)
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          handleSelectCustomer(c)
                         }}
+                        onClick={() => handleSelectCustomer(c)}
                         style={{
                           padding: '10px 14px',
                           borderBottom: '1px solid #1e293b',
-                          background: isSelected ? '#1d4ed8' : '#0f172a',
+                          background: isSelected ? '#1d4ed8' : isHighlighted ? '#1e293b' : '#0f172a',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
                         }}
-                        onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#1e293b' }}
-                        onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#0f172a' }}
+                        onMouseEnter={() => setHighlightIndex(idx)}
                       >
                         <div>
                           <div style={{ fontSize: '13px', fontWeight: 600, color: '#f1f5f9' }}>{c.name}</div>

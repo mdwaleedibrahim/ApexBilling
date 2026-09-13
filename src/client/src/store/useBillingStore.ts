@@ -134,7 +134,21 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   setQrAmountType: (t) => set({ qrAmountType: t }),
 
   addItem: (item) => {
-    const items = [...get().items, { ...item, id: uuid() }]
+    const existing = get().items.find(i =>
+      (item.productId && i.productId === item.productId) ||
+      (!item.productId && i.productName.trim().toLowerCase() === item.productName.trim().toLowerCase())
+    )
+    let items: CartItem[]
+    if (existing) {
+      // Merge: increment quantity on the existing row
+      items = get().items.map(i =>
+        i.id === existing.id
+          ? { ...i, quantity: i.quantity + (item.quantity || 1) }
+          : i
+      )
+    } else {
+      items = [...get().items, { ...item, id: uuid() }]
+    }
     set({ items, totals: calcTotals(items, get().discountPct, get().additionalDiscount) })
   },
   updateItem: (id, patch) => {

@@ -11,15 +11,14 @@ import CustomerDirectory from './components/customers/CustomerDirectory'
 import CustomerAnalyticsTab from './components/analytics/CustomerAnalyticsTab'
 import SellerSettingsModal from './components/settings/SellerSettingsModal'
 import { useDialogStore } from './store/useDialogStore'
+import { WhatsAppShareModal } from './utils/whatsappHelper'
 
 function CustomDialog() {
   const { isOpen, title, message, isConfirm, isPrompt, promptPlaceholder, close } = useDialogStore()
   const [inputValue, setInputValue] = useState('')
 
   useEffect(() => {
-    if (isOpen) {
-      setInputValue('')
-    }
+    if (isOpen) setInputValue('')
   }, [isOpen])
 
   if (!isOpen) return null
@@ -39,13 +38,8 @@ function CustomDialog() {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  close(inputValue)
-                } else if (e.key === 'Escape') {
-                  e.preventDefault()
-                  close(null)
-                }
+                if (e.key === 'Enter') { e.preventDefault(); close(inputValue) }
+                else if (e.key === 'Escape') { e.preventDefault(); close(null) }
               }}
             />
           </div>
@@ -76,12 +70,12 @@ function CustomDialog() {
 type Tab = 'dashboard' | 'billing' | 'history' | 'customers' | 'inventory' | 'analytics' | 'settings'
 
 const NAV = [
-  { id: 'dashboard',  label: 'Dashboard',   icon: LayoutDashboard },
-  { id: 'billing',    label: 'POS Billing',  icon: Zap },
-  { id: 'history',    label: 'Records',      icon: Receipt },
-  { id: 'customers',  label: 'Customers',    icon: Users },
-  { id: 'inventory',  label: 'Inventory',           icon: Package },
-  { id: 'analytics',  label: 'Customer Analytics',  icon: BarChart3 },
+  { id: 'dashboard', label: 'Dashboard',          icon: LayoutDashboard },
+  { id: 'billing',   label: 'POS Billing',         icon: Zap },
+  { id: 'history',   label: 'Records',             icon: Receipt },
+  { id: 'customers', label: 'Customers',           icon: Users },
+  { id: 'inventory', label: 'Inventory',           icon: Package },
+  { id: 'analytics', label: 'Customer Analytics',  icon: BarChart3 },
 ] as const
 
 function TopHeaderClock() {
@@ -92,13 +86,20 @@ function TopHeaderClock() {
     return () => clearInterval(timer)
   }, [])
 
-  const dateStr = now.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
-  const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
+  // Explicitly render in IST (Asia/Kolkata) regardless of browser timezone setting
+  const dateStr = now.toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
+  })
+  const timeStr = now.toLocaleTimeString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
+  })
 
   return (
     <div className="flex items-center gap-2 px-3 py-1 bg-brand-600/10 border border-brand-500/30 rounded-xl text-xs text-brand-300 font-mono shadow-sm">
       <Clock size={13} className="text-brand-400 animate-pulse" />
-      <span>{dateStr} · {timeStr}</span>
+      <span>{dateStr} · {timeStr} IST</span>
     </div>
   )
 }
@@ -116,13 +117,21 @@ export default function App() {
     const params = new URLSearchParams(window.location.search)
     return params.get('customer') || null
   })
-  const [sidebarOpen, setSidebar] = useState(true)
+
+  // sidebarPinned: true = always expanded, false = collapsed to icon rail
+  const [sidebarPinned, setSidebarPinned] = useState(true)
+  // sidebarHovered: temporarily expand on hover when collapsed
+  const [sidebarHovered, setSidebarHovered] = useState(false)
+
   const [settingsOpen, setSettings] = useState(() => {
     const params = new URLSearchParams(window.location.search)
     return params.get('settings') === 'true'
   })
 
-  // Global keyboard: Alt+1..5 handled in BillingWorkspace
+  // Derived: sidebar is visually open if pinned OR hovered while collapsed
+  const sidebarOpen = sidebarPinned || sidebarHovered
+
+  // Global keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.altKey && e.key === 'b') { e.preventDefault(); setTab('billing') }
@@ -134,57 +143,72 @@ export default function App() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-950">
-      {/* Sidebar */}
-      <aside className={`${sidebarOpen ? 'w-56' : 'w-16'} flex-shrink-0 flex flex-col bg-gray-900 border-r border-white/5 transition-all duration-200`}>
-        {/* Logo */}
-        <div className="flex items-center gap-2 px-4 py-5 border-b border-white/5">
+
+      {/* ── Sidebar ── */}
+      <aside
+        className={`${sidebarOpen ? 'w-56' : 'w-14'} no-print flex-shrink-0 flex flex-col bg-gray-900 border-r border-white/5 transition-[width] duration-200 ease-in-out overflow-hidden z-20`}
+        onMouseEnter={() => { if (!sidebarPinned) setSidebarHovered(true) }}
+        onMouseLeave={() => setSidebarHovered(false)}
+      >
+        {/* Logo / toggle row */}
+        <div className="flex items-center gap-2 px-3 py-5 border-b border-white/5 min-h-[64px]">
           <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center flex-shrink-0">
             <Zap size={16} className="text-white" />
           </div>
-          {sidebarOpen && (
-            <div className="flex items-center gap-1.5">
-              <span className="font-bold text-white text-base tracking-tight">ApexBill</span>
-              <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-brand-600/20 text-brand-300 border border-brand-500/30">v{__APP_VERSION__}</span>
-            </div>
-          )}
-          <button onClick={() => setSidebar(!sidebarOpen)} className="ml-auto text-gray-500 hover:text-gray-300">
-            {sidebarOpen ? <X size={15} /> : <Menu size={15} />}
+          {/* Brand name — fade in/out */}
+          <div className={`flex items-center gap-1.5 overflow-hidden transition-all duration-200 ${sidebarOpen ? 'opacity-100 max-w-xs' : 'opacity-0 max-w-0'}`}>
+            <span className="font-bold text-white text-base tracking-tight whitespace-nowrap">ApexBill</span>
+            <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-brand-600/20 text-brand-300 border border-brand-500/30 whitespace-nowrap">
+              v{__APP_VERSION__}
+            </span>
+          </div>
+          {/* Pin/collapse toggle — always visible */}
+          <button
+            onClick={() => { setSidebarPinned(p => !p); setSidebarHovered(false) }}
+            className="ml-auto text-gray-500 hover:text-gray-300 flex-shrink-0 transition-colors"
+            title={sidebarPinned ? 'Collapse sidebar' : 'Pin sidebar open'}
+          >
+            {sidebarPinned ? <X size={15} /> : <Menu size={15} />}
           </button>
         </div>
 
-        {/* Nav */}
+        {/* Nav items */}
         <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
           {NAV.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => setTab(id as Tab)}
-              className={`nav-item w-full ${tab === id ? 'active' : ''}`}
+              className={`nav-item w-full ${tab === id ? 'active' : ''} ${!sidebarOpen ? 'justify-center !px-0' : ''}`}
               title={!sidebarOpen ? label : undefined}
             >
               <Icon size={18} className="flex-shrink-0" />
-              {sidebarOpen && <span className="truncate">{label}</span>}
-              {sidebarOpen && tab === id && <ChevronRight size={14} className="ml-auto opacity-50" />}
+              <span className={`truncate transition-all duration-200 ${sidebarOpen ? 'opacity-100 max-w-xs ml-2' : 'opacity-0 max-w-0 ml-0'}`}>
+                {label}
+              </span>
+              {sidebarOpen && tab === id && <ChevronRight size={14} className="ml-auto opacity-50 flex-shrink-0" />}
             </button>
           ))}
         </nav>
 
-        {/* Settings */}
+        {/* Settings pinned at bottom */}
         <div className="p-2 border-t border-white/5">
           <button
             onClick={() => setSettings(true)}
-            className={`nav-item w-full ${settingsOpen ? 'active' : ''}`}
+            className={`nav-item w-full ${settingsOpen ? 'active' : ''} ${!sidebarOpen ? 'justify-center !px-0' : ''}`}
             title={!sidebarOpen ? 'Settings' : undefined}
           >
             <Settings size={18} className="flex-shrink-0" />
-            {sidebarOpen && <span>Settings</span>}
+            <span className={`truncate transition-all duration-200 ${sidebarOpen ? 'opacity-100 max-w-xs ml-2' : 'opacity-0 max-w-0 ml-0'}`}>
+              Settings
+            </span>
           </button>
         </div>
       </aside>
 
-      {/* Main */}
+      {/* ── Main content ── */}
       <main className="flex-1 overflow-hidden flex flex-col">
         {/* Top bar */}
-        <header className="h-12 flex items-center px-6 border-b border-white/5 bg-gray-900/50 backdrop-blur-sm flex-shrink-0">
+        <header className="no-print h-12 flex items-center px-6 border-b border-white/5 bg-gray-900/50 backdrop-blur-sm flex-shrink-0">
           <h1 className="text-sm font-semibold text-gray-300 capitalize flex items-center gap-2">
             <span>{NAV.find(n => n.id === tab)?.label ?? tab}</span>
             <span className="text-[11px] font-mono text-gray-500 font-normal">· ApexBill v{__APP_VERSION__}</span>
@@ -198,12 +222,12 @@ export default function App() {
           </div>
         </header>
 
-        {/* Views */}
+        {/* Tab views */}
         <div className="flex-1 overflow-auto">
-          {tab === 'dashboard'  && <SalesDashboard />}
-          {tab === 'billing'    && <BillingWorkspace />}
-          {tab === 'history'    && <RecordsHistoryTab onEdit={(doc) => { setTab('billing') }} />}
-          {tab === 'customers'  && (
+          {tab === 'dashboard' && <SalesDashboard />}
+          {tab === 'billing'   && <BillingWorkspace />}
+          {tab === 'history'   && <RecordsHistoryTab onEdit={() => setTab('billing')} />}
+          {tab === 'customers' && (
             <CustomerDirectory
               onViewAnalytics={(phone) => {
                 setAnalyticsCustomerPhone(phone)
@@ -211,19 +235,22 @@ export default function App() {
               }}
             />
           )}
-          {tab === 'inventory'  && <InventoryTable />}
-          {tab === 'analytics'  && (
+          {tab === 'inventory' && <InventoryTable />}
+          {tab === 'analytics' && (
             <CustomerAnalyticsTab
               initialPhone={analyticsCustomerPhone}
-              onEdit={(doc) => { setTab('billing') }}
+              onEdit={() => setTab('billing')}
             />
           )}
         </div>
       </main>
 
-      {/* Settings Modal */}
-      {settingsOpen && <SellerSettingsModal onClose={() => { setSettings(false); window.dispatchEvent(new Event('focus')) }} />}
+      {/* Modals */}
+      {settingsOpen && (
+        <SellerSettingsModal onClose={() => { setSettings(false); window.dispatchEvent(new Event('focus')) }} />
+      )}
       <CustomDialog />
+      <WhatsAppShareModal />
     </div>
   )
 }

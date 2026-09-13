@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Search, UserPlus, X, Edit, Sparkles, CheckCircle2 } from 'lucide-react'
+import { Search, UserPlus, X, Edit, Sparkles, CheckCircle2, RefreshCw } from 'lucide-react'
 import { api } from '../../utils/api'
 import { useBillingStore } from '../../store/useBillingStore'
 import { INDIAN_STATES } from '../../utils/gstEngine'
@@ -14,6 +14,8 @@ export default function CustomerSelector() {
   const [highlighted, setHighlighted] = useState(0)
   const [addMode, setAddMode] = useState(false)
   const [form, setForm] = useState({ phone: '', name: '', email: '', gstin: '', billing_address: '', state_code: '36' })
+  const [gstinLoading, setGstinLoading] = useState(false)
+  const [gstinToast, setGstinToast] = useState<{ type: 'success' | 'warn' | 'error'; msg: string } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const blurTimerRef = useRef<any>(null)
 
@@ -119,6 +121,35 @@ export default function CustomerSelector() {
       }
     } else if (e.key === 'Escape') {
       setOpen(false)
+    }
+  }
+
+  const lookupGstin = async () => {
+    const gstin = form.gstin?.trim().toUpperCase()
+    if (!gstin || gstin.length !== 15) {
+      setGstinToast({ type: 'warn', msg: 'Enter a valid 15-character GSTIN first.' })
+      setTimeout(() => setGstinToast(null), 3000)
+      return
+    }
+    setGstinLoading(true)
+    setGstinToast(null)
+    try {
+      const result = await api.customers.gstinLookup(gstin)
+      const update: any = { gstin: result.gstin || gstin, state_code: result.stateCode || form.state_code }
+      if (result.source === 'gst.gov.in' && (result.tradeName || result.legalName)) {
+        if (!form.name?.trim()) update.name = result.tradeName || result.legalName
+        if (!form.billing_address?.trim() && result.address) update.billing_address = result.address
+        setForm(f => ({ ...f, ...update }))
+        setGstinToast({ type: 'success', msg: `Found: ${result.tradeName || result.legalName}` })
+      } else {
+        setForm(f => ({ ...f, ...update }))
+        setGstinToast({ type: 'warn', msg: 'State auto-filled. Business name unavailable from GST portal (may be restricted).' })
+      }
+    } catch {
+      setGstinToast({ type: 'error', msg: 'Could not reach GST portal. Check internet connection.' })
+    } finally {
+      setGstinLoading(false)
+      setTimeout(() => setGstinToast(null), 5000)
     }
   }
 
@@ -266,7 +297,31 @@ export default function CustomerSelector() {
         </div>
         <div>
           <label className="label">GSTIN</label>
-          <input className="input uppercase" placeholder="22AAAAA0000A1Z5" value={form.gstin} onChange={e => setForm(f => ({ ...f, gstin: e.target.value }))} />
+          <div className="flex gap-1.5">
+            <input
+              className="input uppercase flex-1"
+              placeholder="22AAAAA0000A1Z5"
+              maxLength={15}
+              value={form.gstin}
+              onChange={e => setForm(f => ({ ...f, gstin: e.target.value.toUpperCase() }))}
+            />
+            <button
+              type="button"
+              onClick={lookupGstin}
+              disabled={gstinLoading || !form.gstin?.trim()}
+              className="btn-secondary px-2.5 shrink-0"
+              title="Fetch business details from GSTIN"
+            >
+              <RefreshCw size={14} className={gstinLoading ? 'animate-spin' : ''} />
+            </button>
+          </div>
+          {gstinToast && (
+            <p className={`text-[11px] mt-1.5 px-2 py-1 rounded-lg ${
+              gstinToast.type === 'success' ? 'text-emerald-300 bg-emerald-500/10' :
+              gstinToast.type === 'warn' ? 'text-amber-300 bg-amber-500/10' :
+              'text-red-300 bg-red-500/10'
+            }`}>{gstinToast.msg}</p>
+          )}
         </div>
         <div>
           <label className="label">State</label>

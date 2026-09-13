@@ -8,6 +8,15 @@ import { deductStockForNewInvoice, reconcileStockOnEdit, restoreStockOnCancel } 
 import { randomUUID } from 'crypto';
 import { normalizePhone } from '../utils/phoneHelper.js';
 
+/** Returns today's date as YYYY-MM-DD using the local system clock (not UTC) */
+function localDateIso(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function generateDocNumber(db: any, type: 'INVOICE' | 'QUOTATION', prefix = 'INV', qprefix = 'QUO'): string {
   const p = type === 'INVOICE' ? prefix : qprefix;
   const year = new Date().getFullYear();
@@ -251,7 +260,7 @@ export async function billingRoutes(app: FastifyInstance) {
     }
 
     const initialHistory = finalPaidAmount > 0 ? [{
-      date: doc_date || new Date().toISOString().slice(0, 10),
+      date: doc_date || localDateIso(),
       amount: finalPaidAmount,
       mode: partial_payment_mode || payment_mode || 'CASH'
     }] : [];
@@ -275,7 +284,7 @@ export async function billingRoutes(app: FastifyInstance) {
           round_off, grand_total, payment_mode, payment_status, selected_upi_id, notes, terms_and_conditions,
           hide_tax_on_invoice, paid_amount, partial_payment_mode, payment_history, qr_amount_type)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-      `).run(id, doc_type, doc_number, doc_date || new Date().toISOString().slice(0,10),
+      `).run(id, doc_type, doc_number, doc_date || localDateIso(),
         finalPhone, snapshot, totals.grossSubtotal, totals.discountPct, totals.discountAmount, totals.additionalDiscount,
         totals.taxableAmount, totals.cgstTotal, totals.sgstTotal, totals.roundOff, totals.grandTotal,
         payment_mode, finalStatus, selected_upi_id || null, notes || null, termsStr,

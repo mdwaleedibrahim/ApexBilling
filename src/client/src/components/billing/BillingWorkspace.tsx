@@ -53,7 +53,7 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
   return (
     <div className="p-4 h-full flex flex-col gap-4">
       {/* Slot bar + edit banner */}
-      <div className="flex items-center justify-between flex-shrink-0">
+      <div className="no-print flex items-center justify-between flex-shrink-0">
         <MemorySlotBar />
         {store.editingDocNumber && (
           <span className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-full">
@@ -63,7 +63,7 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
       </div>
 
       {/* Main split */}
-      <div className="flex-1 grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-4 overflow-hidden">
+      <div className="no-print flex-1 grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-4 overflow-hidden">
         {/* Left: Customer + Items */}
         <div className="flex flex-col gap-4 overflow-y-auto pr-1">
           <div className="glass-card p-4 relative z-30">

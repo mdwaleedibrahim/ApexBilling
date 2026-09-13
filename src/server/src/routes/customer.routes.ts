@@ -142,4 +142,58 @@ export async function customerRoutes(app: FastifyInstance) {
     `).all(req.params.phone);
     return reply.send(rows);
   });
+
+  // GET /api/gstin/:gstin - Server-side GSTIN lookup proxy
+  app.get<{ Params: { gstin: string } }>('/api/gstin/:gstin', async (req, reply) => {
+    const gstin = (req.params.gstin || '').trim().toUpperCase();
+    // Validate GSTIN format: 15-character alphanumeric
+    if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gstin)) {
+      return reply.status(400).send({ error: 'Invalid GSTIN format' });
+    }
+
+    // Extract state code from GSTIN (first 2 digits)
+    const stateCode = gstin.slice(0, 2);
+
+    // Try fetching from GST government portal
+    const HEADERS: Record<string, string> = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+      'Accept': 'application/json, text/plain, */*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Origin': 'https://services.gst.gov.in',
+      'Referer': 'https://services.gst.gov.in/services/searchtp',
+      'sec-fetch-dest': 'empty',
+      'sec-fetch-mode': 'cors',
+      'sec-fetch-site': 'same-origin',
+    };
+
+    try {
+      const res = await fetch(
+        `https://services.gst.gov.in/services/api/search/taxpayerDetails?gstin=${gstin}`,
+        { headers: HEADERS, signal: AbortSignal.timeout(5000) }
+      );
+      const raw = await res.text();
+      try {
+        const json = JSON.parse(raw);
+        if (json?.taxpayerInfo || json?.lgnm) {
+          const info = json.taxpayerInfo || json;
+          return reply.send({
+            gstin,
+            stateCode,
+            tradeName: info.tradeNam || info.trade_name || '',
+            legalName: info.lgnm || info.legal_name || '',
+            address: [info.pradr?.addr?.bnm, info.pradr?.addr?.st, info.pradr?.addr?.loc, info.pradr?.addr?.dst, info.pradr?.addr?.stcd]
+              .filter(Boolean).join(', '),
+            status: info.sts || '',
+            source: 'gst.gov.in',
+          });
+        }
+      } catch {}
+      // Response not parseable or no useful data — still return state info
+      return reply.send({ gstin, stateCode, tradeName: '', legalName: '', address: '', status: '', source: 'state_only' });
+    } catch (err: any) {
+      // Network error — still return state code so UI can populate state
+      return reply.send({ gstin, stateCode, tradeName: '', legalName: '', address: '', status: '', source: 'offline', error: err.message });
+    }
+  });
 }
+

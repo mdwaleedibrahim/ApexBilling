@@ -181,7 +181,7 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
         terms_and_conditions: finalTerms,
         selected_upi_id: selectedUpi,
         hide_tax_on_invoice: store.hideTaxOnInvoice ? 1 : 0,
-        qr_amount_type: qrAmountType || 'DELTA',
+        qr_amount_type: (isEditing && isTotalChanged && deltaAmount > 0) ? (qrAmountType || 'DELTA') : 'FULL',
       }
       const doc = editingDocId
         ? await api.documents.update(editingDocId, body)
@@ -224,7 +224,7 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
         e.preventDefault()
         handleSubmitRef.current('CASH', 'PAID')
       } else if (e.key === 'F8') {
-        if (!editingDocId && docType === 'INVOICE') {
+        if (docType === 'INVOICE') {
           e.preventDefault()
           handleUpiCheckoutRef.current()
         }
@@ -239,7 +239,7 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [docType, editingDocId, paymentMode, totals.grandTotal, isEditing, isOriginallyPaid, isTotalIncreased])
+  }, [docType, editingDocId, paymentMode, totals.grandTotal, isEditing, isOriginallyPaid, isTotalIncreased, qrAmountType])
 
   const row = (label: string, value: string, cls = '') => (
     <div className={`flex items-center justify-between text-sm ${cls}`}>
@@ -776,28 +776,32 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
                   ? `Update & Settle ${formatINR(deltaAmount)} via ${partialPaymentMode}`
                   : `Update Invoice (Extra ${formatINR(deltaAmount)} on Credit)`}
               </button>
-            ) : (
-              <>
-                <button
-                  onClick={() => handleSubmit(paymentMode === 'UPI' ? 'UPI' : 'CASH', 'PAID')}
-                  disabled={loading}
-                  className="btn-primary w-full justify-center py-3 text-base font-semibold"
-                >
-                  {paymentMode === 'UPI' ? <QrCode size={18} /> : <Banknote size={18} />}
-                  {' '}{loading ? 'Saving…' : `Update & Collect ${formatINR(deltaAmount)} via ${paymentMode} (${paymentMode === 'UPI' ? 'F8' : 'F7'})`}
-                </button>
-                {paymentMode === 'CASH' && (
-                  <button onClick={handleUpiCheckout} disabled={loading} className="btn-secondary w-full justify-center py-2.5">
-                    <QrCode size={16} /> UPI / QR Checkout ({formatINR(deltaAmount)}) (F8)
+            ) : (() => {
+              const isFullSelected = qrAmountType === 'FULL'
+              const effectiveCollectAmount = isFullSelected ? totals.grandTotal : deltaAmount
+              return (
+                <>
+                  <button
+                    onClick={() => handleSubmit(paymentMode === 'UPI' ? 'UPI' : 'CASH', 'PAID')}
+                    disabled={loading}
+                    className="btn-primary w-full justify-center py-3 text-base font-semibold"
+                  >
+                    {paymentMode === 'UPI' ? <QrCode size={18} /> : <Banknote size={18} />}
+                    {' '}{loading ? 'Saving…' : `Update & Collect ${formatINR(effectiveCollectAmount)} via ${paymentMode} (${paymentMode === 'UPI' ? 'F8' : 'F7'})`}
                   </button>
-                )}
-                {paymentMode === 'UPI' && (
-                  <button onClick={() => handleSubmit('CASH', 'PAID')} disabled={loading} className="btn-secondary w-full justify-center py-2.5">
-                    <Banknote size={16} /> Pay Extra via Cash (F7)
-                  </button>
-                )}
-              </>
-            )
+                  {paymentMode === 'CASH' && (
+                    <button onClick={handleUpiCheckout} disabled={loading} className="btn-secondary w-full justify-center py-2.5">
+                      <QrCode size={16} /> UPI / QR Checkout ({formatINR(effectiveCollectAmount)}) (F8)
+                    </button>
+                  )}
+                  {paymentMode === 'UPI' && (
+                    <button onClick={() => handleSubmit('CASH', 'PAID')} disabled={loading} className="btn-secondary w-full justify-center py-2.5">
+                      <Banknote size={16} /> Pay {isFullSelected ? 'Full' : 'Extra'} via Cash ({formatINR(effectiveCollectAmount)}) (F7)
+                    </button>
+                  )}
+                </>
+              )
+            })()
           ) : /* Case 4: Standard invoice (New with total > 0, or editing un-settled invoice) */
           paymentMode === 'CREDIT' ? (
             <>

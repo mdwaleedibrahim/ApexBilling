@@ -38,10 +38,10 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
 
   // QR amount calculation:
   // For partial payments: always show current partial payment
-  // For updated invoices: always default to delta unless explicitly set to FULL
-  const isUpdatedInvoice = (doc.revision_number && doc.revision_number > 1) || paymentHistory.length > 1
-  const isQrDelta = (doc.qr_amount_type === 'DELTA' || (!doc.qr_amount_type && isUpdatedInvoice)) && paymentHistory.length > 0 && doc.qr_amount_type !== 'FULL'
-  const deltaAmount = isQrDelta ? (paymentHistory[paymentHistory.length - 1]?.amount || currentPartialPayment) : 0
+  // For updated invoices: show delta only if edited to change the total value and not set to FULL
+  const isEditedWithChangedTotal = (doc.revision_number && doc.revision_number > 1) && paymentHistory.length > 1
+  const isQrDelta = isEditedWithChangedTotal && doc.qr_amount_type !== 'FULL'
+  const deltaAmount = isQrDelta ? (paymentHistory[paymentHistory.length - 1]?.amount || 0) : 0
 
   const qrAmount = isPartial
     ? currentPartialPayment
@@ -51,7 +51,7 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
     ? `⚡ Scan to pay partial amount (${formatINR(currentPartialPayment)})`
     : (isQrDelta && deltaAmount > 0
       ? `⚡ Scan to pay delta amount (${formatINR(deltaAmount)})`
-      : '⚡ Scan to Pay')
+      : '⚡ Scan to pay amount')
 
   const upiLink = upiId
     ? buildUpiLink({ upiId, payeeName, amount: qrAmount, docNumber: doc.doc_number })
@@ -122,13 +122,13 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
         </div>
 
         {/* Document Metadata Card */}
-        <div style={{ textAlign: 'right', minWidth: 200 }}>
-          <div style={{ background: headerBg, color: 'white', padding: '8px 16px', borderRadius: '10px 10px 0 0', textAlign: 'center' }}>
+        <div style={{ textAlign: 'right', minWidth: 200, border: `2px solid ${accentColor}`, borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ background: headerBg, color: 'white', padding: '8px 16px', textAlign: 'center', borderBottom: `2px solid ${accentColor}` }}>
             <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
               {isQuotation ? 'ESTIMATE / QUOTATION' : 'TAX INVOICE'}
             </span>
           </div>
-          <div style={{ border: '1px solid #cbd5e1', borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '10px 14px', background: '#f8fafc' }}>
+          <div style={{ padding: '10px 14px', background: '#f8fafc' }}>
             <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: accentColor, fontFamily: 'monospace' }}>
               {doc.doc_number}
             </p>
@@ -273,7 +273,7 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
         const totalCols = tableColumns.length
 
         return (
-          <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid #e2e8f0', marginBottom: 20, width: '100%', boxSizing: 'border-box' }}>
+          <div className="items-table-wrapper" style={{ borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 20, width: '100%', boxSizing: 'border-box' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
               <thead>
                 <tr style={{ background: headerBg, color: 'white' }}>
@@ -417,7 +417,7 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
       })()}
 
       {/* Totals & Scan to Pay Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 20, alignItems: 'start' }}>
+      <div className="avoid-break" style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 20, alignItems: 'start', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
         
         {/* Left Column: Words & Bank details */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -503,7 +503,7 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
 
       {/* Terms & Conditions Section */}
       {termsList.length > 0 && (
-        <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 10, color: '#334155' }}>
+        <div className="avoid-break" style={{ marginTop: 14, padding: '10px 14px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 10, color: '#334155', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
           <div style={{ fontWeight: 800, color: accentColor, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: 10 }}>
             Terms & Conditions:
           </div>
@@ -517,20 +517,22 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
 
       {/* Remarks & Footer Notes */}
       {doc.notes && (
-        <div style={{ marginTop: 12, padding: '8px 12px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 11, color: '#475569' }}>
+        <div className="avoid-break" style={{ marginTop: 12, padding: '8px 12px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 11, color: '#475569', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
           <strong>Notes / Remarks:</strong> {doc.notes}
         </div>
       )}
 
-      {/* Brand Greeting */}
-      <p style={{ marginTop: 12, textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#64748b' }}>
-        {isQuotation ? 'Looking forward to doing business!' : 'Thank you for your business!'}
-      </p>
+      {/* Brand Greeting & Printable Footer */}
+      <div className="avoid-break" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+        <p style={{ marginTop: 12, textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#64748b' }}>
+          {isQuotation ? 'Looking forward to doing business!' : 'Thank you for your business!'}
+        </p>
 
-      {/* Printable Page Footer */}
-      <div style={{ marginTop: 10, paddingTop: 6, borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#94a3b8' }}>
-        <span>{isQuotation ? `Quotation Ref: ${doc.doc_number}` : `Tax Invoice Ref: ${doc.doc_number}`}</span>
-        <span>Generated by ApexBill</span>
+        {/* Printable Page Footer */}
+        <div style={{ marginTop: 10, paddingTop: 6, borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#94a3b8' }}>
+          <span>{isQuotation ? `Quotation Ref: ${doc.doc_number}` : `Tax Invoice Ref: ${doc.doc_number}`}</span>
+          <span>Generated by ApexBill</span>
+        </div>
       </div>
     </div>
   )

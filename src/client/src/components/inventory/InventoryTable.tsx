@@ -1,6 +1,6 @@
-// components/inventory/InventoryTable.tsx — Product CRUD + CSV import
+// components/inventory/InventoryTable.tsx — Product CRUD + CSV export & bulk import
 import { useEffect, useState, useRef } from 'react'
-import { Plus, Trash2, Edit, Upload, Search, Save, X } from 'lucide-react'
+import { Plus, Trash2, Edit, Upload, Download, Search, Save, X, FileText, CheckCircle2, AlertCircle } from 'lucide-react'
 import { api } from '../../utils/api'
 import { formatINR } from '../../utils/upiHelper'
 import { GST_RATES } from '../../utils/gstEngine'
@@ -14,7 +14,9 @@ export default function InventoryTable() {
   const [editId, setEditId] = useState<string | null>(null)
   const [form, setForm] = useState<any>(EMPTY)
   const [showForm, setShowForm] = useState(false)
-  const [csvModal, setCsvModal] = useState(false)
+  const [pendingCsv, setPendingCsv] = useState<{ name: string; text: string; rowCount: number } | null>(null)
+  const [stockMode, setStockMode] = useState<'replace' | 'add'>('replace')
+  const [importing, setImporting] = useState(false)
   const [csvResult, setCsvResult] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -57,14 +59,48 @@ export default function InventoryTable() {
     setEditId(p.id); setShowForm(true)
   }
 
+  const handleExportCsv = () => {
+    const link = document.createElement('a')
+    link.href = api.inventory.exportCsvUrl()
+    link.setAttribute('download', `inventory-export-${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   const handleCsvFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return
+    const file = e.target.files?.[0]
+    if (!file) return
     try {
       const text = await file.text()
-      const result = await api.inventory.importCsv(text)
-      setCsvResult(result); load()
+      const lineCount = text.split('\n').filter(l => l.trim().length > 0).length - 1
+      setPendingCsv({
+        name: file.name,
+        text,
+        rowCount: Math.max(0, lineCount)
+      })
+      setStockMode('replace')
     } finally {
       e.target.value = ''
+    }
+  }
+
+  const confirmImport = async () => {
+    if (!pendingCsv) return
+    setImporting(true)
+    try {
+      const result = await api.inventory.importCsv(pendingCsv.text, stockMode)
+      setCsvResult(result)
+      setPendingCsv(null)
+      load()
+    } catch (err: any) {
+      setCsvResult({
+        inserted: 0,
+        updated: 0,
+        errors: [{ row: 0, message: err.message || 'Import failed' }]
+      })
+    } finally {
+      setImporting(false)
     }
   }
 
@@ -73,25 +109,139 @@ export default function InventoryTable() {
   return (
     <div className="p-6 space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-48">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input className="input pl-8" placeholder="Search SKU or name…" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <button onClick={() => { setShowForm(true); setEditId(null); setForm(EMPTY) }} className="btn-primary"><Plus size={16} /> Add Product</button>
-        <button onClick={() => fileRef.current?.click()} className="btn-secondary"><Upload size={16} /> Import CSV</button>
+        <button onClick={() => { setShowForm(true); setEditId(null); setForm(EMPTY) }} className="btn-primary">
+          <Plus size={16} /> Add Product
+        </button>
+        <button onClick={handleExportCsv} className="btn-secondary" title="Export all inventory as CSV for bulk editing">
+          <Download size={16} /> Export CSV
+        </button>
+        <button onClick={() => fileRef.current?.click()} className="btn-secondary" title="Import or bulk update products from CSV">
+          <Upload size={16} /> Import CSV
+        </button>
         <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleCsvFile} />
       </div>
 
-      {/* CSV Result */}
+      {/* CSV Import Confirmation Modal */}
+      {pendingCsv && (
+        <div className="modal-backdrop">
+          <div className="glass-card max-w-lg w-full p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2">
+                <FileText className="text-brand-400" size={20} />
+                <h3 className="text-base font-bold text-gray-100">Bulk Import Inventory</h3>
+              </div>
+              <button onClick={() => setPendingCsv(null)} className="btn-ghost p-1">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="bg-white/5 rounded-xl p-3 border border-white/10 flex items-center justify-between text-sm">
+              <div>
+                <p className="font-semibold text-gray-200">{pendingCsv.name}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{pendingCsv.rowCount} data row{pendingCsv.rowCount === 1 ? '' : 's'} detected</p>
+              </div>
+              <span className="text-xs font-mono px-2 py-1 bg-brand-500/20 text-brand-300 rounded-md border border-brand-500/30">
+                Ready to import
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-xs font-semibold text-gray-300 uppercase tracking-wider block">
+                How should stock quantities be updated?
+              </label>
+
+              <div
+                onClick={() => setStockMode('replace')}
+                className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                  stockMode === 'replace'
+                    ? 'bg-brand-600/15 border-brand-500/40 text-gray-100 shadow-sm'
+                    : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <input
+                    type="radio"
+                    name="stockMode"
+                    checked={stockMode === 'replace'}
+                    onChange={() => setStockMode('replace')}
+                    className="mt-1"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-100">Update Stock to CSV Values (Bulk Edit)</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Sets product stock directly to the CSV value. Recommended when re-uploading an edited inventory file or performing a stock audit.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                onClick={() => setStockMode('add')}
+                className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                  stockMode === 'add'
+                    ? 'bg-brand-600/15 border-brand-500/40 text-gray-100 shadow-sm'
+                    : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <input
+                    type="radio"
+                    name="stockMode"
+                    checked={stockMode === 'add'}
+                    onChange={() => setStockMode('add')}
+                    className="mt-1"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-100">Add CSV Quantities to Current Stock</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Increments existing stock counts by the quantity in the CSV. Recommended for incoming shipment receipts.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2 border-t border-white/10">
+              <button onClick={() => setPendingCsv(null)} disabled={importing} className="btn-secondary">
+                Cancel
+              </button>
+              <button onClick={confirmImport} disabled={importing} className="btn-primary flex items-center gap-2">
+                <Upload size={16} />
+                {importing ? 'Importing…' : 'Confirm & Import'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CSV Result Banner */}
       {csvResult && (
-        <div className="glass-card p-4 text-sm">
+        <div className="glass-card p-4 text-sm border-emerald-500/30">
           <div className="flex items-center justify-between mb-2">
-            <p className="font-semibold text-gray-200">Import Result</p>
+            <p className="font-semibold text-gray-200 flex items-center gap-2">
+              <CheckCircle2 size={16} className="text-emerald-400" />
+              Import Completed
+            </p>
             <button onClick={() => setCsvResult(null)} className="btn-ghost p-1"><X size={14} /></button>
           </div>
-          <p className="text-emerald-400">✓ Inserted: {csvResult.inserted} &nbsp; Updated: {csvResult.updated}</p>
-          {csvResult.errors.length > 0 && <p className="text-red-400 mt-1">⚠ {csvResult.errors.length} errors</p>}
+          <p className="text-emerald-400">✓ Inserted new: {csvResult.inserted} &nbsp;·&nbsp; Updated: {csvResult.updated}</p>
+          {csvResult.errors && csvResult.errors.length > 0 && (
+            <div className="mt-2 pt-2 border-t border-white/10 space-y-1">
+              <p className="text-red-400 font-semibold flex items-center gap-1">
+                <AlertCircle size={14} /> {csvResult.errors.length} issue(s) encountered:
+              </p>
+              <div className="max-h-32 overflow-y-auto text-xs text-red-300/90 font-mono space-y-0.5">
+                {csvResult.errors.map((err: any, idx: number) => (
+                  <p key={idx}>{err.message || JSON.stringify(err)}</p>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
