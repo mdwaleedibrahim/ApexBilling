@@ -54,6 +54,7 @@ export function getDb(): DatabaseSync {
       _db.exec('UPDATE seller_profile SET show_purchase_price_in_pos = 1, _migrated_purchase_price_default = 1 WHERE id = 1')
     } catch {}
     try { _db.exec('ALTER TABLE seller_profile ADD COLUMN show_profit_loss_in_pos INTEGER DEFAULT 1') } catch {}
+    try { _db.exec('ALTER TABLE seller_profile ADD COLUMN show_profit_in_records INTEGER DEFAULT 1') } catch {}
     try { _db.exec('ALTER TABLE seller_profile ADD COLUMN restrict_sales_to_stock_qty INTEGER DEFAULT 0') } catch {}
     try {
       _db.exec('ALTER TABLE seller_profile ADD COLUMN invoice_terms TEXT DEFAULT \'["Goods once sold can\'\'t be returned", "Goods can be exchanged with valid bill within 7 days of purchase"]\'')

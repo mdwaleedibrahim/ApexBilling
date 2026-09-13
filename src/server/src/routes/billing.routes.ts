@@ -179,9 +179,18 @@ export async function billingRoutes(app: FastifyInstance) {
   app.get<{ Querystring: { type?: string; status?: string; search?: string; customer_phone?: string; limit?: string } }>(
     '/api/documents', (req, reply) => {
       const { type, status, search, customer_phone, limit } = req.query;
-      let sql = `SELECT d.*, di_count.item_count FROM documents d
+      let sql = `SELECT d.*, di_count.item_count, COALESCE(di_cost.total_purchase_cost, 0) as total_purchase_cost
+        FROM documents d
         LEFT JOIN (SELECT document_id, COUNT(*) as item_count FROM document_items GROUP BY document_id) di_count
-        ON d.id = di_count.document_id WHERE 1=1`;
+          ON d.id = di_count.document_id
+        LEFT JOIN (
+          SELECT di.document_id,
+                 SUM(di.quantity * COALESCE(NULLIF(di.purchase_price, 0), p.purchase_price, 0)) as total_purchase_cost
+          FROM document_items di
+          LEFT JOIN products p ON p.id = di.product_id
+          GROUP BY di.document_id
+        ) di_cost ON d.id = di_cost.document_id
+        WHERE 1=1`;
       const params: any[] = [];
       if (type && type !== 'undefined') { sql += ' AND d.doc_type = ?'; params.push(type); }
       if (status && status !== 'undefined') { sql += ' AND d.payment_status = ?'; params.push(status); }

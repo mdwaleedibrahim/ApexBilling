@@ -6,6 +6,7 @@
  */
 import React, { useState } from 'react'
 import { generateInvoicePdfBlob } from './pdfHelper'
+import { formatINR } from './upiHelper'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWhatsAppShareStore } from '../store/useWhatsAppShareStore'
 import { CheckCircle2, MessageSquare, Paperclip, Share2, Download, X, ExternalLink, Loader2 } from 'lucide-react'
@@ -119,6 +120,103 @@ export async function sharePdfAttachment(pdfBlob: Blob, filename: string): Promi
  * 2. Directly executes Step 1 (direct share to customer's chat).
  * 3. Prepares Step 2 for 1-click execution.
  */
+function triggerBlobDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 5000)
+}
+
+/**
+ * Fallback to Web Share option when customer has no phone number.
+ * Shares invoice details & PDF attachment through system Web Share or download.
+ */
+async function shareViaWebShareFallback(
+  element: HTMLElement | null,
+  doc: any,
+  profile: any,
+  filename: string
+): Promise<void> {
+  const isInvoice = doc.doc_type === 'INVOICE'
+  const typeLabel = isInvoice ? 'TAX INVOICE' : 'QUOTATION'
+  const storeName = profile?.business_name || 'ApexBill'
+
+  let shareText = `*${typeLabel}: ${doc.doc_number}*`
+  if (storeName) shareText += `\n*Store:* ${storeName}`
+  if (doc.doc_date) shareText += `\n*Date:* ${doc.doc_date}`
+  if (doc.grand_total != null) shareText += `\n*Total Amount:* ${formatINR(Number(doc.grand_total))}`
+
+  // 1. Generate PDF blob if element is provided
+  let pdfBlob: Blob | null = null
+  if (element) {
+    try {
+      pdfBlob = await generateInvoicePdfBlob(element, filename)
+    } catch (e) {
+      console.warn('PDF generation failed for web share fallback:', e)
+    }
+  }
+
+  // 2. Attempt Web Share API
+  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    if (pdfBlob) {
+      try {
+        const pdfFile = new File([pdfBlob], filename, { type: 'application/pdf' })
+        const shareDataWithFile: ShareData = {
+          title: `${typeLabel} - ${doc.doc_number}`,
+          text: shareText,
+          files: [pdfFile]
+        }
+
+        if (navigator.canShare && navigator.canShare(shareDataWithFile)) {
+          await navigator.share(shareDataWithFile)
+          return
+        }
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return
+        console.warn('Web share with file failed, falling back to text:', err)
+      }
+    }
+
+    // Try text-only web share if file sharing wasn't supported
+    try {
+      const shareDataText: ShareData = {
+        title: `${typeLabel} - ${doc.doc_number}`,
+        text: shareText
+      }
+      if (!navigator.canShare || navigator.canShare(shareDataText)) {
+        await navigator.share(shareDataText)
+        if (pdfBlob) {
+          triggerBlobDownload(pdfBlob, filename)
+        }
+        return
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return
+      console.warn('Web share text failed:', err)
+    }
+  }
+
+  // 3. Fallback when Web Share is unsupported on this browser/environment
+  if (pdfBlob) {
+    triggerBlobDownload(pdfBlob, filename)
+  }
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(shareText)
+    }
+  } catch {}
+
+  await useDialogStore.getState().show(
+    `No phone number on document.\n\nInvoice details copied to clipboard${pdfBlob ? ' and PDF downloaded' : ''}.\nYou can now share the details and file through any app or email.`,
+    false,
+    'Share Document'
+  )
+}
+
 export async function shareInvoiceViaWhatsApp(
   element: HTMLElement | null,
   doc: any,
@@ -128,13 +226,15 @@ export async function shareInvoiceViaWhatsApp(
     ? (() => { try { return JSON.parse(doc.customer_snapshot) } catch { return {} } })()
     : (doc.customer_snapshot || {})
   const phone = doc.customer_phone || snap.phone || ''
+  const filename = `${doc.doc_number}.pdf`
+
+  // Fallback to Web Share option if no phone number exists
   if (!phone || phone.startsWith('NO_PHONE_')) {
-    await useDialogStore.getState().show('No customer phone number found in this document to share via WhatsApp.', false, 'WhatsApp Share')
+    await shareViaWebShareFallback(element, doc, profile, filename)
     return
   }
 
   const cleanedPhone = cleanPhoneForWhatsApp(phone)
-  const filename = `${doc.doc_number}.pdf`
   const textMsg = generateWhatsAppMessage({
     docType: doc.doc_type,
     docNumber: doc.doc_number,

@@ -110,6 +110,8 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
     await shareInvoiceViaWhatsApp(targetElement, fullDoc, profile)
   }
 
+  const showProfit = profile?.show_profit_in_records !== 0 && profile?.show_profit_in_records !== false
+
   return (
     <>
       <div className="no-print p-6 space-y-4">
@@ -145,14 +147,15 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
               <th className="th">Customer</th>
               <th className="th text-right">Amount</th>
               <th className="th text-right">Pending</th>
+              {showProfit && <th className="th text-right">Profit</th>}
               <th className="th">Status</th>
               <th className="th">Rev</th>
               <th className="th">Actions</th>
             </tr></thead>
             <tbody>
-              {loading && <tr><td colSpan={9} className="td text-center text-gray-500 py-8">Loading…</td></tr>}
+              {loading && <tr><td colSpan={showProfit ? 10 : 9} className="td text-center text-gray-500 py-8">Loading…</td></tr>}
               {!loading && docs.length === 0 && (
-                <tr><td colSpan={9} className="td text-center text-gray-500 py-8">No records found.</td></tr>
+                <tr><td colSpan={showProfit ? 10 : 9} className="td text-center text-gray-500 py-8">No records found.</td></tr>
               )}
               {docs.map(doc => {
                 const snap = (() => { try { return JSON.parse(doc.customer_snapshot) } catch { return {} } })()
@@ -163,6 +166,11 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
                 const pendingAmount = doc.doc_type === 'INVOICE' && doc.payment_status !== 'CANCELLED'
                   ? Math.max(0, doc.grand_total - (doc.paid_amount || 0))
                   : 0
+                const totalCost = Number(doc.total_purchase_cost) || 0
+                const isInvoice = doc.doc_type === 'INVOICE'
+                const isCancelled = doc.payment_status === 'CANCELLED'
+                const profit = isCancelled ? 0 : (Number(doc.grand_total) - totalCost)
+                const marginPct = totalCost > 0 ? (profit / totalCost) * 100 : (Number(doc.grand_total) > 0 ? 100 : 0)
 
                 return (
                   <tr key={doc.id} className="tr">
@@ -192,6 +200,42 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
                         <span className="text-gray-500 text-xs">—</span>
                       )}
                     </td>
+                    {showProfit && (
+                      <td className="td text-right">
+                        {isCancelled ? (
+                          <span className="text-gray-500 text-xs">—</span>
+                        ) : isInvoice ? (
+                          profit >= 0 ? (
+                            <div>
+                              <span className="font-semibold text-emerald-400 font-mono text-xs block">
+                                +{formatINR(profit)}
+                              </span>
+                              <span className="text-[10px] text-emerald-400/80 block">
+                                ({marginPct.toFixed(1)}%)
+                              </span>
+                            </div>
+                          ) : (
+                            <div>
+                              <span className="font-semibold text-red-400 font-mono text-xs block">
+                                {formatINR(profit)}
+                              </span>
+                              <span className="text-[10px] text-red-400/80 block">
+                                ({marginPct.toFixed(1)}%)
+                              </span>
+                            </div>
+                          )
+                        ) : (
+                          <div>
+                            <span className="font-semibold text-amber-300 font-mono text-xs block" title="Potential Profit">
+                              ~{formatINR(profit)}
+                            </span>
+                            <span className="text-[10px] text-amber-400/80 block" title="Potential Margin">
+                              Est. ({marginPct.toFixed(1)}%)
+                            </span>
+                          </div>
+                        )}
+                      </td>
+                    )}
                     <td className="td"><span className={STATUS_BADGE[doc.payment_status] || 'badge-draft'}>{doc.payment_status}</span></td>
                     <td className="td text-center text-gray-500 text-xs">v{doc.revision_number}</td>
                     <td className="td">

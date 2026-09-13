@@ -127,6 +127,7 @@ export async function adminRoutes(app: FastifyInstance) {
             address_line1=?, address_line2=?, city=?, state_code=?, pincode=?,
             bank_name=?, bank_account_no=?, bank_ifsc=?, bank_branch=?, active_upi_id=?,
             enable_scan_to_pay=?, show_purchase_price_in_pos=?, show_profit_loss_in_pos=?,
+            show_profit_in_records=?,
             restrict_sales_to_stock_qty=?, invoice_terms=?, quotation_terms=?, updated_at=CURRENT_TIMESTAMP
           WHERE id=1
         `).run(
@@ -135,6 +136,7 @@ export async function adminRoutes(app: FastifyInstance) {
           p.bank_name || null, p.bank_account_no || null, p.bank_ifsc || null, p.bank_branch || null,
           p.active_upi_id || null, p.enable_scan_to_pay ?? 1,
           p.show_purchase_price_in_pos ?? 1, p.show_profit_loss_in_pos ?? 1,
+          p.show_profit_in_records ?? 1,
           p.restrict_sales_to_stock_qty ?? 0,
           p.invoice_terms ? (typeof p.invoice_terms === 'string' ? p.invoice_terms : JSON.stringify(p.invoice_terms)) : null,
           p.quotation_terms ? (typeof p.quotation_terms === 'string' ? p.quotation_terms : JSON.stringify(p.quotation_terms)) : null

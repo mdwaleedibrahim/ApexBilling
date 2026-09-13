@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS seller_profile (
     enable_scan_to_pay INTEGER DEFAULT 1,
     show_purchase_price_in_pos INTEGER DEFAULT 1,
     show_profit_loss_in_pos INTEGER DEFAULT 1,
+    show_profit_in_records INTEGER DEFAULT 1,
     restrict_sales_to_stock_qty INTEGER DEFAULT 0,
     invoice_terms TEXT DEFAULT '["Goods once sold can''t be returned", "Goods can be exchanged with valid bill within 7 days of purchase"]',
     quotation_terms TEXT DEFAULT '["Quotation valid for 3 days only"]',

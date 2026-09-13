@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import {
   X, Save, Plus, Trash2, Star, QrCode, ShieldCheck, Database,
-  Download, Upload, Camera, RefreshCw, AlertTriangle, FileText, AlertOctagon
+  Download, Upload, Camera, RefreshCw, AlertTriangle, FileText, AlertOctagon, TrendingUp
 } from 'lucide-react'
 import { api } from '../../utils/api'
 import { INDIAN_STATES } from '../../utils/gstEngine'
@@ -286,6 +286,26 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
                   type="checkbox"
                   checked={profile.show_profit_loss_in_pos !== 0 && profile.show_profit_loss_in_pos !== false}
                   onChange={e => fp('show_profit_loss_in_pos', e.target.checked ? 1 : 0)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div>
+              </label>
+            </div>
+
+            {/* Records History Profit Toggle */}
+            <div className="p-3.5 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <TrendingUp size={18} className="text-emerald-400" />
+                <div>
+                  <p className="text-sm font-medium text-gray-200">Show Profit in Records History</p>
+                  <p className="text-xs text-gray-400">Display Profit column in Records list showing realized profit for invoices and potential profit for quotations</p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={profile.show_profit_in_records !== 0 && profile.show_profit_in_records !== false}
+                  onChange={e => fp('show_profit_in_records', e.target.checked ? 1 : 0)}
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div>
