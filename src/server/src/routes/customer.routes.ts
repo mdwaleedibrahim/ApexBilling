@@ -188,56 +188,75 @@ export async function customerRoutes(app: FastifyInstance) {
       'Referer': 'https://services.gst.gov.in/services/searchtp',
     };
 
+    let tradeName = '';
+    let legalName = '';
+    let address = '';
+    let status = '';
+    let source = 'gst.gov.in';
+
+    // 1. Attempt official government portal first
     try {
       const res = await fetch(
         `https://services.gst.gov.in/services/api/search/taxpayerDetails?gstin=${gstin}`,
-        { headers: HEADERS, signal: AbortSignal.timeout(2500) }
+        { headers: HEADERS, signal: AbortSignal.timeout(2000) }
       );
       const raw = await res.text();
       try {
         const json = JSON.parse(raw);
         if (json?.taxpayerInfo || json?.lgnm) {
           const info = json.taxpayerInfo || json;
-          return reply.send({
-            gstin,
-            stateCode,
-            stateName,
-            tradeName: info.tradeNam || info.trade_name || '',
-            legalName: info.lgnm || info.legal_name || '',
-            address: [info.pradr?.addr?.bnm, info.pradr?.addr?.st, info.pradr?.addr?.loc, info.pradr?.addr?.dst, info.pradr?.addr?.stcd]
-              .filter(Boolean).join(', '),
-            status: info.sts || '',
-            source: 'gst.gov.in',
-            govUrl,
-          });
+          tradeName = info.tradeNam || info.trade_name || '';
+          legalName = info.lgnm || info.legal_name || '';
+          address = [info.pradr?.addr?.bnm, info.pradr?.addr?.st, info.pradr?.addr?.loc, info.pradr?.addr?.dst, info.pradr?.addr?.stcd]
+            .filter(Boolean).join(', ');
+          status = info.sts || '';
         }
       } catch {}
-      // Official portal returned non-JSON/challenge or no details — return derived state
-      return reply.send({
-        gstin,
-        stateCode,
-        stateName,
-        tradeName: '',
-        legalName: '',
-        address: '',
-        status: '',
-        source: 'gst.gov.in',
-        govUrl,
-      });
-    } catch {
-      // Return state info derived strictly from the GSTIN number
-      return reply.send({
-        gstin,
-        stateCode,
-        stateName,
-        tradeName: '',
-        legalName: '',
-        address: '',
-        status: '',
-        source: 'gst.gov.in',
-        govUrl,
-      });
+    } catch {}
+
+    // 2. If government portal was challenged/timed out, fetch taxpayer details from Razorpay GST search
+    if (!legalName && !tradeName) {
+      try {
+        const rpRes = await fetch(`https://razorpay.com/gst-number-search/${gstin}/`, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+          },
+          signal: AbortSignal.timeout(3500)
+        });
+        if (rpRes.ok) {
+          const html = await rpRes.text();
+          const regex = /<p[^>]*>([^<]+)<\/p>\s*<(?:h5|span|p)[^>]*>([^<]+)<\/(?:h5|span|p)>/gi;
+          const data: Record<string, string> = {};
+          let m: RegExpExecArray | null;
+          while ((m = regex.exec(html)) !== null) {
+            data[m[1].trim()] = m[2].trim();
+          }
+          legalName = data['Legal Name of Business'] || '';
+          tradeName = data['Trade Name'] || legalName;
+          status = data['GSTIN Status'] || '';
+          const jurisdiction = data['State Jurisdiction details'] || '';
+          if (jurisdiction) {
+            address = `${jurisdiction}, ${stateName}`;
+          }
+          if (legalName) {
+            source = 'razorpay.com';
+          }
+        }
+      } catch {}
     }
+
+    return reply.send({
+      gstin,
+      stateCode,
+      stateName,
+      tradeName,
+      legalName,
+      address,
+      status,
+      source,
+      govUrl,
+    });
   });
 }
 
