@@ -19,6 +19,16 @@
     background-color: #111827;
     color: #f3f4f6;
   }
+
+  /* html2canvas FontMetrics fix:
+     html2canvas measures font baseline by appending a hidden container with an <img> to document.body.
+     Tailwind's preflight sets `img { display: block }`, which forces html2canvas's measurement <img> onto a new line,
+     inflating the measured baseline by ~12px and shifting all rendered text downward outside its border boxes.
+  */
+  body > div[style*="visibility: hidden"] img,
+  body > div[style*="visibility:hidden"] img {
+    display: inline !important;
+  }
 }
 
 @layer components {

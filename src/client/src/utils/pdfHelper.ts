@@ -31,7 +31,23 @@ export async function generateInvoicePdfBlob(element: HTMLElement, filename: str
     margin: [0, 0, 0, 0],
     filename: filename,
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, logging: false, scrollY: 0, scrollX: 0 },
+    html2canvas: {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      scrollY: 0,
+      scrollX: 0,
+      onclone: (clonedDoc: Document) => {
+        const style = clonedDoc.createElement('style')
+        style.innerHTML = `
+          body > div[style*="visibility: hidden"] img,
+          body > div[style*="visibility:hidden"] img {
+            display: inline !important;
+          }
+        `
+        clonedDoc.head?.appendChild(style)
+      }
+    },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
     pagebreak: { mode: ['css', 'legacy'] }
   }
@@ -48,7 +64,23 @@ export async function downloadInvoicePdf(element: HTMLElement, filename: string)
     margin: [0, 0, 0, 0],
     filename: filename,
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, logging: false, scrollY: 0, scrollX: 0 },
+    html2canvas: {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      scrollY: 0,
+      scrollX: 0,
+      onclone: (clonedDoc: Document) => {
+        const style = clonedDoc.createElement('style')
+        style.innerHTML = `
+          body > div[style*="visibility: hidden"] img,
+          body > div[style*="visibility:hidden"] img {
+            display: inline !important;
+          }
+        `
+        clonedDoc.head?.appendChild(style)
+      }
+    },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
     pagebreak: { mode: ['css', 'legacy'] }
   }
