@@ -43,14 +43,18 @@ export function formatDate(dateStr: string): string {
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-/** Format date and time to DD/MM/YYYY hh:mm AM/PM */
+/** Format date and time to DD/MM/YYYY hh:mm AM/PM in IST */
 export function formatDateTime(dateStr: string, createdAtStr?: string): string {
   if (!dateStr && !createdAtStr) return ''
   const str = createdAtStr || dateStr
-  const d = new Date(str)
+  // SQLite stores created_at as UTC without 'Z'; append it so JS parses correctly as UTC
+  const normalized = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(str) && !str.endsWith('Z')
+    ? str.replace(' ', 'T') + 'Z'
+    : str
+  const d = new Date(normalized)
   if (isNaN(d.getTime())) return formatDate(dateStr)
-  const dateFormatted = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-  const timeFormatted = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+  const dateFormatted = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })
+  const timeFormatted = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })
   return `${dateFormatted}, ${timeFormatted}`
 }
 

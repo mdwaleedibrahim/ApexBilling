@@ -3,6 +3,17 @@
 ========================================================================
 
 ========================================================================
+ApexBill Release v2.5.0 - 2026-09-13 15:57:02
+========================================================================
+Changes & Commits in this Build:
+  * feat: multi-feature update - UX, printing, inventory CSV, GSTIN lookup, sidebar (a1b0562)
+  * Implment native app popups (53b869e)
+  * feat: Add credit payment option, ability to update invoices and generate payment for delta or full amount. (db99bb1)
+  * feat: update customer analytics tab, A4 invoice template, and WhatsApp invoice share (863b20e)
+  * docs: update README and application screenshots with latest features (a0c8b16)
+  * feat: add customer analytics tab, quotation customer auto-save, and remove PDF blank pages (9d59740)
+
+========================================================================
 ApexBill Release v2.4.0 - 2026-09-12 18:31:04
 ========================================================================
 Changes & Commits in this Build:
