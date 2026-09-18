@@ -135,13 +135,4 @@ export const api = {
     restoreBackup: (payload: any) => req<any>('/admin/backup/restore', { method: 'POST', body: JSON.stringify(payload) }),
     createSnapshot: () => req<any>('/admin/backup/snapshot'),
   },
-
-  // ── WhatsApp Automation ───────────────────────────────────────────────────
-  whatsapp: {
-    autoSend: (phone: string, text: string) =>
-      req<any>('/billing/whatsapp-auto-send', {
-        method: 'POST',
-        body: JSON.stringify({ phone, text }),
-      }).catch((e) => console.warn('whatsapp.autoSend API error:', e)),
-  },
 }

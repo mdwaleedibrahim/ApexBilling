@@ -10,7 +10,6 @@ import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react'
 import { generateInvoicePdfBlob } from './pdfHelper'
 import { generatePaymentQrCardBlob } from './qrImageHelper'
 import { formatINR, formatDate, buildUpiLink } from './upiHelper'
-import { api } from './api'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWhatsAppShareStore } from '../store/useWhatsAppShareStore'
 import {
@@ -138,9 +137,9 @@ export function generateWhatsAppReminderMessage(params: {
 }
 
 /**
- * Step 1: Direct WhatsApp Share with Automated Enter Keypress
- * Directly launches WhatsApp to the contact's chat and triggers automated Enter keypress
- * so the message is sent automatically without the user having to click Enter on WhatsApp!
+ * Step 1: Direct WhatsApp Share
+ * Directly launches WhatsApp to the contact's chat with prefilled text (no Web Share menu).
+ * Exactly matches standard shareInvoiceViaWhatsApp behavior.
  */
 export function openWhatsAppChat(phone: string, text: string): void {
   const cleanedPhone = cleanPhoneForWhatsApp(phone)
@@ -153,13 +152,6 @@ export function openWhatsAppChat(phone: string, text: string): void {
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
-
-  // 2. Trigger automated backend ENTER keypress so user doesn't have to click Enter in WhatsApp!
-  try {
-    api.whatsapp.autoSend(cleanedPhone, text)
-  } catch (err) {
-    console.warn('Backend auto-send Enter trigger failed:', err)
-  }
 }
 
 /**
@@ -346,7 +338,8 @@ async function shareViaWebShareFallback(
 export async function shareInvoiceViaWhatsApp(
   element: HTMLElement | null,
   doc: any,
-  profile: any
+  profile: any,
+  getElementAsync?: () => Promise<HTMLElement | null>
 ): Promise<void> {
   const snap = typeof doc.customer_snapshot === 'string'
     ? (() => { try { return JSON.parse(doc.customer_snapshot) } catch { return {} } })()
@@ -356,7 +349,8 @@ export async function shareInvoiceViaWhatsApp(
 
   // Fallback to Web Share option if no phone number exists
   if (!phone || phone.startsWith('NO_PHONE_')) {
-    await shareViaWebShareFallback(element, doc, profile, filename)
+    const el = element || (getElementAsync ? await getElementAsync() : null)
+    await shareViaWebShareFallback(el, doc, profile, filename)
     return
   }
 
@@ -381,24 +375,29 @@ export async function shareInvoiceViaWhatsApp(
     textMsg,
     filename,
     mode: 'share',
-    isGeneratingPdf: !!element,
+    isGeneratingPdf: !!(element || getElementAsync),
     pdfBlob: null
   })
 
-  // Step 1: Execute direct share immediately (no web share menu)
+  // Step 1: Execute direct share immediately with active user gesture
   openWhatsAppChat(phone, textMsg)
   store.setStep1Completed(true)
 
   // Asynchronously generate the PDF blob for Step 2
-  if (element) {
+  ;(async () => {
     try {
-      const blob = await generateInvoicePdfBlob(element, filename)
-      store.setPdfBlob(blob)
+      const el = element || (getElementAsync ? await getElementAsync() : null)
+      if (el) {
+        const blob = await generateInvoicePdfBlob(el, filename)
+        store.setPdfBlob(blob)
+      } else {
+        store.setIsGeneratingPdf(false)
+      }
     } catch (e) {
       console.warn('PDF generation failed:', e)
       store.setIsGeneratingPdf(false)
     }
-  }
+  })()
 }
 
 /**
@@ -408,7 +407,8 @@ export async function shareInvoiceViaWhatsApp(
 export async function sendPaymentReminderViaWhatsApp(
   element: HTMLElement | null,
   doc: any,
-  profile: any
+  profile: any,
+  getElementAsync?: () => Promise<HTMLElement | null>
 ): Promise<void> {
   const snap = typeof doc.customer_snapshot === 'string'
     ? (() => { try { return JSON.parse(doc.customer_snapshot) } catch { return {} } })()
@@ -465,7 +465,7 @@ export async function sendPaymentReminderViaWhatsApp(
 
   const qrFilename = `${doc.doc_number}-Payment-QR.png`
 
-  // Open the 2-step modal in reminder mode
+  // Open the 2-step modal in reminder mode immediately
   const store = useWhatsAppShareStore.getState()
   store.open({
     doc,
@@ -479,14 +479,14 @@ export async function sendPaymentReminderViaWhatsApp(
     upiLink,
     upiId,
     payeeName,
-    isGeneratingPdf: !!element,
+    isGeneratingPdf: !!(element || getElementAsync),
     isGeneratingQr: true,
     pdfBlob: null,
     qrBlob: null,
     qrDataUrl: null
   })
 
-  // Step 1: Execute direct share immediately (direct message to creditor's WhatsApp chat)
+  // Step 1: Execute direct share immediately with active user gesture (launches WhatsApp to creditor chat)
   openWhatsAppChat(phone, textMsg)
   store.setStep1Completed(true)
 
@@ -495,15 +495,18 @@ export async function sendPaymentReminderViaWhatsApp(
   let generatedQr: Blob | null = null
 
   try {
-    // 1. Generate Invoice PDF
-    if (element) {
+    // 1. Resolve DOM element (if async provider was passed) and generate PDF
+    const resolvedElement = element || (getElementAsync ? await getElementAsync() : null)
+    if (resolvedElement) {
       try {
-        generatedPdf = await generateInvoicePdfBlob(element, filename)
+        generatedPdf = await generateInvoicePdfBlob(resolvedElement, filename)
         store.setPdfBlob(generatedPdf)
       } catch (e) {
         console.warn('PDF generation failed for reminder:', e)
         store.setIsGeneratingPdf(false)
       }
+    } else {
+      store.setIsGeneratingPdf(false)
     }
 
     // 2. Generate UPI QR Scanner Image Card
@@ -532,7 +535,7 @@ export async function sendPaymentReminderViaWhatsApp(
     }
 
     // 3. AUTOMATE STEP 2:
-    // Automatically trigger system share menu with BOTH Invoice PDF and QR Scanner Image!
+    // Trigger system share menu with BOTH Invoice PDF and QR Scanner Image
     if (generatedPdf) {
       store.setIsAutoSharingStep2(true)
       try {
@@ -800,13 +803,13 @@ export function WhatsAppShareModal() {
                     </h4>
                     {step1Completed && (
                       <span className="text-[10px] font-medium text-emerald-400 uppercase tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1">
-                        <Sparkles size={10} /> {isReminder ? 'Sent Automatically (Enter Pressed)' : 'Chat Opened'}
+                        <Sparkles size={10} /> Chat Opened
                       </span>
                     )}
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {isReminder
-                      ? 'Opens WhatsApp chat and automatically presses Enter to dispatch the reminder.'
+                      ? 'Directly opens WhatsApp chat with balance due, breakdown & UPI payment link.'
                       : 'Directly shares document number & store name (no share menu).'}
                   </p>
                   <div className="mt-2 text-xs font-mono bg-gray-950/70 border border-white/5 p-2.5 rounded text-gray-300 whitespace-pre-line select-all max-h-36 overflow-y-auto">

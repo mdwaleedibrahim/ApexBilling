@@ -80,18 +80,25 @@ export default function CustomerDirectory({ onViewAnalytics }: { onViewAnalytics
     setInvoices(inv)
   }
 
-  const handleSendReminder = async (inv: any) => {
+  const handleSendReminder = (inv: any) => {
     try {
-      const fullDoc = await api.documents.get(inv.id)
-      let prof = profile
-      if (!prof) {
-        const p = await api.settings.getProfile()
-        prof = p?.profile ? { ...p.profile, upiAccounts: p.upiAccounts || [] } : null
-        setProfile(prof)
-      }
-      setReminderDoc(fullDoc)
-      await new Promise(r => setTimeout(r, 120))
-      await sendPaymentReminderViaWhatsApp(hiddenPdfRef.current, fullDoc, prof)
+      sendPaymentReminderViaWhatsApp(
+        null,
+        inv,
+        profile,
+        async () => {
+          const fullDoc = await api.documents.get(inv.id)
+          let prof = profile
+          if (!prof) {
+            const p = await api.settings.getProfile()
+            prof = p?.profile ? { ...p.profile, upiAccounts: p.upiAccounts || [] } : null
+            setProfile(prof)
+          }
+          setReminderDoc(fullDoc)
+          await new Promise(r => setTimeout(r, 120))
+          return hiddenPdfRef.current
+        }
+      )
     } catch (e) {
       console.error('Failed to send reminder from customer directory:', e)
     }

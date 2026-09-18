@@ -173,19 +173,22 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
     setTimeout(() => window.print(), 300)
   }
 
-  const handleWhatsAppShare = async (doc: any) => {
-    let targetElement: HTMLElement | null = null
-    let fullDoc = doc
+  const handleWhatsAppShare = (doc: any) => {
     if (viewDoc && viewDoc.id === doc.id && viewModalPdfRef.current) {
-      targetElement = viewModalPdfRef.current
-      fullDoc = viewDoc
+      shareInvoiceViaWhatsApp(viewModalPdfRef.current, viewDoc, profile)
     } else {
-      fullDoc = (doc.items && doc.items.length) ? doc : await api.documents.get(doc.id)
-      setSharingDoc(fullDoc)
-      await new Promise(r => setTimeout(r, 120))
-      targetElement = hiddenPdfRef.current
+      shareInvoiceViaWhatsApp(
+        null,
+        doc,
+        profile,
+        async () => {
+          const fullDoc = (doc.items && doc.items.length) ? doc : await api.documents.get(doc.id)
+          setSharingDoc(fullDoc)
+          await new Promise(r => setTimeout(r, 120))
+          return hiddenPdfRef.current
+        }
+      )
     }
-    await shareInvoiceViaWhatsApp(targetElement, fullDoc, profile)
   }
 
   const customer = analyticsData?.customer
