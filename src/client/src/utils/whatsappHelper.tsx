@@ -10,6 +10,7 @@ import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react'
 import { generateInvoicePdfBlob } from './pdfHelper'
 import { generatePaymentQrCardBlob } from './qrImageHelper'
 import { formatINR, formatDate, buildUpiLink } from './upiHelper'
+import { api } from './api'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWhatsAppShareStore } from '../store/useWhatsAppShareStore'
 import {
@@ -137,8 +138,9 @@ export function generateWhatsAppReminderMessage(params: {
 }
 
 /**
- * Step 1: Direct WhatsApp Share
- * Directly launches WhatsApp to the contact's chat with prefilled text (no Web Share menu)
+ * Step 1: Direct WhatsApp Share with Automated Enter Keypress
+ * Directly launches WhatsApp to the contact's chat and triggers automated Enter keypress
+ * so the message is sent automatically without the user having to click Enter on WhatsApp!
  */
 export function openWhatsAppChat(phone: string, text: string): void {
   const cleanedPhone = cleanPhoneForWhatsApp(phone)
@@ -151,6 +153,13 @@ export function openWhatsAppChat(phone: string, text: string): void {
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
+
+  // 2. Trigger automated backend ENTER keypress so user doesn't have to click Enter in WhatsApp!
+  try {
+    api.whatsapp.autoSend(cleanedPhone, text)
+  } catch (err) {
+    console.warn('Backend auto-send Enter trigger failed:', err)
+  }
 }
 
 /**
@@ -790,14 +799,14 @@ export function WhatsAppShareModal() {
                       {isReminder ? 'Step 1: Direct Reminder Message' : 'Step 1: Direct Message'}
                     </h4>
                     {step1Completed && (
-                      <span className="text-[10px] font-medium text-emerald-400 uppercase tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                        Chat Opened
+                      <span className="text-[10px] font-medium text-emerald-400 uppercase tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1">
+                        <Sparkles size={10} /> {isReminder ? 'Sent Automatically (Enter Pressed)' : 'Chat Opened'}
                       </span>
                     )}
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {isReminder
-                      ? 'Directly opens WhatsApp chat with balance due, breakdown & UPI payment link.'
+                      ? 'Opens WhatsApp chat and automatically presses Enter to dispatch the reminder.'
                       : 'Directly shares document number & store name (no share menu).'}
                   </p>
                   <div className="mt-2 text-xs font-mono bg-gray-950/70 border border-white/5 p-2.5 rounded text-gray-300 whitespace-pre-line select-all max-h-36 overflow-y-auto">

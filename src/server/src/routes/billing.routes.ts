@@ -7,6 +7,8 @@ import { calculateInvoiceTotals } from '../services/calculation.service.js';
 import { deductStockForNewInvoice, reconcileStockOnEdit, restoreStockOnCancel } from '../services/stock-reconciler.service.js';
 import { randomUUID } from 'crypto';
 import { normalizePhone } from '../utils/phoneHelper.js';
+import { spawn } from 'child_process';
+import path from 'path';
 
 /** Returns today's date as YYYY-MM-DD using the local system clock (not UTC) */
 function localDateIso(): string {
@@ -698,6 +700,46 @@ export async function billingRoutes(app: FastifyInstance) {
         UPDATE pos_memory_slots SET cart_state=?, slot_label=COALESCE(?,slot_label), updated_at=CURRENT_TIMESTAMP WHERE slot_id=?
       `).run(cartJson, req.body.slot_label || null, slotId);
       return reply.send({ success: true });
+    }
+  );
+
+  // ── WhatsApp Automation ────────────────────────────────────────────────────
+  // POST /api/billing/whatsapp-auto-send - Automates Step 1 by launching WhatsApp and sending ENTER
+  app.post<{ Body: { phone: string; text: string } }>(
+    '/api/billing/whatsapp-auto-send',
+    async (req, reply) => {
+      const { phone, text } = req.body || {};
+      if (!phone || !text) {
+        return reply.status(400).send({ error: 'phone and text are required' });
+      }
+
+      // Root directory is one level above src/server or current working directory
+      const rootDir = process.cwd().includes('src\\server') || process.cwd().includes('src/server')
+        ? path.resolve(process.cwd(), '..', '..')
+        : process.cwd();
+      const scriptPath = path.resolve(rootDir, 'scripts', 'whatsapp-auto-send.ps1');
+
+      try {
+        const child = spawn('powershell', [
+          '-NoProfile',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-File',
+          scriptPath,
+          '-Phone',
+          phone,
+          '-Text',
+          text
+        ], {
+          detached: true,
+          stdio: 'ignore'
+        });
+        child.unref();
+      } catch (err) {
+        console.warn('[WhatsApp Auto-Send] Spawn error:', err);
+      }
+
+      return reply.send({ success: true, message: 'WhatsApp auto-send initiated' });
     }
   );
 }
