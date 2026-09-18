@@ -8,6 +8,7 @@
 import React, { useState } from 'react'
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react'
 import { generateInvoicePdfBlob } from './pdfHelper'
+import { generatePaymentQrCardBlob } from './qrImageHelper'
 import { formatINR, formatDate, buildUpiLink } from './upiHelper'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWhatsAppShareStore } from '../store/useWhatsAppShareStore'
@@ -22,7 +23,10 @@ import {
   BellRing,
   Copy,
   Check,
-  QrCode
+  QrCode,
+  FileText,
+  Image as ImageIcon,
+  Sparkles
 } from 'lucide-react'
 
 export function WhatsAppIcon({ size = 16, className = "" }: { size?: number; className?: string }) {
@@ -160,38 +164,71 @@ export function openWhatsAppWeb(phone: string, text: string): void {
 
 /**
  * Step 2: Attachment Share
- * Shares the generated PDF through the OS Share Menu.
+ * Shares attachments (Invoice PDF + Payment QR Code Scanner Image) via the OS Share Menu.
  * Because Step 1 opened the customer chat, the customer is positioned at the top of the WhatsApp share list.
  */
-export async function sharePdfAttachment(pdfBlob: Blob, filename: string): Promise<boolean> {
+export async function shareInvoiceAndQrAttachments(params: {
+  pdfBlob: Blob
+  qrBlob?: Blob | null
+  pdfFilename: string
+  qrFilename?: string
+  title?: string
+}): Promise<boolean> {
+  const { pdfBlob, qrBlob, pdfFilename, qrFilename, title } = params
+
   if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-    const pdfFile = new File([pdfBlob], filename, { type: 'application/pdf' })
-    const shareData: ShareData = {
-      title: filename,
-      files: [pdfFile],
+    const pdfFile = new File([pdfBlob], pdfFilename, { type: 'application/pdf' })
+    const filesToShare: File[] = [pdfFile]
+
+    if (qrBlob && qrFilename) {
+      filesToShare.push(new File([qrBlob], qrFilename, { type: 'image/png' }))
     }
 
-    if (navigator.canShare && navigator.canShare(shareData)) {
+    const multiShareData: ShareData = {
+      title: title || pdfFilename,
+      files: filesToShare,
+    }
+
+    // 1. Try sharing BOTH files (Invoice PDF + QR Scanner Image)
+    if (navigator.canShare && navigator.canShare(multiShareData)) {
       try {
-        await navigator.share(shareData)
+        await navigator.share(multiShareData)
         return true
       } catch (err: any) {
         if (err?.name === 'AbortError') return false
-        console.warn('Navigator share error, falling back to download:', err)
+        console.warn('Multi-file navigator.share error, trying fallback:', err)
+      }
+    }
+
+    // 2. Fallback: single-file PDF share if multi-file is rejected by platform
+    const singleShareData: ShareData = {
+      title: title || pdfFilename,
+      files: [pdfFile],
+    }
+    if (navigator.canShare && navigator.canShare(singleShareData)) {
+      try {
+        await navigator.share(singleShareData)
+        if (qrBlob && qrFilename) {
+          triggerBlobDownload(qrBlob, qrFilename)
+        }
+        return true
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return false
+        console.warn('Single file navigator.share error:', err)
       }
     }
   }
 
-  // Fallback if Web Share API is unsupported: download PDF file
-  const url = URL.createObjectURL(pdfBlob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  setTimeout(() => URL.revokeObjectURL(url), 5000)
+  // Fallback: If Web Share API is unsupported, download both files
+  triggerBlobDownload(pdfBlob, pdfFilename)
+  if (qrBlob && qrFilename) {
+    triggerBlobDownload(qrBlob, qrFilename)
+  }
   return true
+}
+
+export async function sharePdfAttachment(pdfBlob: Blob, filename: string): Promise<boolean> {
+  return shareInvoiceAndQrAttachments({ pdfBlob, pdfFilename: filename })
 }
 
 function triggerBlobDownload(blob: Blob, filename: string) {
@@ -417,6 +454,8 @@ export async function sendPaymentReminderViaWhatsApp(
     upiLink: upiLink || undefined
   })
 
+  const qrFilename = `${doc.doc_number}-Payment-QR.png`
+
   // Open the 2-step modal in reminder mode
   const store = useWhatsAppShareStore.getState()
   store.open({
@@ -425,28 +464,89 @@ export async function sendPaymentReminderViaWhatsApp(
     cleanedPhone,
     textMsg,
     filename,
+    qrFilename,
     mode: 'reminder',
     balanceDue,
     upiLink,
     upiId,
     payeeName,
     isGeneratingPdf: !!element,
-    pdfBlob: null
+    isGeneratingQr: true,
+    pdfBlob: null,
+    qrBlob: null,
+    qrDataUrl: null
   })
 
   // Step 1: Execute direct share immediately (direct message to creditor's WhatsApp chat)
   openWhatsAppChat(phone, textMsg)
   store.setStep1Completed(true)
 
-  // Asynchronously generate the PDF blob for Step 2
-  if (element) {
-    try {
-      const blob = await generateInvoicePdfBlob(element, filename)
-      store.setPdfBlob(blob)
-    } catch (e) {
-      console.warn('PDF generation failed for reminder:', e)
-      store.setIsGeneratingPdf(false)
+  // Asynchronously generate the PDF blob and QR scanner card image blob for Step 2
+  let generatedPdf: Blob | null = null
+  let generatedQr: Blob | null = null
+
+  try {
+    // 1. Generate Invoice PDF
+    if (element) {
+      try {
+        generatedPdf = await generateInvoicePdfBlob(element, filename)
+        store.setPdfBlob(generatedPdf)
+      } catch (e) {
+        console.warn('PDF generation failed for reminder:', e)
+        store.setIsGeneratingPdf(false)
+      }
     }
+
+    // 2. Generate UPI QR Scanner Image Card
+    try {
+      // Brief tick to ensure hidden QR canvas element is painted in the DOM
+      await new Promise(r => setTimeout(r, 60))
+      const qrCanvas = document.getElementById('reminder-qr-canvas') as HTMLCanvasElement | null
+      const qrResult = await generatePaymentQrCardBlob({
+        qrCanvasElement: qrCanvas,
+        upiLink: upiLink || '',
+        docNumber: doc.doc_number,
+        docDate: doc.doc_date,
+        grandTotal: Number(doc.grand_total || 0),
+        paidAmount: Number(doc.paid_amount || 0),
+        balanceDue,
+        customerName,
+        storeName,
+        upiId,
+        payeeName
+      })
+      generatedQr = qrResult.blob
+      store.setQrBlob(qrResult.blob, qrResult.dataUrl)
+    } catch (e) {
+      console.warn('QR scanner card generation error:', e)
+      store.setIsGeneratingQr(false)
+    }
+
+    // 3. AUTOMATE STEP 2:
+    // Automatically trigger system share menu with BOTH Invoice PDF and QR Scanner Image!
+    if (generatedPdf) {
+      store.setIsAutoSharingStep2(true)
+      try {
+        const shareSuccess = await shareInvoiceAndQrAttachments({
+          pdfBlob: generatedPdf,
+          qrBlob: generatedQr,
+          pdfFilename: filename,
+          qrFilename,
+          title: `Payment Reminder - ${doc.doc_number}`
+        })
+        store.setAutoShareResult(true, shareSuccess)
+        if (shareSuccess) {
+          store.setStep2Completed(true)
+        }
+      } catch (shareErr) {
+        console.warn('Auto step 2 share rejected:', shareErr)
+        store.setAutoShareResult(true, false)
+      } finally {
+        store.setIsAutoSharingStep2(false)
+      }
+    }
+  } catch (err) {
+    console.error('Reminder generation failed:', err)
   }
 }
 
@@ -462,10 +562,17 @@ export function WhatsAppShareModal() {
     phone,
     textMsg,
     filename,
+    qrFilename,
     pdfBlob,
+    qrBlob,
+    qrDataUrl,
     isGeneratingPdf,
+    isGeneratingQr,
     step1Completed,
     step2Completed,
+    isAutoSharingStep2,
+    autoShareAttempted,
+    autoShareSuccess,
     balanceDue = 0,
     upiLink,
     upiId,
@@ -498,7 +605,13 @@ export function WhatsAppShareModal() {
     if (!pdfBlob) return
     setIsSharingStep2(true)
     try {
-      const success = await sharePdfAttachment(pdfBlob, filename)
+      const success = await shareInvoiceAndQrAttachments({
+        pdfBlob,
+        qrBlob: isReminder ? qrBlob : null,
+        pdfFilename: filename,
+        qrFilename: isReminder ? qrFilename : undefined,
+        title: isReminder ? `Reminder: Invoice ${doc.doc_number}` : filename
+      })
       if (success) {
         setStep2Completed(true)
       }
@@ -509,14 +622,12 @@ export function WhatsAppShareModal() {
 
   const handleDownloadOnly = () => {
     if (!pdfBlob) return
-    const url = URL.createObjectURL(pdfBlob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    setTimeout(() => URL.revokeObjectURL(url), 5000)
+    triggerBlobDownload(pdfBlob, filename)
+  }
+
+  const handleDownloadBoth = () => {
+    if (pdfBlob) triggerBlobDownload(pdfBlob, filename)
+    if (qrBlob && qrFilename) triggerBlobDownload(qrBlob, qrFilename)
   }
 
   const handleCopyUpiLink = async () => {
@@ -537,12 +648,16 @@ export function WhatsAppShareModal() {
   }
 
   const handleDownloadQrImage = () => {
+    if (qrBlob && qrFilename) {
+      triggerBlobDownload(qrBlob, qrFilename)
+      return
+    }
     const canvas = document.getElementById('reminder-qr-canvas') as HTMLCanvasElement
     if (!canvas) return
     const dataUrl = canvas.toDataURL('image/png')
     const a = document.createElement('a')
     a.href = dataUrl
-    a.download = `${doc.doc_number}-Balance-QR.png`
+    a.download = qrFilename || `${doc.doc_number}-Payment-QR.png`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -594,7 +709,7 @@ export function WhatsAppShareModal() {
                 <div className="flex items-center gap-2">
                   <QrCode size={15} className="text-amber-400" />
                   <h4 className="text-xs font-semibold text-amber-300 uppercase tracking-wider">
-                    UPI QR Code for Balance Due ({formatINR(balanceDue)})
+                    UPI QR Scanner Image for Balance Due ({formatINR(balanceDue)})
                   </h4>
                 </div>
                 <span className="text-[10px] font-mono text-amber-400/80 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
@@ -603,14 +718,27 @@ export function WhatsAppShareModal() {
               </div>
 
               <div className="flex flex-col sm:flex-row items-center gap-3.5 bg-gray-950/70 p-3 rounded-xl border border-white/5">
-                <div className="p-2 bg-white rounded-xl shadow-md shrink-0">
-                  <QRCodeSVG value={upiLink} size={92} />
-                  {/* Hidden high-res canvas for PNG download */}
+                {/* QR preview thumbnail */}
+                <div className="p-1.5 bg-white rounded-xl shadow-md shrink-0 border border-slate-200 overflow-hidden flex flex-col items-center">
+                  {qrDataUrl ? (
+                    <img
+                      src={qrDataUrl}
+                      alt="UPI QR Scanner Card"
+                      className="w-24 h-32 object-contain rounded-lg hover:scale-105 transition-transform"
+                      title="Preview of Payment QR Scanner Card Image sent to creditor"
+                    />
+                  ) : (
+                    <div className="p-1">
+                      <QRCodeSVG value={upiLink} size={92} />
+                    </div>
+                  )}
+                  {/* Hidden high-res canvas for image generation & fallback download */}
                   <div className="hidden">
                     <QRCodeCanvas id="reminder-qr-canvas" value={upiLink} size={400} includeMargin={true} />
                   </div>
                 </div>
-                <div className="flex-1 text-center sm:text-left space-y-1">
+
+                <div className="flex-1 text-center sm:text-left space-y-1 min-w-0">
                   <p className="text-xs font-medium text-gray-300">
                     Outstanding Due:{' '}
                     <span className="text-red-400 font-mono text-sm font-bold">{formatINR(balanceDue)}</span>
@@ -630,9 +758,9 @@ export function WhatsAppShareModal() {
                       type="button"
                       onClick={handleDownloadQrImage}
                       className="px-2.5 py-1 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 text-amber-300 rounded-lg text-xs font-medium flex items-center gap-1 transition-all"
-                      title="Download QR code image to send in chat"
+                      title="Download full QR Scanner Card image"
                     >
-                      <Download size={12} /> Download QR (PNG)
+                      <Download size={12} /> {qrBlob ? 'Save QR Image (PNG)' : 'Download QR'}
                     </button>
                     <button
                       type="button"
@@ -669,7 +797,7 @@ export function WhatsAppShareModal() {
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {isReminder
-                      ? 'Opens WhatsApp chat with amount due, invoice breakdown & UPI payment link.'
+                      ? 'Directly opens WhatsApp chat with balance due, breakdown & UPI payment link.'
                       : 'Directly shares document number & store name (no share menu).'}
                   </p>
                   <div className="mt-2 text-xs font-mono bg-gray-950/70 border border-white/5 p-2.5 rounded text-gray-300 whitespace-pre-line select-all max-h-36 overflow-y-auto">
@@ -708,41 +836,79 @@ export function WhatsAppShareModal() {
             </div>
           </div>
 
-          {/* Step 2: Attachment Share */}
+          {/* Step 2: Attachment Share (Automated with Invoice PDF & QR Scanner Image) */}
           <div className={`p-4 rounded-xl border transition-all ${step2Completed ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-brand-950/20 border-brand-500/30'}`}>
             <div className="flex items-start gap-3">
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold mt-0.5 shrink-0 ${step2Completed ? 'bg-emerald-500 text-white' : 'bg-brand-600 text-white'}`}>
                 {step2Completed ? <CheckCircle2 size={16} /> : '2'}
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <h4 className="text-sm font-semibold text-gray-200">
-                    {isReminder ? 'Step 2: Send Invoice PDF with Balance QR' : 'Step 2: Send PDF Attachment'}
+                    {isReminder ? 'Step 2: Send Invoice & QR Code Scanner Image' : 'Step 2: Send PDF Attachment'}
                   </h4>
-                  {step2Completed && (
+                  {step2Completed ? (
                     <span className="text-[10px] font-medium text-emerald-400 uppercase tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                      Sent
+                      Sent to Share
+                    </span>
+                  ) : (isGeneratingPdf || isGeneratingQr) ? (
+                    <span className="text-[10px] font-medium text-amber-400 uppercase tracking-wider bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 flex items-center gap-1">
+                      <Loader2 size={10} className="animate-spin" /> Preparing
+                    </span>
+                  ) : isAutoSharingStep2 ? (
+                    <span className="text-[10px] font-medium text-brand-300 uppercase tracking-wider bg-brand-500/20 px-2 py-0.5 rounded border border-brand-500/30 flex items-center gap-1">
+                      <Sparkles size={10} className="animate-pulse" /> Auto-Sharing...
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-medium text-brand-300 uppercase tracking-wider bg-brand-500/10 px-2 py-0.5 rounded border border-brand-500/20">
+                      Automated
                     </span>
                   )}
                 </div>
+
                 <p className="text-xs text-gray-300 mt-1 leading-relaxed">
-                  Opens the Windows share menu with <span className="font-semibold text-brand-300">{filename}</span>.
-                  Select <span className="text-emerald-400 font-medium">WhatsApp</span> — this customer will appear at the <span className="underline font-semibold text-emerald-300">top</span> of your recent list!
+                  {isReminder
+                    ? 'Automates sending both the Invoice PDF and the high-contrast UPI QR Scanner Card image. Select WhatsApp in the share menu to send both attachments at once!'
+                    : `Opens the Windows share menu with ${filename}. Select WhatsApp — this customer will appear at the top of your recent list!`}
                 </p>
+
+                {/* Attached Files Chips */}
+                <div className="mt-2.5 flex flex-wrap gap-2">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-950/80 border border-white/10 text-[11px] text-gray-300">
+                    <FileText size={12} className="text-brand-400" />
+                    <span className="font-mono text-gray-200">{filename}</span>
+                    {pdfBlob && <span className="text-[10px] text-emerald-400 font-semibold">✓ Ready</span>}
+                  </div>
+                  {isReminder && (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-950/80 border border-white/10 text-[11px] text-gray-300">
+                      <ImageIcon size={12} className="text-amber-400" />
+                      <span className="font-mono text-gray-200">{qrFilename}</span>
+                      {qrBlob && <span className="text-[10px] text-emerald-400 font-semibold">✓ Ready</span>}
+                    </div>
+                  )}
+                </div>
+
+                {/* Auto-share hint if user interaction was required by OS */}
+                {autoShareAttempted && !autoShareSuccess && !step2Completed && (
+                  <div className="mt-2.5 text-[11px] text-amber-200/90 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2 flex items-center gap-2">
+                    <Sparkles size={13} className="text-amber-400 shrink-0" />
+                    <span>Attachments generated! Click <strong>"Send via Share Menu"</strong> below to open the WhatsApp picker.</span>
+                  </div>
+                )}
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    disabled={isGeneratingPdf || !pdfBlob || isSharingStep2}
+                    disabled={isGeneratingPdf || isGeneratingQr || !pdfBlob || isSharingStep2}
                     onClick={handleStep2}
                     className="px-4 py-2 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg shadow-brand-500/25 transition-all"
                   >
-                    {isGeneratingPdf ? (
+                    {isGeneratingPdf || isGeneratingQr ? (
                       <>
                         <Loader2 size={14} className="animate-spin text-brand-200" />
-                        Generating PDF...
+                        Generating Attachments...
                       </>
-                    ) : isSharingStep2 ? (
+                    ) : isSharingStep2 || isAutoSharingStep2 ? (
                       <>
                         <Loader2 size={14} className="animate-spin text-white" />
                         Opening Share Menu...
@@ -750,20 +916,34 @@ export function WhatsAppShareModal() {
                     ) : (
                       <>
                         <Share2 size={14} />
-                        {step2Completed ? 'Share PDF Again' : 'Send PDF via Share Option'}
+                        {step2Completed
+                          ? (isReminder ? 'Share Invoice & QR Again' : 'Share PDF Again')
+                          : (isReminder ? 'Send Invoice & QR via Share Menu' : 'Send PDF via Share Option')}
                       </>
                     )}
                   </button>
+
+                  {isReminder && pdfBlob && qrBlob && (
+                    <button
+                      type="button"
+                      onClick={handleDownloadBoth}
+                      className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all"
+                      title="Download both Invoice PDF and QR Scanner Image"
+                    >
+                      <Download size={13} />
+                      Save Both Files
+                    </button>
+                  )}
 
                   {pdfBlob && (
                     <button
                       type="button"
                       onClick={handleDownloadOnly}
                       className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all"
-                      title="Download PDF to computer"
+                      title="Download Invoice PDF file"
                     >
                       <Download size={13} />
-                      Save File
+                      Save PDF
                     </button>
                   )}
                 </div>
@@ -777,7 +957,9 @@ export function WhatsAppShareModal() {
           <p className="text-[11px] text-gray-400">
             {step1Completed && step2Completed
               ? '✨ Both reminder steps completed successfully!'
-              : 'Follow Step 1 then Step 2 for seamless reminder sharing.'}
+              : isReminder
+                ? 'Step 1 opened WhatsApp chat. Step 2 bundles Invoice PDF & QR Code image.'
+                : 'Follow Step 1 then Step 2 for seamless reminder sharing.'}
           </p>
           <button
             type="button"
