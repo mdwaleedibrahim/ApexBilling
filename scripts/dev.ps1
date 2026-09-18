@@ -76,6 +76,11 @@ $schemaDestDir = "$ROOT_DIR\src\server\dist\db"
 if (-not (Test-Path $schemaDestDir)) { New-Item -ItemType Directory -Path $schemaDestDir -Force | Out-Null }
 Copy-Item $schemaSrc -Destination "$schemaDestDir\schema.sql" -Force
 
+# Compile native ApexBill.exe launcher if missing or outdated
+if (Test-Path "$ROOT_DIR\scripts\build-launcher.ps1") {
+    & "$ROOT_DIR\scripts\build-launcher.ps1" -OutputDir "$ROOT_DIR"
+}
+
 Write-Host "`n[ApexBill] Build completed successfully! Starting server..." -ForegroundColor Green
 
 # 4. Start Server

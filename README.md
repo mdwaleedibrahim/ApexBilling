@@ -165,15 +165,28 @@ Manage business details, banking info, multi-UPI QR accounts, POS display toggle
 
 ## 🚀 Quick Start Guide
 
-### Option A: 1-Click Standalone Portable (Windows — Zero Install)
+### Option A: Native Windows `.exe` Launchers (Zero Install)
 
-ApexBill provides a standalone portable package bundled with an embedded Node.js runtime and SQLite engine:
+ApexBill provides native Windows executables compiled with custom brand icons and Edge App Mode windowing:
 
-1. Download or extract the release archive (`ApexBill-v2.4.0-Portable.zip`).
-2. Double-click **`Launch-ApexBill.vbs`** (or **`ApexBill.bat`**).
-3. ApexBill launches immediately in a dedicated desktop application window at `http://localhost:54321`.
+#### 1. Single-File Standalone Executable (`ApexBill-Standalone.exe`)
+- Download **`ApexBill-v2.9.0-Standalone.exe`** (or `ApexBill-Standalone.exe`).
+- **Double-click to run**: Self-extracts the embedded runtime and app bundle on first launch to `%LOCALAPPDATA%\ApexBill\bundle`, creates a Desktop shortcut automatically, and launches immediately.
+- **Single file**: Ideal for distributing to clients or staff who want zero setup and no zip extraction.
 
-> **Zero Dependencies**: Requires no pre-installed software, database server, or administrative privileges.
+#### 2. Portable Distribution Folder (`ApexBill.exe`)
+- Download and extract **`ApexBill-v2.9.0-Portable.zip`**.
+- Double-click **`ApexBill.exe`**:
+  - **Native Window Experience**: Launches Edge in chromeless App Mode (`--app=http://localhost:54321`), with fallback to Chrome or your default browser.
+  - **Zero Console Window Flash**: Pure Windows GUI executable (`/target:winexe`) that spawns the Fastify backend silently in the background.
+  - **Instance Awareness**: If port `54321` is already active, bringing up `ApexBill.exe` focuses the existing app without spawning duplicate backend processes.
+  - **Control Flags**: Supports CLI commands from PowerShell / CMD:
+    - `ApexBill.exe --status` : Check if background backend process and port 54321 are active.
+    - `ApexBill.exe --restart`: Terminate any running backend instance and launch fresh.
+    - `ApexBill.exe --stop`   : Stop the running backend service cleanly.
+- Legacy scripts (**`Launch-ApexBill.vbs`** and **`ApexBill.bat`**) remain fully supported and included for backward compatibility.
+
+> **Zero External Dependencies**: Embedded Node.js runtime and SQLite engine are included. No pre-installed Node, Python, database server, or administrative privileges required.
 
 ---
 
@@ -229,10 +242,10 @@ npm start
 # Open http://localhost:54321
 ```
 
-#### 4. Package Portable Windows Release
+#### 4. Package Portable & Standalone Windows Executables
 ```powershell
-# Generates a self-contained ZIP bundle in /release:
-powershell -ExecutionPolicy Bypass -File ./scripts/release.ps1
+# Generates Portable ZIP, Portable ApexBill.exe, and Single-File Standalone.exe in /release:
+powershell -ExecutionPolicy Bypass -File ./scripts/package-release.ps1
 # or: npm run package
 ```
 
@@ -282,8 +295,9 @@ ApexBill uses an embedded SQLite database engine with **Write-Ahead Logging (WAL
 | **Backend API** | Fastify (TypeScript) | High-throughput REST backend on port `54321` |
 | **Database** | SQLite (`node:sqlite` / WAL mode) | Fast, embedded, zero-configuration persistence |
 | **QR Engine** | `qrcode.react` | NPCI-compliant dynamic UPI payment QR codes |
-| **Icons & UI** | Lucide React | Clean, modern iconography & official WhatsApp brand icons |
-| **Packaging** | PowerShell, VBScript, Batch | 1-click standalone portable Windows distribution |
+| **Icons & UI** | Lucide React, System.Drawing | Clean iconography & custom multi-resolution brand icon |
+| **Windows Launcher** | C# (.NET Framework `csc.exe` / `winexe`) | Native `.exe` GUI launcher with zero console window flash & Edge App Mode |
+| **Packaging** | PowerShell, C#, VBScript, Batch | Single-file `.exe` installer + portable distribution ZIP |
 
 ---
 
@@ -291,6 +305,7 @@ ApexBill uses an embedded SQLite database engine with **Write-Ahead Logging (WAL
 
 ```
 ApexBill/
+├── ApexBill.exe                # Native Windows GUI launcher (root dev shortcut)
 ├── src/
 │   ├── client/                 # React + Vite frontend application
 │   │   ├── src/
@@ -314,11 +329,16 @@ ApexBill/
 │       ├── public/             # Compiled frontend assets for unified hosting
 │       └── package.json
 ├── scripts/                    # Build, dev, release packaging and utility scripts
+│   ├── launcher/               # C# Native Windows Launcher source code
+│   │   ├── ApexBillLauncher.cs # GUI launcher with Edge App Mode & process management
+│   │   └── ApexBillStandalone.cs# Single-file self-extracting standalone runner
+│   ├── build-launcher.ps1      # Compiles ApexBill.exe using native csc.exe
+│   ├── generate-icon.ps1       # Generates multi-res 16x16 to 256x256 ApexBill.ico
 │   ├── build.bat               # Fast build batch launcher
 │   ├── build.ps1               # Automated frontend & backend build script
 │   ├── dev.ps1                 # Local dev server session orchestrator
 │   ├── release.ps1             # 1-click release packager shortcut
-│   ├── package-release.ps1     # 1-click portable release builder
+│   ├── package-release.ps1     # 1-click portable & standalone .exe release builder
 │   ├── seed-sample-data.js     # Demo & sample data seeder
 │   ├── start-service.vbs       # Silent background service launcher
 │   ├── bump-version.js         # Automated changelog & versioning

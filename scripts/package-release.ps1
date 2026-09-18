@@ -79,8 +79,21 @@ Copy-Item -Path (Join-Path $ROOT_DIR "src\server\src\db\schema.sql") -Destinatio
 # Copy production node_modules
 Copy-Item -Path (Join-Path $ROOT_DIR "src\server\node_modules") -Destination (Join-Path $BUNDLE_DIR "app\node_modules") -Recurse -Force
 
-# 5. Create 1-Click Launch Script & VBScript (Silent Background Launcher)
-Write-Host "Step 4: Creating One-Click Windows Launchers..." -ForegroundColor Yellow
+# 5. Create One-Click Windows Launchers (Native .exe, .vbs, .bat)
+Write-Host "Step 4: Building Native Windows .exe Launcher & Scripts..." -ForegroundColor Yellow
+
+$iconPath = Join-Path $ROOT_DIR "scripts\ApexBill.ico"
+if (-not (Test-Path $iconPath)) {
+    Write-Host "   Generating ApexBill icon..." -ForegroundColor Yellow
+    & "$ROOT_DIR\scripts\generate-icon.ps1" -OutputPath $iconPath
+}
+
+# Compile native ApexBill.exe launcher into bundle
+& "$ROOT_DIR\scripts\build-launcher.ps1" -OutputDir $BUNDLE_DIR
+
+# Also copy ApexBill.ico into bundle and repo root
+Copy-Item -Path $iconPath -Destination (Join-Path $BUNDLE_DIR "ApexBill.ico") -Force
+Copy-Item -Path (Join-Path $BUNDLE_DIR "ApexBill.exe") -Destination (Join-Path $ROOT_DIR "ApexBill.exe") -Force
 
 # Launch-ApexBill.vbs — Silent launcher with duplicate-instance detection
 $vbsContent = @'
@@ -161,14 +174,21 @@ $readmeLines = @(
   'Welcome to ApexBill Portable!',
   '',
   'ONE-CLICK LAUNCH INSTRUCTIONS:',
-  '1. Double-click "Launch-ApexBill.vbs" (or "ApexBill.bat") to launch the app.',
-  '2. ApexBill will automatically start and open in a desktop application window.',
+  '1. Double-click "ApexBill.exe" to launch the desktop application.',
+  '   (Alternative launchers: "Launch-ApexBill.vbs" or "ApexBill.bat")',
+  '2. ApexBill will automatically start and open in a standalone desktop window.',
   '',
   'ZERO DEPENDENCIES REQUIRED:',
   '- Includes standalone Node.js runtime and SQLite engine.',
   '- No installation or admin permissions required.',
   '- Invoice data, stock items, and customer records are safely stored in:',
   '  %APPDATA%\ApexBill\billing_app.db',
+  '',
+  'CLI FLAGS:',
+  '  ApexBill.exe          Launch application (or focus existing window)',
+  '  ApexBill.exe --restart Restart background server',
+  '  ApexBill.exe --stop   Stop background server',
+  '  ApexBill.exe --status Check if server is running',
   '',
   'Support & Repository:',
   'https://github.com/mdwaleedibrahim/ApexBilling',
@@ -188,6 +208,52 @@ $zipPath = Join-Path $RELEASE_DIR "$APP_NAME.zip"
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 
 Compress-Archive -Path $BUNDLE_DIR -DestinationPath $zipPath -Force
-Write-Host "`n[SUCCESS] Portable Release Created!" -ForegroundColor Green
-Write-Host "   Portable Folder: $BUNDLE_DIR" -ForegroundColor Cyan
-Write-Host "   Standalone ZIP:  $zipPath`n" -ForegroundColor Cyan
+$zipSizeMb = [Math]::Round(((Get-Item $zipPath).Length / 1MB), 1)
+Write-Host "   Created ZIP: $zipPath ($zipSizeMb MB)" -ForegroundColor Green
+
+# 7. Build Standalone Single-File .exe Installer
+Write-Host "Step 6: Packaging Standalone Single-File .exe..." -ForegroundColor Yellow
+$CSC_PATH = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+if (-not (Test-Path $CSC_PATH)) {
+    $CSC_PATH = "C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
+}
+
+$standaloneSrc = Join-Path $ROOT_DIR "scripts\launcher\ApexBillStandalone.cs"
+$standaloneExe = Join-Path $RELEASE_DIR "ApexBill-v$VERSION-Standalone.exe"
+$standaloneAlias = Join-Path $RELEASE_DIR "ApexBill-Standalone.exe"
+
+if ((Test-Path $CSC_PATH) -and (Test-Path $standaloneSrc)) {
+    $cscArgs = @(
+        "/target:winexe",
+        "/optimize+",
+        "/platform:anycpu",
+        "/resource:$zipPath,ApexBillBundle.zip",
+        "/out:$standaloneExe",
+        "/win32icon:$iconPath",
+        "/r:System.dll",
+        "/r:System.IO.Compression.dll",
+        "/r:System.IO.Compression.FileSystem.dll",
+        "/r:System.Windows.Forms.dll",
+        "$standaloneSrc"
+    )
+
+    $proc = Start-Process -FilePath $CSC_PATH -ArgumentList $cscArgs -NoNewWindow -Wait -PassThru
+    if ($proc.ExitCode -eq 0 -and (Test-Path $standaloneExe)) {
+        Copy-Item -Path $standaloneExe -Destination $standaloneAlias -Force
+        $exeSizeMb = [Math]::Round(((Get-Item $standaloneExe).Length / 1MB), 1)
+        Write-Host "   Created Standalone Executable: $standaloneExe ($exeSizeMb MB)" -ForegroundColor Green
+    } else {
+        Write-Warning "Failed to compile Standalone Single-File .exe with exit code $($proc.ExitCode)"
+    }
+}
+
+Write-Host "`n========================================================================" -ForegroundColor Cyan
+Write-Host "  ApexBill Release Packaging Complete!" -ForegroundColor Green
+Write-Host "========================================================================" -ForegroundColor Cyan
+Write-Host "  1. Portable Folder (with ApexBill.exe): $BUNDLE_DIR"
+Write-Host "  2. Standalone ZIP Archive:             $zipPath ($zipSizeMb MB)"
+if (Test-Path $standaloneExe) {
+    Write-Host "  3. Single-File Standalone .exe:        $standaloneExe ($exeSizeMb MB)"
+}
+Write-Host "========================================================================`n" -ForegroundColor Cyan
+

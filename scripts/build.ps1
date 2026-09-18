@@ -30,5 +30,11 @@ Write-Host "`n[2/2] Building Backend (Server)..." -ForegroundColor Yellow
 Set-Location "$ROOT_DIR\src\server"
 & "$node" "$ROOT_DIR\src\server\node_modules\typescript\bin\tsc"
 
+# 3. Build Native Windows Launcher (ApexBill.exe)
+Write-Host "`n[3/3] Compiling Native Windows Launcher (ApexBill.exe)..." -ForegroundColor Yellow
+if (Test-Path "$PSScriptRoot\build-launcher.ps1") {
+    & "$PSScriptRoot\build-launcher.ps1" -OutputDir "$ROOT_DIR"
+}
+
 Set-Location $ROOT_DIR
-Write-Host "`n✅ Build completed successfully! Assets ready in src/server/dist and src/server/public.`n" -ForegroundColor Green
+Write-Host "`n✅ Build completed successfully! Assets ready in src/server/dist, src/server/public, and ApexBill.exe.`n" -ForegroundColor Green
