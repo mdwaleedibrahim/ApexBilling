@@ -3,7 +3,7 @@ import { Fragment } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { buildUpiLink, formatINR, formatDate, formatDateTime, amountInWords } from '../../utils/upiHelper'
 
-export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile?: any }) {
+export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: { doc: any; profile?: any; qrMode?: 'default' | 'balance' }) {
   if (!doc) return null
   const sellerSnap = (() => {
     try {
@@ -52,18 +52,28 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile?
   const isQrDelta = isEditedWithChangedTotal && doc.qr_amount_type !== 'FULL'
   const deltaAmount = isQrDelta ? (paymentHistory[paymentHistory.length - 1]?.amount || 0) : 0
 
-  const qrAmount = isPartial
-    ? currentPartialPayment
-    : (isQrDelta && deltaAmount > 0 ? deltaAmount : doc.grand_total)
+  const qrAmount = (qrMode === 'balance' && balanceDue > 0)
+    ? balanceDue
+    : (isPartial
+        ? currentPartialPayment
+        : (isQrDelta && deltaAmount > 0 ? deltaAmount : doc.grand_total))
 
-  const qrHeader = isPartial
-    ? `⚡ Scan to pay partial amount (${formatINR(currentPartialPayment)})`
-    : (isQrDelta && deltaAmount > 0
-      ? `⚡ Scan to pay delta amount (${formatINR(deltaAmount)})`
-      : '⚡ Scan to pay amount')
+  const qrHeader = (qrMode === 'balance' && balanceDue > 0)
+    ? `⚡ Scan to pay balance due (${formatINR(balanceDue)})`
+    : (isPartial
+        ? `⚡ Scan to pay partial amount (${formatINR(currentPartialPayment)})`
+        : (isQrDelta && deltaAmount > 0
+          ? `⚡ Scan to pay delta amount (${formatINR(deltaAmount)})`
+          : '⚡ Scan to pay amount'))
 
   const upiLink = upiId
-    ? buildUpiLink({ upiId, payeeName, amount: qrAmount, docNumber: doc.doc_number })
+    ? buildUpiLink({
+        upiId,
+        payeeName,
+        amount: qrAmount,
+        docNumber: doc.doc_number,
+        note: qrMode === 'balance' ? `Invoice ${doc.doc_number} Balance Due` : undefined
+      })
     : null
   const hideTax = !!doc.hide_tax_on_invoice
 
@@ -519,7 +529,7 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile?
           </div>
 
           {/* UPI Scan to Pay Card (Invoices only) */}
-          {((seller?.enable_scan_to_pay ?? profile?.enable_scan_to_pay) !== 0 && (seller?.enable_scan_to_pay ?? profile?.enable_scan_to_pay) !== false) && !isQuotation && upiLink && (
+          {(((seller?.enable_scan_to_pay ?? profile?.enable_scan_to_pay) !== 0 && (seller?.enable_scan_to_pay ?? profile?.enable_scan_to_pay) !== false) || (qrMode === 'balance' && balanceDue > 0)) && !isQuotation && upiLink && (
             <div style={{ textAlign: 'center', marginTop: 14, padding: 12, border: '1px dashed #cbd5e1', borderRadius: 10, background: '#f8fafc' }}>
               <p style={{ fontSize: 10, fontWeight: 800, color: accentColor, margin: '0 0 6px 0', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 {qrHeader}

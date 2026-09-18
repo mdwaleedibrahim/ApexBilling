@@ -1,11 +1,11 @@
 import { useEffect, useState, useRef } from 'react'
-import { Search, Eye, Edit, XCircle, Printer, X, FileCheck } from 'lucide-react'
+import { Search, Eye, Edit, XCircle, Printer, X, FileCheck, BellRing } from 'lucide-react'
 import { api } from '../../utils/api'
 import { formatINR, formatDate } from '../../utils/upiHelper'
 import { useBillingStore } from '../../store/useBillingStore'
 import { useDialogStore } from '../../store/useDialogStore'
 import A4InvoiceTemplate from '../print/A4InvoiceTemplate'
-import { WhatsAppIcon, shareInvoiceViaWhatsApp } from '../../utils/whatsappHelper'
+import { WhatsAppIcon, shareInvoiceViaWhatsApp, sendPaymentReminderViaWhatsApp } from '../../utils/whatsappHelper'
 
 interface Props { onEdit: (doc: any) => void }
 
@@ -26,6 +26,7 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
   const [viewDoc, setViewDoc] = useState<any>(null)
   const [sharingDoc, setSharingDoc] = useState<any>(null)
   const [profile, setProfile] = useState<any>(null)
+  const [sharingQrMode, setSharingQrMode] = useState<'default' | 'balance'>('default')
   const hiddenPdfRef = useRef<HTMLDivElement>(null)
   const viewModalPdfRef = useRef<HTMLDivElement>(null)
   const store = useBillingStore()
@@ -105,6 +106,7 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
   const handleWhatsAppShare = async (doc: any) => {
     let targetElement: HTMLElement | null = null
     let fullDoc = doc
+    setSharingQrMode('default')
     if (viewDoc && viewDoc.id === doc.id && viewModalPdfRef.current) {
       targetElement = viewModalPdfRef.current
       fullDoc = viewDoc
@@ -115,6 +117,22 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
       targetElement = hiddenPdfRef.current
     }
     await shareInvoiceViaWhatsApp(targetElement, fullDoc, profile)
+  }
+
+  const handleSendReminder = async (doc: any) => {
+    let targetElement: HTMLElement | null = null
+    let fullDoc = doc
+    setSharingQrMode('balance')
+    if (viewDoc && viewDoc.id === doc.id && viewModalPdfRef.current) {
+      targetElement = viewModalPdfRef.current
+      fullDoc = viewDoc
+    } else {
+      fullDoc = (doc.items && doc.items.length) ? doc : await api.documents.get(doc.id)
+      setSharingDoc(fullDoc)
+      await new Promise(r => setTimeout(r, 120))
+      targetElement = hiddenPdfRef.current
+    }
+    await sendPaymentReminderViaWhatsApp(targetElement, fullDoc, profile)
   }
 
   const showProfit = profile?.show_profit_in_records !== 0 && profile?.show_profit_in_records !== false
@@ -267,6 +285,15 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
                       <div className="flex items-center gap-1">
                         <button onClick={() => handleView(doc)} className="btn-ghost p-1.5 text-blue-400" title="View Document"><Eye size={14} /></button>
                         <button onClick={() => handleWhatsAppShare(doc)} className="btn-ghost p-1.5 text-emerald-400 hover:bg-emerald-500/20" title="Share via WhatsApp"><WhatsAppIcon size={15} className="text-emerald-400" /></button>
+                        {pendingAmount > 0 && (
+                          <button
+                            onClick={() => handleSendReminder(doc)}
+                            className="btn-ghost p-1.5 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 transition-colors"
+                            title={`Send Payment Reminder via WhatsApp (${formatINR(pendingAmount)} Due)`}
+                          >
+                            <BellRing size={14} className="text-amber-400" />
+                          </button>
+                        )}
                         <button onClick={() => handlePrint(doc)} className="btn-ghost p-1.5 text-gray-300" title="Print"><Printer size={14} /></button>
                         {doc.doc_type === 'QUOTATION' && doc.payment_status !== 'CANCELLED' && (
                           <button onClick={() => handleConvert(doc)} className="btn-ghost p-1.5 text-emerald-400 hover:bg-emerald-500/20" title="Convert to Tax Invoice">
@@ -307,6 +334,15 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
                 >
                   <WhatsAppIcon size={14} className="text-white" /> WhatsApp
                 </button>
+                {viewDoc.doc_type === 'INVOICE' && Math.max(0, viewDoc.grand_total - (viewDoc.paid_amount || 0)) > 0 && viewDoc.payment_status !== 'CANCELLED' && (
+                  <button
+                    onClick={() => handleSendReminder(viewDoc)}
+                    className="btn-primary text-xs py-1.5 bg-amber-600 hover:bg-amber-500 border-0 flex items-center gap-1.5 shadow-sm shadow-amber-600/30 text-white font-medium"
+                    title={`Send Payment Reminder via WhatsApp (${formatINR(Math.max(0, viewDoc.grand_total - (viewDoc.paid_amount || 0)))} Due)`}
+                  >
+                    <BellRing size={14} className="text-white" /> Send Reminder
+                  </button>
+                )}
                 {viewDoc.doc_type === 'QUOTATION' && viewDoc.payment_status !== 'CANCELLED' && (
                   <button onClick={() => handleConvert(viewDoc)} className="btn-primary text-xs py-1.5 bg-emerald-600 hover:bg-emerald-500 border-0">
                     <FileCheck size={14} /> Convert to Invoice
@@ -321,7 +357,7 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
               </div>
             </div>
             <div ref={viewModalPdfRef}>
-              <A4InvoiceTemplate doc={viewDoc} profile={profile} />
+              <A4InvoiceTemplate doc={viewDoc} profile={profile} qrMode={sharingQrMode} />
             </div>
           </div>
         </div>
@@ -331,7 +367,7 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
       {sharingDoc && (
         <div style={{ position: 'fixed', left: '-9999px', top: 0, width: '210mm', opacity: 0, pointerEvents: 'none' }}>
           <div ref={hiddenPdfRef}>
-            <A4InvoiceTemplate doc={sharingDoc} profile={profile} />
+            <A4InvoiceTemplate doc={sharingDoc} profile={profile} qrMode={sharingQrMode} />
           </div>
         </div>
       )}

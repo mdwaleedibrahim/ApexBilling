@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
-import { Search, Plus, Edit, Trash2, Receipt, X, Save, Sparkles, BarChart3, RefreshCw } from 'lucide-react'
+import { useEffect, useState, useRef } from 'react'
+import { Search, Plus, Edit, Trash2, Receipt, X, Save, Sparkles, BarChart3, RefreshCw, BellRing } from 'lucide-react'
 import { api } from '../../utils/api'
 import { formatINR, formatDate } from '../../utils/upiHelper'
 import { INDIAN_STATES } from '../../utils/gstEngine'
 import { normalizePhone } from '../../utils/phoneHelper'
 import { useDialogStore } from '../../store/useDialogStore'
+import A4InvoiceTemplate from '../print/A4InvoiceTemplate'
+import { sendPaymentReminderViaWhatsApp } from '../../utils/whatsappHelper'
 
 const EMPTY = { phone: '', name: '', email: '', gstin: '', billing_address: '', state_code: '36' }
 
@@ -28,6 +30,9 @@ export default function CustomerDirectory({ onViewAnalytics }: { onViewAnalytics
   const [loading, setLoading] = useState(false)
   const [gstinLoading, setGstinLoading] = useState(false)
   const [gstinToast, setGstinToast] = useState<{ type: 'success' | 'warn' | 'error'; msg: string; link?: string } | null>(null)
+  const [profile, setProfile] = useState<any>(null)
+  const [reminderDoc, setReminderDoc] = useState<any>(null)
+  const hiddenPdfRef = useRef<HTMLDivElement>(null)
 
   const load = async () => {
     const q = search.trim()
@@ -73,6 +78,23 @@ export default function CustomerDirectory({ onViewAnalytics }: { onViewAnalytics
     setSelected(c)
     const inv = await api.customers.invoices(c.phone)
     setInvoices(inv)
+  }
+
+  const handleSendReminder = async (inv: any) => {
+    try {
+      const fullDoc = await api.documents.get(inv.id)
+      let prof = profile
+      if (!prof) {
+        const p = await api.settings.getProfile()
+        prof = p?.profile ? { ...p.profile, upiAccounts: p.upiAccounts || [] } : null
+        setProfile(prof)
+      }
+      setReminderDoc(fullDoc)
+      await new Promise(r => setTimeout(r, 120))
+      await sendPaymentReminderViaWhatsApp(hiddenPdfRef.current, fullDoc, prof)
+    } catch (e) {
+      console.error('Failed to send reminder from customer directory:', e)
+    }
   }
 
   const f = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }))
@@ -343,22 +365,48 @@ export default function CustomerDirectory({ onViewAnalytics }: { onViewAnalytics
             </div>
             <div className="space-y-1.5 max-h-96 overflow-y-auto">
               {invoices.length === 0 && <p className="text-sm text-gray-500">No invoices yet.</p>}
-              {invoices.map(inv => (
-                <div key={inv.id} className="flex items-center justify-between px-3 py-2 bg-white/5 rounded-xl text-sm">
-                  <div>
-                    <p className="font-mono text-xs text-brand-300">{inv.doc_number}</p>
-                    <p className="text-xs text-gray-500">{formatDate(inv.doc_date)}</p>
+              {invoices.map(inv => {
+                const pending = inv.payment_status !== 'CANCELLED' ? Math.max(0, Number(inv.grand_total || 0) - Number(inv.paid_amount || 0)) : 0
+                return (
+                  <div key={inv.id} className="flex items-center justify-between px-3 py-2 bg-white/5 rounded-xl text-sm">
+                    <div>
+                      <p className="font-mono text-xs text-brand-300">{inv.doc_number}</p>
+                      <p className="text-xs text-gray-500">{formatDate(inv.doc_date)}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-right">
+                        <p className="font-medium text-emerald-400">{formatINR(inv.grand_total)}</p>
+                        <span className={`text-xs ${inv.payment_status === 'PAID' ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {inv.payment_status}
+                        </span>
+                      </div>
+                      {pending > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleSendReminder(inv)}
+                          className="btn-ghost p-1.5 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 transition-colors"
+                          title={`Send WhatsApp Reminder (${formatINR(pending)} Due)`}
+                        >
+                          <BellRing size={14} className="text-amber-400" />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium text-emerald-400">{formatINR(inv.grand_total)}</p>
-                    <span className={`text-xs ${inv.payment_status === 'PAID' ? 'text-emerald-400' : 'text-red-400'}`}>{inv.payment_status}</span>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}
       </div>
+
+      {/* Hidden target for generating PDF when sending reminder from customer directory */}
+      {reminderDoc && (
+        <div style={{ position: 'fixed', left: '-9999px', top: 0, width: '210mm', opacity: 0, pointerEvents: 'none' }}>
+          <div ref={hiddenPdfRef}>
+            <A4InvoiceTemplate doc={reminderDoc} profile={profile} qrMode="balance" />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

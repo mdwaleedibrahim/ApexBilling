@@ -1,15 +1,29 @@
 /**
  * whatsappHelper.tsx
- * Utility and UI modal for 2-step WhatsApp sharing:
- * Step 1: Direct share of invoice/quotation number & store name (no Web Share menu).
+ * Utility and UI modal for 2-step WhatsApp sharing & Payment Reminders:
+ * Step 1: Direct share of invoice/quotation number or payment reminder & store name (no Web Share menu).
  * Step 2: Send the PDF attachment via the system share menu (customer appears at the top).
+ * Also provides a Balance Due UPI QR Code preview, image download, and quick UPI link copy.
  */
 import React, { useState } from 'react'
+import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react'
 import { generateInvoicePdfBlob } from './pdfHelper'
-import { formatINR } from './upiHelper'
+import { formatINR, formatDate, buildUpiLink } from './upiHelper'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWhatsAppShareStore } from '../store/useWhatsAppShareStore'
-import { CheckCircle2, MessageSquare, Paperclip, Share2, Download, X, ExternalLink, Loader2 } from 'lucide-react'
+import {
+  CheckCircle2,
+  MessageSquare,
+  Share2,
+  Download,
+  X,
+  ExternalLink,
+  Loader2,
+  BellRing,
+  Copy,
+  Check,
+  QrCode
+} from 'lucide-react'
 
 export function WhatsAppIcon({ size = 16, className = "" }: { size?: number; className?: string }) {
   return (
@@ -48,6 +62,73 @@ export function generateWhatsAppMessage(doc: { docType: string; docNumber: strin
   if (doc.storeName) {
     msg += `\n*Store:* ${doc.storeName}`
   }
+  return msg
+}
+
+/**
+ * Generates direct payment reminder message for creditor with balance due, invoice details and UPI deep link
+ */
+export function generateWhatsAppReminderMessage(params: {
+  docNumber: string
+  docDate?: string
+  grandTotal: number
+  paidAmount: number
+  balanceDue: number
+  customerName?: string
+  storeName?: string
+  upiId?: string | null
+  payeeName?: string | null
+  upiLink?: string | null
+}): string {
+  const {
+    docNumber,
+    docDate,
+    grandTotal,
+    paidAmount,
+    balanceDue,
+    customerName,
+    storeName,
+    upiId,
+    payeeName,
+    upiLink
+  } = params
+
+  let msg = `🔔 *PAYMENT REMINDER*`
+  if (storeName) {
+    msg += `\n*From:* ${storeName}`
+  }
+  if (customerName && customerName.trim()) {
+    msg += `\n\nDear *${customerName.trim()}*,`
+  } else {
+    msg += `\n\nDear Customer,`
+  }
+  msg += `\nThis is a gentle reminder regarding the outstanding balance for your invoice.`
+  msg += `\n\n📄 *Invoice No:* ${docNumber}`
+  if (docDate) {
+    msg += `\n📅 *Invoice Date:* ${formatDate(docDate)}`
+  }
+  msg += `\n💰 *Total Amount:* ${formatINR(grandTotal)}`
+  if (paidAmount > 0) {
+    msg += `\n✅ *Amount Paid:* ${formatINR(paidAmount)}`
+  }
+  msg += `\n⚠️ *Balance Due: ${formatINR(balanceDue)}*`
+
+  if (upiId) {
+    msg += `\n\n━━━━━━━━━━━━━━━━━━━━`
+    msg += `\n⚡ *Instant UPI Payment Details*`
+    msg += `\n*UPI ID:* \`${upiId}\``
+    if (payeeName) {
+      msg += `\n*Payee:* ${payeeName}`
+    }
+    msg += `\n*Amount to Pay:* ${formatINR(balanceDue)}`
+    if (upiLink) {
+      msg += `\n*UPI Pay Link:* ${upiLink}`
+    }
+    msg += `\n━━━━━━━━━━━━━━━━━━━━`
+  }
+
+  msg += `\n\nPlease find your invoice attached with the payment QR code. Kindly clear the outstanding balance at your earliest convenience.`
+  msg += `\nThank you for your business!`
   return msg
 }
 
@@ -113,13 +194,6 @@ export async function sharePdfAttachment(pdfBlob: Blob, filename: string): Promi
   return true
 }
 
-/**
- * Main Entry Point:
- * Orchestrates the 2-step WhatsApp sharing workflow:
- * 1. Opens 2-step modal and initiates PDF generation.
- * 2. Directly executes Step 1 (direct share to customer's chat).
- * 3. Prepares Step 2 for 1-click execution.
- */
 function triggerBlobDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -220,6 +294,9 @@ async function shareViaWebShareFallback(
   )
 }
 
+/**
+ * Standard WhatsApp Share Entry Point
+ */
 export async function shareInvoiceViaWhatsApp(
   element: HTMLElement | null,
   doc: any,
@@ -257,6 +334,7 @@ export async function shareInvoiceViaWhatsApp(
     cleanedPhone,
     textMsg,
     filename,
+    mode: 'share',
     isGeneratingPdf: !!element,
     pdfBlob: null
   })
@@ -278,11 +356,108 @@ export async function shareInvoiceViaWhatsApp(
 }
 
 /**
+ * Creditor Payment Reminder Entry Point:
+ * Orchestrates sending payment reminder to creditor with balance due, invoice PDF, and UPI QR link.
+ */
+export async function sendPaymentReminderViaWhatsApp(
+  element: HTMLElement | null,
+  doc: any,
+  profile: any
+): Promise<void> {
+  const snap = typeof doc.customer_snapshot === 'string'
+    ? (() => { try { return JSON.parse(doc.customer_snapshot) } catch { return {} } })()
+    : (doc.customer_snapshot || {})
+  const phone = doc.customer_phone || snap.phone || ''
+  const filename = `${doc.doc_number}.pdf`
+
+  // Validate phone number
+  if (!phone || phone.startsWith('NO_PHONE_')) {
+    await useDialogStore.getState().show(
+      `No phone number found for this customer on invoice ${doc.doc_number}.\n\nPlease update the customer's phone number in Customers or edit the invoice to send a WhatsApp payment reminder.`,
+      false,
+      'Missing Customer Phone'
+    )
+    return
+  }
+
+  const cleanedPhone = cleanPhoneForWhatsApp(phone)
+  const sellerSnap = typeof doc.seller_snapshot === 'string'
+    ? (() => { try { return JSON.parse(doc.seller_snapshot) } catch { return null } })()
+    : (doc.seller_snapshot || null)
+  const seller = sellerSnap || profile || {}
+  const storeName = seller?.business_name || profile?.business_name || 'ApexBill'
+
+  const balanceDue = Math.max(0, Number(doc.grand_total || 0) - Number(doc.paid_amount || 0))
+  const defaultUpiAcc = profile?.upiAccounts?.find((a: any) => a.is_default) || profile?.upiAccounts?.[0]
+  const upiId = doc.selected_upi_id || seller?.active_upi_id || profile?.active_upi_id || defaultUpiAcc?.upi_id || (seller?.phone ? `${seller.phone}@upi` : null)
+  const payeeName = defaultUpiAcc?.payee_name || seller?.business_name || profile?.business_name || 'Merchant'
+
+  const upiLink = upiId
+    ? buildUpiLink({
+        upiId,
+        payeeName,
+        amount: balanceDue,
+        docNumber: doc.doc_number,
+        note: `Invoice ${doc.doc_number} Balance Due`
+      })
+    : null
+
+  const customerName = doc.customer_name || snap.name || ''
+
+  const textMsg = generateWhatsAppReminderMessage({
+    docNumber: doc.doc_number,
+    docDate: doc.doc_date,
+    grandTotal: Number(doc.grand_total || 0),
+    paidAmount: Number(doc.paid_amount || 0),
+    balanceDue,
+    customerName,
+    storeName,
+    upiId,
+    payeeName,
+    upiLink: upiLink || undefined
+  })
+
+  // Open the 2-step modal in reminder mode
+  const store = useWhatsAppShareStore.getState()
+  store.open({
+    doc,
+    phone,
+    cleanedPhone,
+    textMsg,
+    filename,
+    mode: 'reminder',
+    balanceDue,
+    upiLink,
+    upiId,
+    payeeName,
+    isGeneratingPdf: !!element,
+    pdfBlob: null
+  })
+
+  // Step 1: Execute direct share immediately (direct message to creditor's WhatsApp chat)
+  openWhatsAppChat(phone, textMsg)
+  store.setStep1Completed(true)
+
+  // Asynchronously generate the PDF blob for Step 2
+  if (element) {
+    try {
+      const blob = await generateInvoicePdfBlob(element, filename)
+      store.setPdfBlob(blob)
+    } catch (e) {
+      console.warn('PDF generation failed for reminder:', e)
+      store.setIsGeneratingPdf(false)
+    }
+  }
+}
+
+/**
  * Global 2-Step WhatsApp Share Modal Component
+ * Supports both Standard Share and Creditor Payment Reminder with live UPI QR code preview
  */
 export function WhatsAppShareModal() {
   const {
     isOpen,
+    mode,
     doc,
     phone,
     textMsg,
@@ -291,17 +466,23 @@ export function WhatsAppShareModal() {
     isGeneratingPdf,
     step1Completed,
     step2Completed,
+    balanceDue = 0,
+    upiLink,
+    upiId,
+    payeeName,
     setStep1Completed,
     setStep2Completed,
     close
   } = useWhatsAppShareStore()
 
   const [isSharingStep2, setIsSharingStep2] = useState(false)
+  const [copiedUpi, setCopiedUpi] = useState(false)
+  const [copiedMsg, setCopiedMsg] = useState(false)
 
   if (!isOpen || !doc) return null
 
   const customerName = doc.customer_name || 'Customer'
-  const isInvoice = doc.doc_type === 'INVOICE'
+  const isReminder = mode === 'reminder'
 
   const handleStep1 = () => {
     openWhatsAppChat(phone, textMsg)
@@ -338,21 +519,57 @@ export function WhatsAppShareModal() {
     setTimeout(() => URL.revokeObjectURL(url), 5000)
   }
 
+  const handleCopyUpiLink = async () => {
+    if (!upiLink) return
+    try {
+      await navigator.clipboard.writeText(upiLink)
+      setCopiedUpi(true)
+      setTimeout(() => setCopiedUpi(false), 2000)
+    } catch {}
+  }
+
+  const handleCopyMessage = async () => {
+    try {
+      await navigator.clipboard.writeText(textMsg)
+      setCopiedMsg(true)
+      setTimeout(() => setCopiedMsg(false), 2000)
+    } catch {}
+  }
+
+  const handleDownloadQrImage = () => {
+    const canvas = document.getElementById('reminder-qr-canvas') as HTMLCanvasElement
+    if (!canvas) return
+    const dataUrl = canvas.toDataURL('image/png')
+    const a = document.createElement('a')
+    a.href = dataUrl
+    a.download = `${doc.doc_number}-Balance-QR.png`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-      <div className="bg-gray-900 border border-white/10 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col">
+      <div className="bg-gray-900 border border-white/10 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Modal Header */}
         <div className="flex items-center justify-between p-4 border-b border-white/10 bg-gray-950/60">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-              <WhatsAppIcon size={18} />
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+              isReminder ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'
+            }`}>
+              {isReminder ? <BellRing size={18} /> : <WhatsAppIcon size={18} />}
             </div>
             <div>
               <h3 className="text-sm font-semibold text-gray-100 flex items-center gap-2">
-                WhatsApp 2-Step Share
+                {isReminder ? 'Payment Reminder • WhatsApp' : 'WhatsApp 2-Step Share'}
                 <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                   {doc.doc_number}
                 </span>
+                {isReminder && balanceDue > 0 && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 font-mono font-bold border border-red-500/30">
+                    Due: {formatINR(balanceDue)}
+                  </span>
+                )}
               </h3>
               <p className="text-xs text-gray-400">
                 {customerName} • <span className="font-mono text-gray-300">{phone}</span>
@@ -368,18 +585,82 @@ export function WhatsAppShareModal() {
           </button>
         </div>
 
-        {/* Modal Body: 2 Steps */}
-        <div className="p-5 space-y-4">
-          {/* Step 1: Direct Share */}
+        {/* Modal Body */}
+        <div className="p-5 space-y-4 overflow-y-auto">
+          {/* Reminder UPI QR Code Section */}
+          {isReminder && upiLink && (
+            <div className="p-3.5 rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-950/30 to-amber-900/10 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <QrCode size={15} className="text-amber-400" />
+                  <h4 className="text-xs font-semibold text-amber-300 uppercase tracking-wider">
+                    UPI QR Code for Balance Due ({formatINR(balanceDue)})
+                  </h4>
+                </div>
+                <span className="text-[10px] font-mono text-amber-400/80 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                  Scan & Pay
+                </span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-3.5 bg-gray-950/70 p-3 rounded-xl border border-white/5">
+                <div className="p-2 bg-white rounded-xl shadow-md shrink-0">
+                  <QRCodeSVG value={upiLink} size={92} />
+                  {/* Hidden high-res canvas for PNG download */}
+                  <div className="hidden">
+                    <QRCodeCanvas id="reminder-qr-canvas" value={upiLink} size={400} includeMargin={true} />
+                  </div>
+                </div>
+                <div className="flex-1 text-center sm:text-left space-y-1">
+                  <p className="text-xs font-medium text-gray-300">
+                    Outstanding Due:{' '}
+                    <span className="text-red-400 font-mono text-sm font-bold">{formatINR(balanceDue)}</span>
+                  </p>
+                  {upiId && (
+                    <p className="text-[11px] text-gray-400 font-mono truncate">
+                      UPI ID: <span className="text-brand-300 font-semibold">{upiId}</span>
+                    </p>
+                  )}
+                  {payeeName && (
+                    <p className="text-[11px] text-gray-400 truncate">
+                      Payee: <span className="text-gray-200">{payeeName}</span>
+                    </p>
+                  )}
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleDownloadQrImage}
+                      className="px-2.5 py-1 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 text-amber-300 rounded-lg text-xs font-medium flex items-center gap-1 transition-all"
+                      title="Download QR code image to send in chat"
+                    >
+                      <Download size={12} /> Download QR (PNG)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCopyUpiLink}
+                      className="px-2.5 py-1 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 rounded-lg text-xs font-medium flex items-center gap-1 transition-all"
+                      title="Copy UPI payment deep link"
+                    >
+                      {copiedUpi ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                      {copiedUpi ? 'Copied Link!' : 'Copy UPI Link'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 1: Direct Message */}
           <div className={`p-4 rounded-xl border transition-all ${step1Completed ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-white/5 border-white/10'}`}>
             <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold mt-0.5 ${step1Completed ? 'bg-emerald-500 text-white' : 'bg-gray-700 text-gray-300'}`}>
+              <div className="flex items-start gap-3 w-full">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold mt-0.5 shrink-0 ${step1Completed ? 'bg-emerald-500 text-white' : 'bg-gray-700 text-gray-300'}`}>
                   {step1Completed ? <CheckCircle2 size={16} /> : '1'}
                 </div>
-                <div>
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h4 className="text-sm font-semibold text-gray-200">Step 1: Direct Message</h4>
+                    <h4 className="text-sm font-semibold text-gray-200">
+                      {isReminder ? 'Step 1: Direct Reminder Message' : 'Step 1: Direct Message'}
+                    </h4>
                     {step1Completed && (
                       <span className="text-[10px] font-medium text-emerald-400 uppercase tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                         Chat Opened
@@ -387,16 +668,18 @@ export function WhatsAppShareModal() {
                     )}
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    Directly shares document number & store name (no share menu).
+                    {isReminder
+                      ? 'Opens WhatsApp chat with amount due, invoice breakdown & UPI payment link.'
+                      : 'Directly shares document number & store name (no share menu).'}
                   </p>
-                  <div className="mt-2 text-xs font-mono bg-gray-950/70 border border-white/5 p-2 rounded text-gray-300 whitespace-pre-line select-all">
+                  <div className="mt-2 text-xs font-mono bg-gray-950/70 border border-white/5 p-2.5 rounded text-gray-300 whitespace-pre-line select-all max-h-36 overflow-y-auto">
                     {textMsg}
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 mt-3 ml-10">
+            <div className="flex flex-wrap items-center gap-2 mt-3 ml-10">
               <button
                 type="button"
                 onClick={handleStep1}
@@ -413,18 +696,29 @@ export function WhatsAppShareModal() {
               >
                 <ExternalLink size={12} /> WhatsApp Web
               </button>
+              <button
+                type="button"
+                onClick={handleCopyMessage}
+                className="px-2.5 py-1.5 text-gray-400 hover:text-gray-200 text-xs font-medium flex items-center gap-1 hover:underline ml-auto"
+                title="Copy reminder text"
+              >
+                {copiedMsg ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                {copiedMsg ? 'Copied' : 'Copy Text'}
+              </button>
             </div>
           </div>
 
           {/* Step 2: Attachment Share */}
           <div className={`p-4 rounded-xl border transition-all ${step2Completed ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-brand-950/20 border-brand-500/30'}`}>
             <div className="flex items-start gap-3">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold mt-0.5 ${step2Completed ? 'bg-emerald-500 text-white' : 'bg-brand-600 text-white'}`}>
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold mt-0.5 shrink-0 ${step2Completed ? 'bg-emerald-500 text-white' : 'bg-brand-600 text-white'}`}>
                 {step2Completed ? <CheckCircle2 size={16} /> : '2'}
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <h4 className="text-sm font-semibold text-gray-200">Step 2: Send PDF Attachment</h4>
+                  <h4 className="text-sm font-semibold text-gray-200">
+                    {isReminder ? 'Step 2: Send Invoice PDF with Balance QR' : 'Step 2: Send PDF Attachment'}
+                  </h4>
                   {step2Completed && (
                     <span className="text-[10px] font-medium text-emerald-400 uppercase tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                       Sent
@@ -481,7 +775,9 @@ export function WhatsAppShareModal() {
         {/* Modal Footer */}
         <div className="p-4 border-t border-white/10 bg-gray-950/40 flex justify-between items-center">
           <p className="text-[11px] text-gray-400">
-            {step1Completed && step2Completed ? '✨ Both steps completed successfully!' : 'Follow Step 1 then Step 2 for 1-click sharing.'}
+            {step1Completed && step2Completed
+              ? '✨ Both reminder steps completed successfully!'
+              : 'Follow Step 1 then Step 2 for seamless reminder sharing.'}
           </p>
           <button
             type="button"
