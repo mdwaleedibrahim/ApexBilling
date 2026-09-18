@@ -3,6 +3,28 @@
 ========================================================================
 
 ========================================================================
+ApexBill Release v2.11.0 - 2026-09-18 16:48:44
+========================================================================
+Changes & Commits in this Build:
+  * feat: add native Windows .exe launcher and standalone single-file packaging (1dcb814)
+  * update changelog (5dbdee4)
+  * feat: add multi-seller GST profiles, bank accounts manager, and dashboard seller PnL filtering (aa35a7a)
+  * fix: resolve html2canvas font baseline displacement caused by Tailwind img preflight (c052f61)
+  * fix: align Trade Name and Payment status borders for print and WhatsApp PDF share (9ffa5eb)
+  * fix: align Payment Status and Trade Name badge borders for WhatsApp sharing and print (640f6a5)
+
+========================================================================
+ApexBill Release v2.10.0 - 2026-09-18 16:37:37
+========================================================================
+Changes & Commits in this Build:
+  * feat: add native Windows .exe launcher and standalone single-file packaging (1dcb814)
+  * update changelog (5dbdee4)
+  * feat: add multi-seller GST profiles, bank accounts manager, and dashboard seller PnL filtering (aa35a7a)
+  * fix: resolve html2canvas font baseline displacement caused by Tailwind img preflight (c052f61)
+  * fix: align Trade Name and Payment status borders for print and WhatsApp PDF share (9ffa5eb)
+  * fix: align Payment Status and Trade Name badge borders for WhatsApp sharing and print (640f6a5)
+
+========================================================================
 ApexBill Release v2.9.0 - 2026-09-18 16:24:35
 ========================================================================
 Changes & Commits in this Build:

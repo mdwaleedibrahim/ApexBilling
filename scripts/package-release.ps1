@@ -207,7 +207,8 @@ Write-Host "Step 5: Creating Compressed ZIP Package..." -ForegroundColor Yellow
 $zipPath = Join-Path $RELEASE_DIR "$APP_NAME.zip"
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 
-Compress-Archive -Path $BUNDLE_DIR -DestinationPath $zipPath -Force
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::CreateFromDirectory($BUNDLE_DIR, $zipPath)
 $zipSizeMb = [Math]::Round(((Get-Item $zipPath).Length / 1MB), 1)
 Write-Host "   Created ZIP: $zipPath ($zipSizeMb MB)" -ForegroundColor Green
 
@@ -222,12 +223,16 @@ $standaloneSrc = Join-Path $ROOT_DIR "scripts\launcher\ApexBillStandalone.cs"
 $standaloneExe = Join-Path $RELEASE_DIR "ApexBill-v$VERSION-Standalone.exe"
 $standaloneAlias = Join-Path $RELEASE_DIR "ApexBill-Standalone.exe"
 
+$versionTxt = Join-Path $env:TEMP "ApexBillVersion.txt"
+Set-Content -Path $versionTxt -Value $VERSION -Encoding ASCII
+
 if ((Test-Path $CSC_PATH) -and (Test-Path $standaloneSrc)) {
     $cscArgs = @(
         "/target:winexe",
         "/optimize+",
         "/platform:anycpu",
         "/resource:$zipPath,ApexBillBundle.zip",
+        "/resource:$versionTxt,BundleVersion.txt",
         "/out:$standaloneExe",
         "/win32icon:$iconPath",
         "/r:System.dll",
@@ -238,6 +243,8 @@ if ((Test-Path $CSC_PATH) -and (Test-Path $standaloneSrc)) {
     )
 
     $proc = Start-Process -FilePath $CSC_PATH -ArgumentList $cscArgs -NoNewWindow -Wait -PassThru
+    Remove-Item $versionTxt -Force -ErrorAction SilentlyContinue
+
     if ($proc.ExitCode -eq 0 -and (Test-Path $standaloneExe)) {
         Copy-Item -Path $standaloneExe -Destination $standaloneAlias -Force
         $exeSizeMb = [Math]::Round(((Get-Item $standaloneExe).Length / 1MB), 1)
