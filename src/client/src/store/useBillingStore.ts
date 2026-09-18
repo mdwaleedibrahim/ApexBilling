@@ -27,6 +27,7 @@ export interface BillingState {
   docDate: string
   notes: string
   docType: 'INVOICE' | 'QUOTATION'
+  sellerProfileId: string | null
   selectedUpiId: string | null
   hideTaxOnInvoice: boolean
   selectedTerms: string[]
@@ -50,6 +51,7 @@ export interface BillingState {
 
   // Actions
   setDocType: (t: 'INVOICE' | 'QUOTATION') => void
+  setSellerProfileId: (id: string | null) => void
   setCustomer: (c: CustomerDraft | null) => void
   setDiscountPct: (d: number) => void
   setAdditionalDiscount: (d: number) => void
@@ -87,6 +89,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   docDate: todayIso(),
   notes: '',
   docType: 'INVOICE',
+  sellerProfileId: null,
   selectedUpiId: null,
   hideTaxOnInvoice: false,
   selectedTerms: [],
@@ -112,6 +115,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
       set({ docType: t })
     }
   },
+  setSellerProfileId: (id) => set({ sellerProfileId: id }),
   setCustomer: (c) => set({ customer: c }),
   setDiscountPct: (d) => {
     const { items, additionalDiscount } = get()
@@ -193,6 +197,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
       additionalDiscount: addlDisc,
       paymentMode: doc.payment_mode || 'CASH', paymentStatus: doc.payment_status || 'PAID',
       docDate: doc.doc_date, notes: doc.notes || '', docType: doc.doc_type,
+      sellerProfileId: doc.seller_profile_id || null,
       selectedUpiId: doc.selected_upi_id || null, hideTaxOnInvoice: !!doc.hide_tax_on_invoice,
       selectedTerms: Array.isArray(terms) ? terms : [],
       paidAmount: initPaidAmount,
@@ -223,6 +228,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
       additionalDiscount: addlDisc,
       paymentMode: 'CASH', paymentStatus: 'PAID',
       docDate: todayIso(), notes: doc.notes || '', docType: 'INVOICE',
+      sellerProfileId: doc.seller_profile_id || null,
       selectedUpiId: doc.selected_upi_id || null,
       selectedTerms: [],
       paidAmount: 0,

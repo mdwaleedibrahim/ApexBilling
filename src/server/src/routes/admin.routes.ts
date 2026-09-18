@@ -6,7 +6,7 @@ import fs from 'fs'
 import path from 'path'
 import { getDb, withTransaction } from '../db/database.js'
 
-const DB_DIR  = path.join(process.env.APPDATA || process.env.HOME || '.', 'ApexBill')
+const DB_DIR = path.join(process.env.APPDATA || process.env.HOME || '.', 'ApexBill')
 const DB_PATH = path.join(DB_DIR, 'billing_app.db')
 const BACKUP_DIR = path.join(DB_DIR, 'backups')
 
@@ -37,9 +37,9 @@ export async function adminRoutes(app: FastifyInstance) {
     // List recent snapshot files
     const snapshots = fs.existsSync(BACKUP_DIR)
       ? fs.readdirSync(BACKUP_DIR).filter(f => f.endsWith('.db') || f.endsWith('.json')).map(f => {
-          const s = fs.statSync(path.join(BACKUP_DIR, f))
-          return { name: f, sizeMb: Math.round((s.size / (1024 * 1024)) * 100) / 100, createdAt: s.mtime.toISOString() }
-        }).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 10)
+        const s = fs.statSync(path.join(BACKUP_DIR, f))
+        return { name: f, sizeMb: Math.round((s.size / (1024 * 1024)) * 100) / 100, createdAt: s.mtime.toISOString() }
+      }).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 10)
       : []
 
     return reply.send({
@@ -63,6 +63,8 @@ export async function adminRoutes(app: FastifyInstance) {
     const db = getDb()
 
     const profile = db.prepare('SELECT * FROM seller_profile WHERE id=1').get()
+    const sellerProfiles = db.prepare('SELECT * FROM seller_profiles').all()
+    const sellerBankAccounts = db.prepare('SELECT * FROM seller_bank_accounts').all()
     const upiAccounts = db.prepare('SELECT * FROM seller_upi_accounts').all()
     const products = db.prepare('SELECT * FROM products').all()
     const customers = db.prepare('SELECT * FROM customers').all()
@@ -76,6 +78,8 @@ export async function adminRoutes(app: FastifyInstance) {
       exported_at: new Date().toISOString(),
       data: {
         profile,
+        sellerProfiles,
+        sellerBankAccounts,
         upiAccounts,
         products,
         customers,
@@ -87,7 +91,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
     reply
       .header('Content-Type', 'application/json')
-      .header('Content-Disposition', `attachment; filename="ApexBill_Full_Backup_${new Date().toISOString().slice(0,10)}.json"`)
+      .header('Content-Disposition', `attachment; filename="ApexBill_Full_Backup_${new Date().toISOString().slice(0, 10)}.json"`)
       .send(backupPayload)
   })
 
@@ -106,7 +110,7 @@ export async function adminRoutes(app: FastifyInstance) {
     try {
       const emergencyBackup = path.join(BACKUP_DIR, `pre_restore_${Date.now()}.db`)
       fs.copyFileSync(DB_PATH, emergencyBackup)
-    } catch {}
+    } catch { }
 
     // 2. Perform transactional wipe & repopulate
     withTransaction(() => {
@@ -116,6 +120,8 @@ export async function adminRoutes(app: FastifyInstance) {
       db.prepare('DELETE FROM customers').run()
       db.prepare('DELETE FROM products').run()
       db.prepare('DELETE FROM seller_upi_accounts').run()
+      db.prepare('DELETE FROM seller_profiles').run()
+      db.prepare('DELETE FROM seller_bank_accounts').run()
       db.prepare('DELETE FROM pos_memory_slots').run()
 
       // Restore Profile
@@ -141,6 +147,39 @@ export async function adminRoutes(app: FastifyInstance) {
           p.invoice_terms ? (typeof p.invoice_terms === 'string' ? p.invoice_terms : JSON.stringify(p.invoice_terms)) : null,
           p.quotation_terms ? (typeof p.quotation_terms === 'string' ? p.quotation_terms : JSON.stringify(p.quotation_terms)) : null
         )
+      }
+
+      // Restore Bank Accounts
+      if (Array.isArray(payload.sellerBankAccounts)) {
+        const insertBank = db.prepare(`
+          INSERT INTO seller_bank_accounts (id, bank_name, account_number, ifsc_code, branch_name, account_holder, is_default)
+          VALUES (?,?,?,?,?,?,?)
+        `)
+        for (const b of payload.sellerBankAccounts) {
+          insertBank.run(b.id, b.bank_name, b.account_number, b.ifsc_code, b.branch_name || null, b.account_holder || null, b.is_default ? 1 : 0)
+        }
+      }
+
+      // Restore Seller Profiles
+      if (Array.isArray(payload.sellerProfiles)) {
+        const insertProf = db.prepare(`
+          INSERT INTO seller_profiles (
+            id, business_name, trade_name, gstin, pan, phone, email,
+            address_line1, address_line2, city, state_code, pincode,
+            bank_account_id, bank_name, bank_account_no, bank_ifsc, bank_branch,
+            active_upi_id, is_default
+          ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        `)
+        for (const sp of payload.sellerProfiles) {
+          insertProf.run(
+            sp.id, sp.business_name, sp.trade_name || null, sp.gstin, sp.pan || null,
+            sp.phone, sp.email || null, sp.address_line1, sp.address_line2 || null,
+            sp.city, sp.state_code || '36', sp.pincode,
+            sp.bank_account_id || null, sp.bank_name || null, sp.bank_account_no || null,
+            sp.bank_ifsc || null, sp.bank_branch || null,
+            sp.active_upi_id || null, sp.is_default ? 1 : 0
+          )
+        }
       }
 
       // Restore UPI Accounts
@@ -176,14 +215,18 @@ export async function adminRoutes(app: FastifyInstance) {
       // Restore Documents
       if (Array.isArray(payload.documents)) {
         const insertDoc = db.prepare(`
-          INSERT INTO documents (id, doc_type, doc_number, parent_doc_id, doc_date, customer_phone, customer_snapshot,
+          INSERT INTO documents (id, doc_type, doc_number, parent_doc_id, doc_date,
+            seller_profile_id, seller_snapshot, customer_phone, customer_snapshot,
             gross_subtotal, discount_pct, discount_amount, taxable_amount, cgst_total, sgst_total,
             round_off, grand_total, payment_mode, payment_status, selected_upi_id, revision_number, notes, terms_and_conditions, hide_tax_on_invoice)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         `)
         for (const d of payload.documents) {
           insertDoc.run(
-            d.id, d.doc_type, d.doc_number, d.parent_doc_id || null, d.doc_date, d.customer_phone || null,
+            d.id, d.doc_type, d.doc_number, d.parent_doc_id || null, d.doc_date,
+            d.seller_profile_id || null,
+            d.seller_snapshot ? (typeof d.seller_snapshot === 'string' ? d.seller_snapshot : JSON.stringify(d.seller_snapshot)) : null,
+            d.customer_phone || null,
             typeof d.customer_snapshot === 'string' ? d.customer_snapshot : JSON.stringify(d.customer_snapshot || {}),
             d.gross_subtotal, d.discount_pct || 0, d.discount_amount || 0, d.taxable_amount,
             d.cgst_total || 0, d.sgst_total || 0, d.round_off || 0, d.grand_total,

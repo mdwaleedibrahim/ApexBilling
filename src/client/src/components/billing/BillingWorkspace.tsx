@@ -5,29 +5,42 @@ import ItemEntryTable from './ItemEntryTable'
 import SummaryCheckoutCard from './SummaryCheckoutCard'
 import TermsAndConditionsCard from './TermsAndConditionsCard'
 import MemorySlotBar from './MemorySlotBar'
+import SellerProfileSelector from './SellerProfileSelector'
 import A4InvoiceTemplate from '../print/A4InvoiceTemplate'
 import { api } from '../../utils/api'
 import { useBillingStore } from '../../store/useBillingStore'
 import { WhatsAppIcon, shareInvoiceViaWhatsApp } from '../../utils/whatsappHelper'
 
 export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => void } = {}) {
-  const [profile, setProfile] = useState<any>(null)
+  const [profiles, setProfiles] = useState<any[]>([])
+  const [storeSettings, setStoreSettings] = useState<any>(null)
+  const [upiAccounts, setUpiAccounts] = useState<any[]>([])
   const [successDoc, setSuccessDoc] = useState<any>(null)
   const [showPrint, setShowPrint] = useState(false)
   const printTemplateRef = useRef<HTMLDivElement>(null)
   const store = useBillingStore()
 
-  const loadProfile = () => {
-    api.settings.getProfile().then(r => setProfile({ ...r?.profile, upiAccounts: r?.upiAccounts || [] }))
+  const loadProfiles = () => {
+    api.settings.getProfiles().then(r => {
+      const profs = r?.profiles || []
+      setProfiles(profs)
+      setStoreSettings(r?.storeSettings || null)
+      setUpiAccounts(r?.upiAccounts || [])
+
+      if (!useBillingStore.getState().sellerProfileId && profs.length > 0) {
+        const def = profs.find((p: any) => p.is_default) || profs[0]
+        useBillingStore.getState().setSellerProfileId(def.id)
+      }
+    }).catch(err => console.error('Failed loading profiles in BillingWorkspace:', err))
   }
 
   useEffect(() => {
-    loadProfile()
-    window.addEventListener('focus', loadProfile)
-    document.addEventListener('visibilitychange', loadProfile)
+    loadProfiles()
+    window.addEventListener('focus', loadProfiles)
+    document.addEventListener('visibilitychange', loadProfiles)
     return () => {
-      window.removeEventListener('focus', loadProfile)
-      document.removeEventListener('visibilitychange', loadProfile)
+      window.removeEventListener('focus', loadProfiles)
+      document.removeEventListener('visibilitychange', loadProfiles)
     }
   }, [])
 
@@ -45,16 +58,33 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
     setShowPrint(true)
   }
 
+  const activeProfile = profiles.find(p => p.id === store.sellerProfileId) ||
+                        profiles.find(p => p.is_default) ||
+                        profiles[0] || null
+
+  const combinedProfile = activeProfile ? {
+    ...storeSettings,
+    ...activeProfile,
+    upiAccounts,
+  } : null
+
   const handleWhatsAppShare = async () => {
     if (!successDoc) return
-    await shareInvoiceViaWhatsApp(printTemplateRef.current, successDoc, profile)
+    await shareInvoiceViaWhatsApp(printTemplateRef.current, successDoc, combinedProfile)
   }
 
   return (
     <div className="p-4 h-full flex flex-col gap-4">
-      {/* Slot bar + edit banner */}
-      <div className="no-print flex items-center justify-between flex-shrink-0">
-        <MemorySlotBar />
+      {/* Slot bar + Seller Profile Selector + edit banner */}
+      <div className="no-print flex items-center justify-between flex-shrink-0 flex-wrap gap-2">
+        <div className="flex items-center gap-3 flex-wrap">
+          <MemorySlotBar />
+          <SellerProfileSelector
+            profiles={profiles}
+            activeProfile={activeProfile}
+            onSelectProfile={(p) => store.setSellerProfileId(p.id)}
+          />
+        </div>
         {store.editingDocNumber && (
           <span className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-full">
             ✏️ Editing {store.editingDocNumber}
@@ -72,18 +102,18 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
           </div>
           <div className="glass-card p-4 flex-1 relative z-10">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Items</h3>
-            <ItemEntryTable sellerProfile={profile} />
+            <ItemEntryTable sellerProfile={combinedProfile} />
           </div>
           {/* Terms & Conditions Section */}
           <TermsAndConditionsCard
-            sellerProfile={profile}
-            onProfileUpdated={(updated) => setProfile((prev: any) => ({ ...prev, ...updated }))}
+            sellerProfile={combinedProfile}
+            onProfileUpdated={() => loadProfiles()}
           />
         </div>
 
         {/* Right: Summary + Checkout */}
         <div className="overflow-y-auto">
-          <SummaryCheckoutCard onSuccess={handleSuccess} sellerProfile={profile} />
+          <SummaryCheckoutCard onSuccess={handleSuccess} sellerProfile={combinedProfile} />
         </div>
       </div>
 
@@ -115,7 +145,7 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
               </div>
             </div>
             <div ref={printTemplateRef}>
-              <A4InvoiceTemplate doc={successDoc} profile={profile} />
+              <A4InvoiceTemplate doc={successDoc} profile={combinedProfile} />
             </div>
           </div>
         </div>

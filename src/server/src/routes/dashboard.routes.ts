@@ -1,13 +1,15 @@
 /**
- * dashboard.routes.ts - Phase 7: Sales Dashboard & Analytics
+ * dashboard.routes.ts - Phase 7: Sales Dashboard & Analytics with Multi-Seller PnL Filter
  */
 import type { FastifyInstance } from 'fastify';
 import { getDb } from '../db/database.js';
 
 export async function dashboardRoutes(app: FastifyInstance) {
-  // GET /api/dashboard/metrics
-  app.get('/api/dashboard/metrics', (_req, reply) => {
+  // GET /api/dashboard/metrics?seller_profile_id=ALL|uuid
+  app.get<{ Querystring: { seller_profile_id?: string } }>('/api/dashboard/metrics', (req, reply) => {
     const db = getDb();
+    const { seller_profile_id } = req.query;
+    const isFiltered = !!(seller_profile_id && seller_profile_id !== 'ALL' && seller_profile_id !== 'undefined');
 
     const today = new Date().toISOString().slice(0, 10);
     const dayOfWeek = new Date().getDay(); // 0=Sun
@@ -18,10 +20,15 @@ export async function dashboardRoutes(app: FastifyInstance) {
     const yearStart = today.slice(0, 4) + '-01-01';
 
     const metricQuery = (from: string, to?: string) => {
-      const sql = to
+      let sql = to
         ? `SELECT COALESCE(SUM(grand_total),0) as revenue, COUNT(*) as count FROM documents WHERE doc_type='INVOICE' AND payment_status != 'CANCELLED' AND doc_date BETWEEN ? AND ?`
         : `SELECT COALESCE(SUM(grand_total),0) as revenue, COUNT(*) as count FROM documents WHERE doc_type='INVOICE' AND payment_status != 'CANCELLED' AND doc_date = ?`;
-      return to ? db.prepare(sql).get(from, to) : db.prepare(sql).get(from);
+      const params = to ? [from, to] : [from];
+      if (isFiltered) {
+        sql += ` AND seller_profile_id = ?`;
+        params.push(seller_profile_id!);
+      }
+      return db.prepare(sql).get(...params);
     };
 
     // Generate last 12 months list: ['2025-09', ..., '2026-08']
@@ -34,15 +41,21 @@ export async function dashboardRoutes(app: FastifyInstance) {
       last12Months.push({ month: mStr, label, revenue: 0, count: 0 });
     }
 
-    const dbMonthly = db.prepare(`
+    let monthlySql = `
       SELECT substr(doc_date, 1, 7) as month,
              COALESCE(SUM(grand_total),0) as revenue,
              COUNT(*) as count
       FROM documents
       WHERE doc_type='INVOICE' AND payment_status != 'CANCELLED'
-      GROUP BY month
-    `).all() as any[];
+    `;
+    const monthlyParams: any[] = [];
+    if (isFiltered) {
+      monthlySql += ` AND seller_profile_id = ?`;
+      monthlyParams.push(seller_profile_id);
+    }
+    monthlySql += ` GROUP BY month`;
 
+    const dbMonthly = db.prepare(monthlySql).all(...monthlyParams) as any[];
     const monthlyMap = new Map(dbMonthly.map((r: any) => [r.month, r]));
 
     const monthly = last12Months.map(m => {
@@ -55,26 +68,37 @@ export async function dashboardRoutes(app: FastifyInstance) {
       };
     });
 
-    // Outstanding balance
+    // Outstanding balance (customers table)
     const outstanding = (db.prepare(
       `SELECT COALESCE(SUM(outstanding_balance),0) as total FROM customers`
     ).get() as any).total;
 
-    const unpaidTotal = (db.prepare(
-      `SELECT COALESCE(SUM(grand_total),0) as total FROM documents WHERE doc_type='INVOICE' AND payment_status IN ('UNPAID','PARTIAL')`
-    ).get() as any).total;
+    let unpaidSql = `SELECT COALESCE(SUM(grand_total - paid_amount),0) as total FROM documents WHERE doc_type='INVOICE' AND payment_status IN ('UNPAID','PARTIAL')`;
+    const unpaidParams: any[] = [];
+    if (isFiltered) {
+      unpaidSql += ` AND seller_profile_id = ?`;
+      unpaidParams.push(seller_profile_id);
+    }
+    const unpaidTotal = (db.prepare(unpaidSql).get(...unpaidParams) as any).total;
 
     const pnlQuery = (from: string, to?: string) => {
       const filter = to ? `doc_date BETWEEN ? AND ?` : `doc_date = ?`;
       const params = to ? [from, to] : [from];
-      
+      let sellerDocCond = '';
+      let sellerItemCond = '';
+      if (isFiltered) {
+        sellerDocCond = ` AND seller_profile_id = ?`;
+        sellerItemCond = ` AND d.seller_profile_id = ?`;
+        params.push(seller_profile_id!);
+      }
+
       const docTotals = db.prepare(`
         SELECT
           COALESCE(SUM(grand_total), 0) as gross_revenue,
           COALESCE(SUM(taxable_amount), 0) as taxable_revenue,
           COALESCE(SUM(cgst_total + sgst_total), 0) as total_gst
         FROM documents
-        WHERE doc_type='INVOICE' AND payment_status != 'CANCELLED' AND ${filter}
+        WHERE doc_type='INVOICE' AND payment_status != 'CANCELLED' AND ${filter} ${sellerDocCond}
       `).get(...params) as any;
 
       const cogsRow = db.prepare(`
@@ -82,7 +106,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
         FROM document_items di
         JOIN documents d ON d.id = di.document_id
         LEFT JOIN products p ON p.id = di.product_id
-        WHERE d.doc_type='INVOICE' AND d.payment_status != 'CANCELLED' AND ${filter.replace(/doc_date/g, 'd.doc_date')}
+        WHERE d.doc_type='INVOICE' AND d.payment_status != 'CANCELLED' AND ${filter.replace(/doc_date/g, 'd.doc_date')} ${sellerItemCond}
       `).get(...params) as any;
 
       const grossRevenue = docTotals?.gross_revenue || 0;
@@ -118,10 +142,12 @@ export async function dashboardRoutes(app: FastifyInstance) {
     });
   });
 
-  // GET /api/dashboard/customer-breakdown?period=today|week|month|year
-  app.get<{ Querystring: { period?: string } }>('/api/dashboard/customer-breakdown', (req, reply) => {
+  // GET /api/dashboard/customer-breakdown?period=today|week|month|year&seller_profile_id=ALL|uuid
+  app.get<{ Querystring: { period?: string; seller_profile_id?: string } }>('/api/dashboard/customer-breakdown', (req, reply) => {
     const db = getDb();
     const period = req.query.period || 'month';
+    const { seller_profile_id } = req.query;
+    const isFiltered = !!(seller_profile_id && seller_profile_id !== 'ALL' && seller_profile_id !== 'undefined');
     const today = new Date().toISOString().slice(0, 10);
 
     const dateFilter: Record<string, string> = {
@@ -132,24 +158,35 @@ export async function dashboardRoutes(app: FastifyInstance) {
     };
     const filter = dateFilter[period] || dateFilter.month;
 
-    const rows = db.prepare(`
+    let sql = `
       SELECT customer_phone, customer_snapshot,
              SUM(grand_total) as total_spend,
              COUNT(*) as invoice_count
       FROM documents
       WHERE doc_type='INVOICE' AND payment_status != 'CANCELLED' AND ${filter}
+    `;
+    const params: any[] = [];
+    if (isFiltered) {
+      sql += ` AND seller_profile_id = ?`;
+      params.push(seller_profile_id);
+    }
+    sql += `
       GROUP BY customer_phone
       ORDER BY total_spend DESC
       LIMIT 50
-    `).all();
+    `;
 
+    const rows = db.prepare(sql).all(...params);
     return reply.send(rows);
   });
 
-  // GET /api/dashboard/top-products?period=month
-  app.get<{ Querystring: { period?: string } }>('/api/dashboard/top-products', (req, reply) => {
+  // GET /api/dashboard/top-products?period=month&seller_profile_id=ALL|uuid
+  app.get<{ Querystring: { period?: string; seller_profile_id?: string } }>('/api/dashboard/top-products', (req, reply) => {
     const db = getDb();
     const period = req.query.period || 'month';
+    const { seller_profile_id } = req.query;
+    const isFiltered = !!(seller_profile_id && seller_profile_id !== 'ALL' && seller_profile_id !== 'undefined');
+
     const dateFilter: Record<string, string> = {
       today: `d.doc_date = date('now')`,
       week: `d.doc_date >= date('now', 'weekday 1', '-7 days')`,
@@ -158,14 +195,20 @@ export async function dashboardRoutes(app: FastifyInstance) {
     };
     const filter = dateFilter[period] || dateFilter.month;
 
-    const rows = db.prepare(`
+    let sql = `
       SELECT di.product_name, SUM(di.quantity) as total_qty, SUM(di.total_amount) as total_revenue
       FROM document_items di
       JOIN documents d ON d.id = di.document_id
       WHERE d.doc_type='INVOICE' AND d.payment_status != 'CANCELLED' AND ${filter}
-      GROUP BY di.product_name ORDER BY total_revenue DESC LIMIT 10
-    `).all();
+    `;
+    const params: any[] = [];
+    if (isFiltered) {
+      sql += ` AND d.seller_profile_id = ?`;
+      params.push(seller_profile_id);
+    }
+    sql += ` GROUP BY di.product_name ORDER BY total_revenue DESC LIMIT 10`;
 
+    const rows = db.prepare(sql).all(...params);
     return reply.send(rows);
   });
 }

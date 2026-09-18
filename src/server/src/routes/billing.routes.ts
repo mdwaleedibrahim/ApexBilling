@@ -176,9 +176,9 @@ export async function billingRoutes(app: FastifyInstance) {
   // ── Documents ──────────────────────────────────────────────────────────────
 
   // GET /api/documents - list all with filters
-  app.get<{ Querystring: { type?: string; status?: string; search?: string; customer_phone?: string; limit?: string } }>(
+  app.get<{ Querystring: { type?: string; status?: string; search?: string; customer_phone?: string; seller_profile_id?: string; limit?: string } }>(
     '/api/documents', (req, reply) => {
-      const { type, status, search, customer_phone, limit } = req.query;
+      const { type, status, search, customer_phone, seller_profile_id, limit } = req.query;
       let sql = `SELECT d.*, di_count.item_count, COALESCE(di_cost.total_purchase_cost, 0) as total_purchase_cost
         FROM documents d
         LEFT JOIN (SELECT document_id, COUNT(*) as item_count FROM document_items GROUP BY document_id) di_count
@@ -194,6 +194,10 @@ export async function billingRoutes(app: FastifyInstance) {
       const params: any[] = [];
       if (type && type !== 'undefined') { sql += ' AND d.doc_type = ?'; params.push(type); }
       if (status && status !== 'undefined') { sql += ' AND d.payment_status = ?'; params.push(status); }
+      if (seller_profile_id && seller_profile_id !== 'undefined' && seller_profile_id !== 'ALL') {
+        sql += ' AND d.seller_profile_id = ?';
+        params.push(seller_profile_id);
+      }
       if (customer_phone && customer_phone !== 'undefined') {
         sql += ' AND (d.customer_phone = ? OR d.customer_snapshot LIKE ?)';
         params.push(customer_phone, `%"phone":"${customer_phone}"%`);
@@ -219,7 +223,7 @@ export async function billingRoutes(app: FastifyInstance) {
   // POST /api/documents - create invoice or quotation
   app.post<{ Body: any }>('/api/documents', (req, reply) => {
     const db = getDb();
-    const { doc_type = 'INVOICE', doc_date, customer_phone, customer_snapshot, items: rawItems,
+    const { doc_type = 'INVOICE', doc_date, customer_phone, customer_snapshot, seller_profile_id, items: rawItems,
       discount_pct = 0, additional_discount = 0, payment_mode = 'CASH', payment_status = 'PAID', selected_upi_id, notes,
       terms_and_conditions, hide_tax_on_invoice = 0, paid_amount = 0, partial_payment_mode,
       converting_quotation_id, qr_amount_type = 'FULL' } = (req.body || {}) as any;
@@ -248,6 +252,37 @@ export async function billingRoutes(app: FastifyInstance) {
       const stockErr = validateStockLimits(db, totals.items);
       if (stockErr) return reply.status(400).send({ error: stockErr });
     }
+
+    // Resolve seller profile for frozen snapshot
+    let sellerProf: any = null;
+    if (seller_profile_id) {
+      sellerProf = db.prepare(`SELECT * FROM seller_profiles WHERE id = ?`).get(seller_profile_id);
+    }
+    if (!sellerProf) {
+      sellerProf = db.prepare(`SELECT * FROM seller_profiles WHERE is_default = 1 LIMIT 1`).get() ||
+                   db.prepare(`SELECT * FROM seller_profiles LIMIT 1`).get() ||
+                   db.prepare(`SELECT * FROM seller_profile WHERE id = 1`).get();
+    }
+    const finalSellerProfileId = sellerProf?.id || null;
+    const finalSellerSnapshot = sellerProf ? JSON.stringify({
+      id: sellerProf.id,
+      business_name: sellerProf.business_name,
+      trade_name: sellerProf.trade_name || null,
+      gstin: sellerProf.gstin,
+      pan: sellerProf.pan || null,
+      phone: sellerProf.phone,
+      email: sellerProf.email || null,
+      address_line1: sellerProf.address_line1,
+      address_line2: sellerProf.address_line2 || null,
+      city: sellerProf.city,
+      state_code: sellerProf.state_code,
+      pincode: sellerProf.pincode,
+      bank_name: sellerProf.bank_name || null,
+      bank_account_no: sellerProf.bank_account_no || null,
+      bank_ifsc: sellerProf.bank_ifsc || null,
+      bank_branch: sellerProf.bank_branch || null,
+      active_upi_id: sellerProf.active_upi_id || null,
+    }) : null;
 
     const id = randomUUID();
     const doc_number = generateDocNumber(db, doc_type);
@@ -288,12 +323,13 @@ export async function billingRoutes(app: FastifyInstance) {
       }
 
       db.prepare(`
-        INSERT INTO documents (id, doc_type, doc_number, doc_date, customer_phone, customer_snapshot,
+        INSERT INTO documents (id, doc_type, doc_number, doc_date, seller_profile_id, seller_snapshot, customer_phone, customer_snapshot,
           gross_subtotal, discount_pct, discount_amount, additional_discount, taxable_amount, cgst_total, sgst_total,
           round_off, grand_total, payment_mode, payment_status, selected_upi_id, notes, terms_and_conditions,
           hide_tax_on_invoice, paid_amount, partial_payment_mode, payment_history, qr_amount_type)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `).run(id, doc_type, doc_number, doc_date || localDateIso(),
+        finalSellerProfileId, finalSellerSnapshot,
         finalPhone, snapshot, totals.grossSubtotal, totals.discountPct, totals.discountAmount, totals.additionalDiscount,
         totals.taxableAmount, totals.cgstTotal, totals.sgstTotal, totals.roundOff, totals.grandTotal,
         payment_mode, finalStatus, selected_upi_id || null, notes || null, termsStr,
@@ -338,9 +374,37 @@ export async function billingRoutes(app: FastifyInstance) {
     if (existing.payment_status === 'CANCELLED') return reply.status(400).send({ error: 'Cannot edit cancelled document' });
 
     const { items: rawItems, discount_pct = 0, additional_discount, payment_mode, payment_status, notes,
-      terms_and_conditions, customer_phone, customer_snapshot, hide_tax_on_invoice,
+      terms_and_conditions, customer_phone, customer_snapshot, seller_profile_id, hide_tax_on_invoice,
       paid_amount, partial_payment_mode, qr_amount_type } = (req.body || {}) as any;
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
+
+    let finalSellerProfileId = existing.seller_profile_id;
+    let finalSellerSnapshot = existing.seller_snapshot;
+    if (seller_profile_id && seller_profile_id !== existing.seller_profile_id) {
+      const sellerProf: any = db.prepare(`SELECT * FROM seller_profiles WHERE id = ?`).get(seller_profile_id);
+      if (sellerProf) {
+        finalSellerProfileId = sellerProf.id;
+        finalSellerSnapshot = JSON.stringify({
+          id: sellerProf.id,
+          business_name: sellerProf.business_name,
+          trade_name: sellerProf.trade_name || null,
+          gstin: sellerProf.gstin,
+          pan: sellerProf.pan || null,
+          phone: sellerProf.phone,
+          email: sellerProf.email || null,
+          address_line1: sellerProf.address_line1,
+          address_line2: sellerProf.address_line2 || null,
+          city: sellerProf.city,
+          state_code: sellerProf.state_code,
+          pincode: sellerProf.pincode,
+          bank_name: sellerProf.bank_name || null,
+          bank_account_no: sellerProf.bank_account_no || null,
+          bank_ifsc: sellerProf.bank_ifsc || null,
+          bank_branch: sellerProf.bank_branch || null,
+          active_upi_id: sellerProf.active_upi_id || null,
+        });
+      }
+    }
 
     const finalAdditionalDiscount = additional_discount !== undefined ? (parseFloat(additional_discount) || 0) : (existing.additional_discount || 0);
     const totals = calculateInvoiceTotals(rawItems, discount_pct, finalAdditionalDiscount);
@@ -426,12 +490,12 @@ export async function billingRoutes(app: FastifyInstance) {
       }
 
       db.prepare(`
-        UPDATE documents SET customer_phone=?, customer_snapshot=?, gross_subtotal=?, discount_pct=?,
+        UPDATE documents SET seller_profile_id=?, seller_snapshot=?, customer_phone=?, customer_snapshot=?, gross_subtotal=?, discount_pct=?,
           discount_amount=?, additional_discount=?, taxable_amount=?, cgst_total=?, sgst_total=?, round_off=?, grand_total=?,
           payment_mode=?, payment_status=?, notes=?, terms_and_conditions=?, hide_tax_on_invoice=?,
           paid_amount=?, partial_payment_mode=?, payment_history=?, qr_amount_type=?, revision_number=revision_number+1, updated_at=CURRENT_TIMESTAMP
         WHERE id=?
-      `).run(finalPhone,
+      `).run(finalSellerProfileId, finalSellerSnapshot, finalPhone,
         typeof customer_snapshot === 'string' ? customer_snapshot : JSON.stringify(customer_snapshot || JSON.parse(existing.customer_snapshot)),
         totals.grossSubtotal, totals.discountPct, totals.discountAmount, totals.additionalDiscount, totals.taxableAmount,
         totals.cgstTotal, totals.sgstTotal, totals.roundOff, totals.grandTotal,
@@ -562,13 +626,14 @@ export async function billingRoutes(app: FastifyInstance) {
         db.prepare(`
           INSERT INTO documents (
             id, doc_type, doc_number, parent_doc_id, revision_number, doc_date,
-            customer_phone, customer_snapshot, gross_subtotal, discount_pct, discount_amount,
+            seller_profile_id, seller_snapshot, customer_phone, customer_snapshot, gross_subtotal, discount_pct, discount_amount,
             taxable_amount, cgst_total, sgst_total, round_off, grand_total,
             payment_mode, payment_status, selected_upi_id, notes, terms_and_conditions, hide_tax_on_invoice,
             paid_amount, partial_payment_mode
-          ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         `).run(
           invoiceId, 'INVOICE', invoiceNum, null, 1, new Date().toISOString().split('T')[0],
+          quo.seller_profile_id || null, quo.seller_snapshot || null,
           finalPhone, quo.customer_snapshot, quo.gross_subtotal, quo.discount_pct, quo.discount_amount,
           quo.taxable_amount, quo.cgst_total, quo.sgst_total, quo.round_off, quo.grand_total,
           payment_mode, payment_status, quo.selected_upi_id, quo.notes, quo.terms_and_conditions || null, quo.hide_tax_on_invoice || 0,

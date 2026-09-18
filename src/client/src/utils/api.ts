@@ -21,9 +21,20 @@ async function req<T>(url: string, options?: RequestInit): Promise<T> {
 // ── Dashboard ──────────────────────────────────────────────────────────────
 export const api = {
   dashboard: {
-    metrics: () => req<any>('/dashboard/metrics'),
-    customerBreakdown: (period: string) => req<any[]>(`/dashboard/customer-breakdown?period=${period}`),
-    topProducts: (period: string) => req<any[]>(`/dashboard/top-products?period=${period}`),
+    metrics: (seller_profile_id?: string) => {
+      const q = seller_profile_id && seller_profile_id !== 'ALL' ? `?seller_profile_id=${encodeURIComponent(seller_profile_id)}` : ''
+      return req<any>(`/dashboard/metrics${q}`)
+    },
+    customerBreakdown: (period: string, seller_profile_id?: string) => {
+      const params = new URLSearchParams({ period })
+      if (seller_profile_id && seller_profile_id !== 'ALL') params.set('seller_profile_id', seller_profile_id)
+      return req<any[]>(`/dashboard/customer-breakdown?${params.toString()}`)
+    },
+    topProducts: (period: string, seller_profile_id?: string) => {
+      const params = new URLSearchParams({ period })
+      if (seller_profile_id && seller_profile_id !== 'ALL') params.set('seller_profile_id', seller_profile_id)
+      return req<any[]>(`/dashboard/top-products?${params.toString()}`)
+    },
   },
 
   // ── Analytics ──────────────────────────────────────────────────────────────
@@ -33,12 +44,13 @@ export const api = {
 
   // ── Documents ─────────────────────────────────────────────────────────────
   documents: {
-    list: (params?: { type?: string; status?: string; search?: string; customer_phone?: string }) => {
+    list: (params?: { type?: string; status?: string; search?: string; customer_phone?: string; seller_profile_id?: string }) => {
       const cleanParams: Record<string, string> = {}
       if (params?.type) cleanParams.type = params.type
       if (params?.status) cleanParams.status = params.status
       if (params?.search) cleanParams.search = params.search
       if (params?.customer_phone) cleanParams.customer_phone = params.customer_phone
+      if (params?.seller_profile_id && params.seller_profile_id !== 'ALL') cleanParams.seller_profile_id = params.seller_profile_id
       const q = new URLSearchParams(cleanParams).toString()
       return req<any[]>(`/documents${q ? '?' + q : ''}`)
     },
@@ -85,8 +97,25 @@ export const api = {
 
   // ── Settings ──────────────────────────────────────────────────────────────
   settings: {
+    getProfiles: () => req<{ profiles: any[]; bankAccounts: any[]; upiAccounts: any[]; storeSettings: any }>('/settings/profiles'),
     getProfile: () => req<any>('/settings/profile'),
-    updateProfile: (body: any) => req<any>('/settings/profile', { method: 'PUT', body: JSON.stringify(body) }),
+    createProfile: (body: any) => req<any>('/settings/profiles', { method: 'POST', body: JSON.stringify(body) }),
+    updateProfile: (idOrBody: string | any, body?: any) => {
+      if (typeof idOrBody === 'string' && body !== undefined) {
+        return req<any>(`/settings/profiles/${idOrBody}`, { method: 'PUT', body: JSON.stringify(body) });
+      }
+      return req<any>('/settings/profile', { method: 'PUT', body: JSON.stringify(idOrBody) });
+    },
+    deleteProfile: (id: string) => req<any>(`/settings/profiles/${id}`, { method: 'DELETE' }),
+
+    getBankAccounts: () => req<any[]>('/settings/bank-accounts'),
+    createBankAccount: (body: any) => req<any>('/settings/bank-accounts', { method: 'POST', body: JSON.stringify(body) }),
+    updateBankAccount: (id: string, body: any) => req<any>(`/settings/bank-accounts/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    deleteBankAccount: (id: string) => req<any>(`/settings/bank-accounts/${id}`, { method: 'DELETE' }),
+
+    updateStorePreferences: (body: any) => req<any>('/settings/store-preferences', { method: 'PUT', body: JSON.stringify(body) }),
+    updateLegacyProfile: (body: any) => req<any>('/settings/profile', { method: 'PUT', body: JSON.stringify(body) }),
+
     addUpi: (body: any) => req<any>('/settings/upi', { method: 'POST', body: JSON.stringify(body) }),
     updateUpi: (id: string, body: any) => req<any>(`/settings/upi/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     deleteUpi: (id: string) => req<any>(`/settings/upi/${id}`, { method: 'DELETE' }),

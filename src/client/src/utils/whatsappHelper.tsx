@@ -143,7 +143,10 @@ async function shareViaWebShareFallback(
 ): Promise<void> {
   const isInvoice = doc.doc_type === 'INVOICE'
   const typeLabel = isInvoice ? 'TAX INVOICE' : 'QUOTATION'
-  const storeName = profile?.business_name || 'ApexBill'
+  const sellerSnap = typeof doc.seller_snapshot === 'string'
+    ? (() => { try { return JSON.parse(doc.seller_snapshot) } catch { return null } })()
+    : (doc.seller_snapshot || null)
+  const storeName = sellerSnap?.business_name || profile?.business_name || 'ApexBill'
 
   let shareText = `*${typeLabel}: ${doc.doc_number}*`
   if (storeName) shareText += `\n*Store:* ${storeName}`
@@ -235,10 +238,15 @@ export async function shareInvoiceViaWhatsApp(
   }
 
   const cleanedPhone = cleanPhoneForWhatsApp(phone)
+  const sellerSnap = typeof doc.seller_snapshot === 'string'
+    ? (() => { try { return JSON.parse(doc.seller_snapshot) } catch { return null } })()
+    : (doc.seller_snapshot || null)
+  const storeName = sellerSnap?.business_name || profile?.business_name || 'ApexBill'
+
   const textMsg = generateWhatsAppMessage({
     docType: doc.doc_type,
     docNumber: doc.doc_number,
-    storeName: profile?.business_name || 'ApexBill'
+    storeName
   })
 
   // Open the 2-step modal

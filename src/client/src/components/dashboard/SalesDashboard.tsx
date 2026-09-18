@@ -1,8 +1,8 @@
-// components/dashboard/SalesDashboard.tsx — PnL analytics & export report
+// components/dashboard/SalesDashboard.tsx — PnL analytics & export report with Multi-Seller Filter
 import { useEffect, useState } from 'react'
 import {
-  TrendingUp, Receipt, Users, AlertCircle, ArrowUpRight,
-  BarChart2, DollarSign, Download, PieChart, ShieldCheck
+  TrendingUp, Receipt, Users, ArrowUpRight,
+  BarChart2, DollarSign, Download, Building2
 } from 'lucide-react'
 import { api } from '../../utils/api'
 import { formatINR } from '../../utils/upiHelper'
@@ -33,20 +33,25 @@ export default function SalesDashboard() {
   const [pnlPeriod, setPnlPeriod] = useState<Period>('month')
   const [breakdown, setBreakdown] = useState(false)
   const [topProducts, setTopProducts] = useState<any[]>([])
-  const [profile, setProfile] = useState<any>(null)
+  const [profiles, setProfiles] = useState<any[]>([])
+  const [selectedSellerId, setSelectedSellerId] = useState<string>('ALL')
 
   const load = async () => {
-    const [m, tp, p] = await Promise.all([
-      api.dashboard.metrics(),
-      api.dashboard.topProducts(period),
-      api.settings.getProfile(),
-    ])
-    setMetrics(m)
-    setTopProducts(tp)
-    setProfile(p?.profile || null)
+    try {
+      const [m, tp, profs] = await Promise.all([
+        api.dashboard.metrics(selectedSellerId),
+        api.dashboard.topProducts(period, selectedSellerId),
+        api.settings.getProfiles().catch(() => null),
+      ])
+      setMetrics(m)
+      setTopProducts(tp || [])
+      if (profs?.profiles) setProfiles(profs.profiles)
+    } catch (e) {
+      console.error('Error loading dashboard data:', e)
+    }
   }
 
-  useEffect(() => { load() }, [period])
+  useEffect(() => { load() }, [period, selectedSellerId])
 
   const monthly: any[] = metrics?.monthly || []
   const maxRev = Math.max(...monthly.map((m: any) => m.revenue), 1)
@@ -55,14 +60,18 @@ export default function SalesDashboard() {
   const pnlKey = pnlPeriod === 'today' ? 'today' : pnlPeriod === 'week' ? 'thisWeek' : pnlPeriod === 'month' ? 'thisMonth' : 'thisYear'
   const activePnl = metrics?.pnl?.[pnlKey] || { grossRevenue: 0, taxableRevenue: 0, totalGst: 0, cogs: 0, grossProfit: 0, profitMarginPct: 0 }
 
+  const activeProfile = selectedSellerId !== 'ALL'
+    ? profiles.find(p => p.id === selectedSellerId)
+    : null
+
   // Export CSV Report Generator
   const exportCsvReport = () => {
     const todayStr = new Date().toISOString().slice(0, 10)
-    const bizName = profile?.business_name || 'ApexBill Merchant'
+    const bizName = activeProfile?.business_name || 'All Seller Profiles (Combined)'
     
     let csv = `ApexBill Sales & Profit/Loss Report\n`
     csv += `Business Name,${bizName}\n`
-    csv += `GSTIN,${profile?.gstin || 'N/A'}\n`
+    csv += `GSTIN,${activeProfile?.gstin || 'Combined / Multiple GSTINs'}\n`
     csv += `Report Generated,${new Date().toLocaleString('en-IN')}\n\n`
 
     csv += `1. PROFIT AND LOSS (PnL) SUMMARY (${pnlPeriod.toUpperCase()})\n`
@@ -99,21 +108,37 @@ export default function SalesDashboard() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header Banner with Business Name & Export Button */}
+      {/* Header Banner with Seller Selector & Export Button */}
       <div className="glass-card p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-gradient-to-r from-brand-900/40 via-brand-800/20 to-transparent border-brand-500/20">
         <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">{profile?.business_name || 'My Business'}</h1>
+          <h1 className="text-2xl font-extrabold text-white tracking-tight">
+            {activeProfile?.business_name || 'Sales & PnL Analytics'}
+          </h1>
           <p className="text-xs text-brand-300 mt-1">
-            {profile?.gstin ? `GSTIN: ${profile.gstin} · ` : ''}Sales Performance & PnL Analytics Dashboard
+            {activeProfile?.gstin ? `GSTIN: ${activeProfile.gstin} · ` : 'Combined Storewide · '}
+            {selectedSellerId === 'ALL' ? 'Viewing combined performance across all Seller GST Profiles' : 'Filtered for selected Seller profile'}
           </p>
         </div>
         
-        <div className="flex items-center gap-3">
-          {profile?.trade_name && (
-            <span className="px-3 py-1 bg-brand-500/20 border border-brand-500/30 text-brand-300 rounded-full text-xs font-semibold">
-              {profile.trade_name}
-            </span>
-          )}
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Seller GST profile filter dropdown */}
+          <div className="flex items-center gap-2 bg-gray-900/80 border border-white/10 px-3 py-1.5 rounded-xl shadow-inner">
+            <Building2 size={15} className="text-brand-400" />
+            <span className="text-xs text-gray-400 font-medium">Seller:</span>
+            <select
+              value={selectedSellerId}
+              onChange={(e) => setSelectedSellerId(e.target.value)}
+              className="bg-transparent text-xs font-semibold text-gray-100 focus:outline-none cursor-pointer pr-1"
+            >
+              <option value="ALL" className="bg-gray-900 text-gray-100">🏢 All Profiles (Combined)</option>
+              {profiles.map(p => (
+                <option key={p.id} value={p.id} className="bg-gray-900 text-gray-100">
+                  {p.business_name} ({p.gstin}){p.is_default ? ' ★' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <button
             onClick={exportCsvReport}
             className="flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-emerald-600/30 transition-all"
@@ -140,112 +165,88 @@ export default function SalesDashboard() {
               <DollarSign size={20} />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                Profit & Loss (PnL) Analysis
-                <span className="text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  {activePnl.profitMarginPct.toFixed(1)}% Margin
-                </span>
-              </h2>
-              <p className="text-xs text-gray-400">Revenue, Cost of Goods Sold (COGS), Tax & Net Profit Breakdown</p>
+              <h2 className="text-base font-bold text-white tracking-wide">Profit & Loss Summary (PnL)</h2>
+              <p className="text-xs text-emerald-400/80">Realized gross profit calculated from sales minus product purchase cost</p>
             </div>
           </div>
-
-          {/* PnL Period Selector */}
-          <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 text-xs">
+          
+          <div className="flex items-center gap-1.5 bg-black/30 p-1 rounded-xl border border-white/10">
             {(['today', 'week', 'month', 'year'] as const).map(p => (
               <button
                 key={p}
                 onClick={() => setPnlPeriod(p)}
-                className={`px-3 py-1 rounded-lg capitalize transition-all ${
-                  pnlPeriod === p ? 'bg-emerald-600 text-white font-semibold shadow-md' : 'text-gray-400 hover:text-gray-200'
+                className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all capitalize ${
+                  pnlPeriod === p
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'text-gray-400 hover:text-white'
                 }`}
               >
-                {p === 'week' ? 'This Week' : p === 'month' ? 'This Month' : p === 'year' ? 'This Year' : 'Today'}
+                {p === 'today' ? 'Today' : p === 'week' ? 'This Week' : p === 'month' ? 'This Month' : 'This Year'}
               </button>
             ))}
           </div>
         </div>
 
-        {/* PnL Cards Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-            <span className="text-xs font-medium text-gray-400">Gross Sales Revenue</span>
-            <p className="text-xl font-bold text-white mt-1">{formatINR(activePnl.grossRevenue)}</p>
-            <span className="text-[10px] text-gray-500 mt-1 block">Total Invoiced (Tax Incl.)</span>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="p-3.5 bg-white/5 rounded-xl border border-white/5">
+            <span className="text-[11px] font-medium text-gray-400">Gross Sales</span>
+            <p className="text-base font-bold text-white mt-1">{formatINR(activePnl.grossRevenue)}</p>
           </div>
-
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-            <span className="text-xs font-medium text-gray-400">Cost of Goods Sold (COGS)</span>
-            <p className="text-xl font-bold text-amber-400 mt-1">{formatINR(activePnl.cogs)}</p>
-            <span className="text-[10px] text-gray-500 mt-1 block">Inventory Purchase Cost</span>
+          <div className="p-3.5 bg-white/5 rounded-xl border border-white/5">
+            <span className="text-[11px] font-medium text-gray-400">Taxable Sales</span>
+            <p className="text-base font-bold text-white mt-1">{formatINR(activePnl.taxableRevenue)}</p>
           </div>
-
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-            <span className="text-xs font-medium text-gray-400">GST Tax Collected</span>
-            <p className="text-xl font-bold text-brand-400 mt-1">{formatINR(activePnl.totalGst)}</p>
-            <span className="text-[10px] text-gray-500 mt-1 block">CGST + SGST Liability</span>
+          <div className="p-3.5 bg-white/5 rounded-xl border border-white/5">
+            <span className="text-[11px] font-medium text-gray-400">GST Collected</span>
+            <p className="text-base font-bold text-amber-400 mt-1">{formatINR(activePnl.totalGst)}</p>
           </div>
-
-          <div className={`border rounded-xl p-4 ${
-            activePnl.grossProfit >= 0
-              ? 'bg-emerald-600/10 border-emerald-500/30'
-              : 'bg-red-600/10 border-red-500/30'
-          }`}>
-            <span className="text-xs font-medium text-gray-300">Gross Net Profit</span>
-            <p className={`text-2xl font-black mt-1 ${activePnl.grossProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              {formatINR(activePnl.grossProfit)}
-            </p>
-            <span className="text-[10px] text-emerald-300/80 mt-1 block font-semibold">
-              Margin: {activePnl.profitMarginPct.toFixed(1)}% (Taxable Sales − COGS)
-            </span>
+          <div className="p-3.5 bg-white/5 rounded-xl border border-white/5">
+            <span className="text-[11px] font-medium text-gray-400">Cost of Goods (COGS)</span>
+            <p className="text-base font-bold text-rose-400 mt-1">{formatINR(activePnl.cogs)}</p>
+          </div>
+          <div className="p-3.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+            <span className="text-[11px] font-medium text-emerald-400">Gross Profit</span>
+            <p className="text-base font-extrabold text-emerald-400 mt-1">{formatINR(activePnl.grossProfit)}</p>
+          </div>
+          <div className="p-3.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+            <span className="text-[11px] font-medium text-emerald-400">Profit Margin</span>
+            <p className="text-base font-extrabold text-emerald-400 mt-1">{activePnl.profitMarginPct.toFixed(1)}%</p>
           </div>
         </div>
       </div>
 
-      {/* Outstanding Balances */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="glass-card p-5">
-          <div className="flex items-center gap-2 mb-1">
-            <AlertCircle size={15} className="text-red-400" />
-            <span className="text-xs font-medium text-gray-400">Unpaid / Outstanding Invoices</span>
-          </div>
-          <p className="text-xl font-bold text-red-400">{formatINR(metrics?.unpaidInvoicesTotal || 0)}</p>
-        </div>
-        <div className="glass-card p-5">
-          <div className="flex items-center gap-2 mb-1">
-            <Users size={15} className="text-brand-400" />
-            <span className="text-xs font-medium text-gray-400">Customer Balance Due</span>
-          </div>
-          <p className="text-xl font-bold text-brand-400">{formatINR(metrics?.outstandingBalance || 0)}</p>
-        </div>
-      </div>
-
-      {/* 12-Month Revenue Chart */}
+      {/* Monthly Sales Revenue Chart (12 Months) */}
       <div className="glass-card p-5">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="section-title">12-Month Revenue Breakdown</h2>
-          <span className="text-xs text-gray-400">Total Sales Trend</span>
+          <div>
+            <h2 className="section-title mb-0">Sales Trend (Last 12 Months)</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Monthly gross revenue comparison</p>
+          </div>
         </div>
-        <div className="flex items-end gap-1.5 h-36 pt-4 border-b border-white/10">
+
+        <div className="h-44 flex items-end gap-2 pt-6 pb-2 px-2">
           {monthly.map((m: any, i: number) => {
-            const heightPct = maxRev > 0 ? (m.revenue / maxRev) * 100 : 0
-            const hasSales = m.revenue > 0
+            const heightPct = maxRev > 0 ? Math.round((m.revenue / maxRev) * 100) : 0
             return (
               <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative h-full justify-end">
+                {m.revenue > 0 && (
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 bg-gray-900 border border-white/20 text-[10px] px-2 py-0.5 rounded shadow-lg whitespace-nowrap z-20 pointer-events-none text-brand-300">
+                    {formatINR(m.revenue)} ({m.count} bills)
+                  </div>
+                )}
                 <div
-                  className={`w-full rounded-t transition-all ${
-                    hasSales
-                      ? 'bg-brand-500 hover:bg-brand-400 shadow-md shadow-brand-500/20'
-                      : 'bg-white/5 hover:bg-white/10'
+                  className={`w-full rounded-t-lg transition-all duration-300 ${
+                    m.revenue > 0
+                      ? 'bg-gradient-to-t from-brand-600 to-brand-400 hover:brightness-125'
+                      : 'bg-white/5'
                   }`}
-                  style={{ height: `${Math.max(6, heightPct)}%` }}
-                  title={`${m.label || m.month}: ${formatINR(m.revenue)} (${m.count || 0} invoices)`}
+                  style={{ height: `${Math.max(heightPct, 4)}%` }}
                 />
               </div>
             )
           })}
         </div>
-        <div className="flex gap-1 mt-2">
+        <div className="flex gap-2 pt-2 border-t border-white/5">
           {monthly.map((m: any, i: number) => (
             <span key={i} className={`flex-1 text-center text-[10px] font-mono ${m.revenue > 0 ? 'text-brand-300 font-bold' : 'text-gray-500'}`}>
               {m.label || m.month?.slice(5)}
@@ -288,18 +289,21 @@ export default function SalesDashboard() {
             <h2 className="section-title">Top Customers</h2>
             <button onClick={() => setBreakdown(true)} className="btn-ghost text-brand-400">View All</button>
           </div>
-          <CustomerBreakdownSummary period={period} />
+          <CustomerBreakdownSummary period={period} seller_profile_id={selectedSellerId} />
         </div>
       </div>
 
-      {breakdown && <CustomerBreakdownModal period={period} onClose={() => setBreakdown(false)} />}
+      {breakdown && <CustomerBreakdownModal period={period} seller_profile_id={selectedSellerId} onClose={() => setBreakdown(false)} />}
     </div>
   )
 }
 
-function CustomerBreakdownSummary({ period }: { period: Period }) {
+function CustomerBreakdownSummary({ period, seller_profile_id }: { period: Period; seller_profile_id?: string }) {
   const [rows, setRows] = useState<any[]>([])
-  useEffect(() => { api.dashboard.customerBreakdown(period).then(setRows) }, [period])
+  useEffect(() => {
+    api.dashboard.customerBreakdown(period, seller_profile_id).then(setRows).catch(() => setRows([]))
+  }, [period, seller_profile_id])
+
   return (
     <div className="space-y-2">
       {rows.slice(0, 6).map((r: any, i: number) => {

@@ -78,6 +78,143 @@ export function getDb(): DatabaseSync {
     try { _db.exec('CREATE INDEX IF NOT EXISTS idx_document_items_doc_id ON document_items(document_id)') } catch {}
     try { _db.exec('CREATE INDEX IF NOT EXISTS idx_documents_customer_phone ON documents(customer_phone)') } catch {}
     try { _db.exec('CREATE INDEX IF NOT EXISTS idx_documents_analytics ON documents(doc_type, payment_status, doc_date)') } catch {}
+
+    // Multi-Seller GST Profiles & Bank Accounts migration
+    try {
+      _db.exec(`
+        CREATE TABLE IF NOT EXISTS seller_bank_accounts (
+          id TEXT PRIMARY KEY,
+          bank_name TEXT NOT NULL,
+          account_number TEXT NOT NULL,
+          ifsc_code TEXT NOT NULL,
+          branch_name TEXT,
+          account_holder TEXT,
+          is_default BOOLEAN DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+      `)
+    } catch {}
+
+    try {
+      _db.exec(`
+        CREATE TABLE IF NOT EXISTS seller_profiles (
+          id TEXT PRIMARY KEY,
+          business_name TEXT NOT NULL DEFAULT 'My Business',
+          trade_name TEXT,
+          gstin TEXT NOT NULL DEFAULT '00AAAAA0000A1Z5',
+          pan TEXT,
+          phone TEXT NOT NULL DEFAULT '9999999999',
+          email TEXT,
+          address_line1 TEXT NOT NULL DEFAULT 'Address Line 1',
+          address_line2 TEXT,
+          city TEXT NOT NULL DEFAULT 'City',
+          state_code TEXT NOT NULL DEFAULT '36',
+          pincode TEXT NOT NULL DEFAULT '500001',
+          bank_account_id TEXT REFERENCES seller_bank_accounts(id) ON DELETE SET NULL,
+          bank_name TEXT,
+          bank_account_no TEXT,
+          bank_ifsc TEXT,
+          bank_branch TEXT,
+          active_upi_id TEXT,
+          is_default BOOLEAN DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+      `)
+    } catch {}
+
+    try { _db.exec('ALTER TABLE documents ADD COLUMN seller_profile_id TEXT') } catch {}
+    try { _db.exec('ALTER TABLE documents ADD COLUMN seller_snapshot TEXT') } catch {}
+    try { _db.exec('CREATE INDEX IF NOT EXISTS idx_documents_seller_profile_id ON documents(seller_profile_id)') } catch {}
+
+    try {
+      const profileCount = (_db.prepare('SELECT COUNT(*) as c FROM seller_profiles').get() as any)?.c || 0
+      if (profileCount === 0) {
+        const legacy: any = _db.prepare('SELECT * FROM seller_profile WHERE id = 1').get()
+        if (legacy) {
+          let bankAccountId = null
+          if (legacy.bank_name || legacy.bank_account_no) {
+            bankAccountId = 'bank-migrated-1'
+            _db.prepare(`
+              INSERT OR IGNORE INTO seller_bank_accounts (id, bank_name, account_number, ifsc_code, branch_name, is_default)
+              VALUES (?, ?, ?, ?, ?, 1)
+            `).run(
+              bankAccountId,
+              legacy.bank_name || 'Bank Account',
+              legacy.bank_account_no || '',
+              legacy.bank_ifsc || '',
+              legacy.bank_branch || ''
+            )
+          }
+
+          _db.prepare(`
+            INSERT OR IGNORE INTO seller_profiles (
+              id, business_name, trade_name, gstin, pan, phone, email,
+              address_line1, address_line2, city, state_code, pincode,
+              bank_account_id, bank_name, bank_account_no, bank_ifsc, bank_branch,
+              active_upi_id, is_default
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+          `).run(
+            'default-seller-1',
+            legacy.business_name || 'My Business',
+            legacy.trade_name || null,
+            legacy.gstin || '00AAAAA0000A1Z5',
+            legacy.pan || null,
+            legacy.phone || '9999999999',
+            legacy.email || null,
+            legacy.address_line1 || 'Address Line 1',
+            legacy.address_line2 || null,
+            legacy.city || 'Hyderabad',
+            legacy.state_code || '36',
+            legacy.pincode || '500001',
+            bankAccountId,
+            legacy.bank_name || null,
+            legacy.bank_account_no || null,
+            legacy.bank_ifsc || null,
+            legacy.bank_branch || null,
+            legacy.active_upi_id || null
+          )
+        }
+      }
+    } catch (e) {
+      console.error('[DB] Error migrating seller_profiles:', e)
+    }
+
+    try {
+      const defaultProf: any = _db.prepare('SELECT * FROM seller_profiles WHERE is_default = 1 LIMIT 1').get() ||
+                               _db.prepare('SELECT * FROM seller_profiles LIMIT 1').get()
+      if (defaultProf) {
+        const snap = JSON.stringify({
+          id: defaultProf.id,
+          business_name: defaultProf.business_name,
+          trade_name: defaultProf.trade_name,
+          gstin: defaultProf.gstin,
+          pan: defaultProf.pan,
+          phone: defaultProf.phone,
+          email: defaultProf.email,
+          address_line1: defaultProf.address_line1,
+          address_line2: defaultProf.address_line2,
+          city: defaultProf.city,
+          state_code: defaultProf.state_code,
+          pincode: defaultProf.pincode,
+          bank_name: defaultProf.bank_name,
+          bank_account_no: defaultProf.bank_account_no,
+          bank_ifsc: defaultProf.bank_ifsc,
+          bank_branch: defaultProf.bank_branch,
+          active_upi_id: defaultProf.active_upi_id,
+        })
+        _db.prepare(`
+          UPDATE documents
+          SET seller_profile_id = COALESCE(seller_profile_id, ?),
+              seller_snapshot = COALESCE(NULLIF(seller_snapshot, ''), ?)
+          WHERE seller_snapshot IS NULL OR seller_snapshot = '' OR seller_profile_id IS NULL
+        `).run(defaultProf.id, snap)
+      }
+    } catch (e) {
+      console.error('[DB] Error backfilling documents seller_snapshot:', e)
+    }
+
     try {
       _db.exec(`
         UPDATE documents

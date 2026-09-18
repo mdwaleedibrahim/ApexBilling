@@ -20,6 +20,8 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [sellerFilter, setSellerFilter] = useState('')
+  const [sellerProfiles, setSellerProfiles] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [viewDoc, setViewDoc] = useState<any>(null)
   const [sharingDoc, setSharingDoc] = useState<any>(null)
@@ -36,16 +38,21 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
   const load = async () => {
     setLoading(true)
     try {
-      const [d, p] = await Promise.all([
+      const [d, p, profData] = await Promise.all([
         api.documents.list({
           type: typeFilter || undefined,
           status: statusFilter || undefined,
-          search: debouncedSearch || undefined
+          search: debouncedSearch || undefined,
+          seller_profile_id: sellerFilter || undefined
         }),
-        api.settings.getProfile()
+        api.settings.getProfile(),
+        api.settings.getProfiles().catch(() => null)
       ])
       setDocs(d || [])
       setProfile(p?.profile ? { ...p.profile, upiAccounts: p.upiAccounts || [] } : null)
+      if (profData?.profiles) {
+        setSellerProfiles(profData.profiles)
+      }
 
       const urlParams = new URLSearchParams(window.location.search)
       const viewParam = urlParams.get('view')
@@ -62,7 +69,7 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
     }
   }
 
-  useEffect(() => { load() }, [debouncedSearch, typeFilter, statusFilter])
+  useEffect(() => { load() }, [debouncedSearch, typeFilter, statusFilter, sellerFilter])
 
   const handleView = async (doc: any) => {
     const full = await api.documents.get(doc.id)
@@ -134,6 +141,16 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
           <option value="PARTIAL">Partial</option>
           <option value="CANCELLED">Cancelled</option>
         </select>
+        {sellerProfiles.length > 0 && (
+          <select className="input !w-48 text-xs" value={sellerFilter} onChange={e => setSellerFilter(e.target.value)}>
+            <option value="">All Seller Profiles</option>
+            {sellerProfiles.map(sp => (
+              <option key={sp.id} value={sp.id}>
+                {sp.business_name} {sp.gstin ? `(${sp.gstin.slice(0, 8)}…)` : ''}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* Table */}
@@ -159,6 +176,7 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
               )}
               {docs.map(doc => {
                 const snap = (() => { try { return JSON.parse(doc.customer_snapshot) } catch { return {} } })()
+                const sellerSnap = (() => { try { return JSON.parse(doc.seller_snapshot) } catch { return null } })()
                 const phoneDisplay = (doc.customer_phone && !doc.customer_phone.startsWith('NO_PHONE_'))
                   ? doc.customer_phone
                   : (snap.phone && !snap.phone.startsWith('NO_PHONE_') ? snap.phone : '')
@@ -174,7 +192,14 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
 
                 return (
                   <tr key={doc.id} className="tr">
-                    <td className="td font-mono text-xs text-brand-300">{doc.doc_number}</td>
+                    <td className="td font-mono text-xs text-brand-300">
+                      <div>{doc.doc_number}</div>
+                      {sellerSnap?.business_name && (
+                        <div className="text-[10px] text-gray-400 font-sans truncate max-w-[120px]" title={`${sellerSnap.business_name} (${sellerSnap.gstin || ''})`}>
+                          🏢 {sellerSnap.business_name}
+                        </div>
+                      )}
+                    </td>
                     <td className="td">
                       <span className={doc.doc_type === 'INVOICE' ? 'badge-paid' : 'badge-draft'}>{doc.doc_type}</span>
                     </td>

@@ -1,7 +1,7 @@
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 
--- 1. Seller Profile & Bank Settings
+-- 1. Store Settings & Global Preferences (legacy single row id=1)
 CREATE TABLE IF NOT EXISTS seller_profile (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     business_name TEXT NOT NULL DEFAULT 'My Business',
@@ -27,6 +27,44 @@ CREATE TABLE IF NOT EXISTS seller_profile (
     restrict_sales_to_stock_qty INTEGER DEFAULT 0,
     invoice_terms TEXT DEFAULT '["Goods once sold can''t be returned", "Goods can be exchanged with valid bill within 7 days of purchase"]',
     quotation_terms TEXT DEFAULT '["Quotation valid for 3 days only"]',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 1b. Saved Bank Accounts (Selectable per Seller Profile or shared)
+CREATE TABLE IF NOT EXISTS seller_bank_accounts (
+    id TEXT PRIMARY KEY,
+    bank_name TEXT NOT NULL,
+    account_number TEXT NOT NULL,
+    ifsc_code TEXT NOT NULL,
+    branch_name TEXT,
+    account_holder TEXT,
+    is_default BOOLEAN DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 1c. Multiple Seller GST Profiles
+CREATE TABLE IF NOT EXISTS seller_profiles (
+    id TEXT PRIMARY KEY,
+    business_name TEXT NOT NULL DEFAULT 'My Business',
+    trade_name TEXT,
+    gstin TEXT NOT NULL DEFAULT '00AAAAA0000A1Z5',
+    pan TEXT,
+    phone TEXT NOT NULL DEFAULT '9999999999',
+    email TEXT,
+    address_line1 TEXT NOT NULL DEFAULT 'Address Line 1',
+    address_line2 TEXT,
+    city TEXT NOT NULL DEFAULT 'City',
+    state_code TEXT NOT NULL DEFAULT '36',
+    pincode TEXT NOT NULL DEFAULT '500001',
+    bank_account_id TEXT REFERENCES seller_bank_accounts(id) ON DELETE SET NULL,
+    bank_name TEXT,
+    bank_account_no TEXT,
+    bank_ifsc TEXT,
+    bank_branch TEXT,
+    active_upi_id TEXT,
+    is_default BOOLEAN DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -78,6 +116,8 @@ CREATE TABLE IF NOT EXISTS documents (
     parent_doc_id TEXT REFERENCES documents(id),
     revision_number INTEGER DEFAULT 1,
     doc_date DATE NOT NULL,
+    seller_profile_id TEXT REFERENCES seller_profiles(id) ON DELETE SET NULL,
+    seller_snapshot TEXT, -- Frozen JSON snapshot of seller profile at billing time
     customer_phone TEXT REFERENCES customers(phone) ON UPDATE CASCADE ON DELETE SET NULL,
     customer_snapshot TEXT NOT NULL, -- Frozen JSON snapshot
     gross_subtotal DECIMAL(12,2) NOT NULL,
@@ -138,6 +178,10 @@ CREATE TABLE IF NOT EXISTS pos_memory_slots (
 -- Seed default seller profile (id=1 enforced by CHECK constraint)
 INSERT OR IGNORE INTO seller_profile (id, business_name, gstin, phone, address_line1, city, state_code, pincode)
 VALUES (1, 'My Business', '00AAAAA0000A1Z5', '9999999999', 'Address Line 1', 'Hyderabad', '36', '500001');
+
+-- Seed default profile in multi-seller table
+INSERT OR IGNORE INTO seller_profiles (id, business_name, gstin, phone, address_line1, city, state_code, pincode, is_default)
+VALUES ('default-seller-1', 'My Business', '00AAAAA0000A1Z5', '9999999999', 'Address Line 1', 'Hyderabad', '36', '500001', 1);
 
 -- Seed 5 empty POS memory slots
 INSERT OR IGNORE INTO pos_memory_slots (slot_id, slot_label, cart_state) VALUES

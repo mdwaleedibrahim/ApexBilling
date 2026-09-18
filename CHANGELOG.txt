@@ -3,6 +3,17 @@
 ========================================================================
 
 ========================================================================
+ApexBill Release v2.6.0 - 2026-09-13 19:15:43
+========================================================================
+Changes & Commits in this Build:
+  * fix: resolve html2canvas font baseline displacement caused by Tailwind img preflight (c052f61)
+  * fix: align Trade Name and Payment status borders for print and WhatsApp PDF share (9ffa5eb)
+  * fix: align Payment Status and Trade Name badge borders for WhatsApp sharing and print (640f6a5)
+  * feat: integrate Razorpay GST search fallback for automated taxpayer lookup (a0c6c03)
+  * feat: derive state dynamically from GSTIN and use official gov portal for GSTIN lookup (49b5961)
+  * feat: add Profit column to records, settings toggle & web share fallback (6cd9c9e)
+
+========================================================================
 ApexBill Release v2.5.0 - 2026-09-13 15:57:02
 ========================================================================
 Changes & Commits in this Build:

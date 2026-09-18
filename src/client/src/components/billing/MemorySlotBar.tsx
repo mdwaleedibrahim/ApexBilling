@@ -19,6 +19,7 @@ export default function MemorySlotBar() {
         if (cart.paymentMode) store.setPaymentMode(cart.paymentMode)
         if (cart.docType) store.setDocType(cart.docType)
         if (cart.notes) store.setNotes(cart.notes)
+        if (cart.sellerProfileId) store.setSellerProfileId(cart.sellerProfileId)
       }
     })
   }, [])
@@ -34,11 +35,12 @@ export default function MemorySlotBar() {
           paymentMode: store.paymentMode,
           docType: store.docType,
           notes: store.notes,
+          sellerProfileId: store.sellerProfileId,
         })
       }
     }, 400)
     return () => clearTimeout(timer)
-  }, [store.items, store.customer, store.discountPct, store.paymentMode, store.docType, store.notes, activeSlot])
+  }, [store.items, store.customer, store.discountPct, store.paymentMode, store.docType, store.notes, store.sellerProfileId, activeSlot])
 
   const switchSlot = async (newSlot: number) => {
     const slotState = useSlotStore.getState()
@@ -54,6 +56,7 @@ export default function MemorySlotBar() {
       paymentMode: billState.paymentMode,
       docType: billState.docType,
       notes: billState.notes,
+      sellerProfileId: billState.sellerProfileId,
     })
 
     // Switch active slot
@@ -70,6 +73,7 @@ export default function MemorySlotBar() {
       if (cart.paymentMode) billState.setPaymentMode(cart.paymentMode || 'CASH')
       if (cart.docType) billState.setDocType(cart.docType || 'INVOICE')
       if (cart.notes) billState.setNotes(cart.notes || '')
+      if (cart.sellerProfileId) billState.setSellerProfileId(cart.sellerProfileId)
     }
   }
 

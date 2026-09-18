@@ -3,13 +3,22 @@ import { Fragment } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { buildUpiLink, formatINR, formatDate, formatDateTime, amountInWords } from '../../utils/upiHelper'
 
-export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile: any }) {
-  if (!doc || !profile) return null
+export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile?: any }) {
+  if (!doc) return null
+  const sellerSnap = (() => {
+    try {
+      if (doc.seller_snapshot) {
+        return typeof doc.seller_snapshot === 'string' ? JSON.parse(doc.seller_snapshot) : doc.seller_snapshot
+      }
+    } catch {}
+    return null
+  })()
+  const seller = sellerSnap || profile || {}
   const items = doc.items || []
   const snap = (() => { try { return JSON.parse(doc.customer_snapshot) } catch { return {} } })()
   const defaultUpiAcc = profile?.upiAccounts?.find((a: any) => a.is_default) || profile?.upiAccounts?.[0]
-  const upiId = doc.selected_upi_id || profile?.active_upi_id || defaultUpiAcc?.upi_id || (profile?.phone ? `${profile.phone}@upi` : null)
-  const payeeName = defaultUpiAcc?.payee_name || profile?.business_name || 'Merchant'
+  const upiId = doc.selected_upi_id || seller?.active_upi_id || profile?.active_upi_id || defaultUpiAcc?.upi_id || (seller?.phone ? `${seller.phone}@upi` : null)
+  const payeeName = defaultUpiAcc?.payee_name || seller?.business_name || profile?.business_name || 'Merchant'
 
   const isQuotation = doc.doc_type === 'QUOTATION'
   const isPaid = !isQuotation && doc.payment_status === 'PAID'
@@ -102,9 +111,9 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, paddingBottom: 20, borderBottom: `2px solid ${accentColor}` }}>
         <div style={{ maxWidth: '60%' }}>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: accentColor, margin: '0 0 4px 0', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
-            {profile.business_name}
+            {seller.business_name}
           </h1>
-          {profile.trade_name && (
+          {seller.trade_name && (
             <div style={{ marginTop: 4, marginBottom: 6 }}>
               <span style={{
                 display: 'inline-block',
@@ -117,19 +126,19 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
                 borderRadius: 4,
                 lineHeight: 1.3,
               }}>
-                {profile.trade_name}
+                {seller.trade_name}
               </span>
             </div>
           )}
           <p style={{ margin: '3px 0 0 0', color: '#475569', fontSize: 12, lineHeight: 1.4 }}>
-            {profile.address_line1}{profile.address_line2 ? ', ' + profile.address_line2 : ''}
+            {seller.address_line1}{seller.address_line2 ? ', ' + seller.address_line2 : ''}
           </p>
           <p style={{ margin: '2px 0', color: '#475569', fontSize: 12 }}>
-            {profile.city} — {profile.pincode}
+            {seller.city} — {seller.pincode}
           </p>
           <div style={{ marginTop: 6, display: 'flex', gap: 12, fontSize: 11, color: '#334155', fontWeight: 500 }}>
-            <span>GSTIN: <strong style={{ color: '#0f172a' }}>{profile.gstin}</strong></span>
-            {profile.phone && <span>· Ph: <strong style={{ color: '#0f172a' }}>{profile.phone}</strong></span>}
+            <span>GSTIN: <strong style={{ color: '#0f172a' }}>{seller.gstin}</strong></span>
+            {seller.phone && <span>· Ph: <strong style={{ color: '#0f172a' }}>{seller.phone}</strong></span>}
           </div>
         </div>
 
@@ -449,14 +458,14 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
             <p style={{ margin: '2px 0 0 0', fontSize: 11, fontWeight: 600, color: '#1e293b' }}>{amountInWords(doc.grand_total)}</p>
           </div>
 
-          {profile.bank_name && (
+          {seller.bank_name && (
             <div style={{ padding: '12px 14px', border: '1px solid #e2e8f0', borderRadius: 10, background: '#ffffff' }}>
               <p style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', margin: '0 0 4px 0', letterSpacing: '0.04em' }}>Bank Account Details:</p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11, color: '#334155' }}>
-                <div><span style={{ color: '#94a3b8' }}>Bank:</span> <strong>{profile.bank_name}</strong></div>
-                <div><span style={{ color: '#94a3b8' }}>A/c No:</span> <strong style={{ fontFamily: 'monospace' }}>{profile.bank_account_no}</strong></div>
-                <div><span style={{ color: '#94a3b8' }}>IFSC:</span> <strong style={{ fontFamily: 'monospace' }}>{profile.bank_ifsc}</strong></div>
-                {profile.bank_branch && <div><span style={{ color: '#94a3b8' }}>Branch:</span> <strong>{profile.bank_branch}</strong></div>}
+                <div><span style={{ color: '#94a3b8' }}>Bank:</span> <strong>{seller.bank_name}</strong></div>
+                <div><span style={{ color: '#94a3b8' }}>A/c No:</span> <strong style={{ fontFamily: 'monospace' }}>{seller.bank_account_no}</strong></div>
+                <div><span style={{ color: '#94a3b8' }}>IFSC:</span> <strong style={{ fontFamily: 'monospace' }}>{seller.bank_ifsc}</strong></div>
+                {seller.bank_branch && <div><span style={{ color: '#94a3b8' }}>Branch:</span> <strong>{seller.bank_branch}</strong></div>}
               </div>
             </div>
           )}
@@ -510,7 +519,7 @@ export default function A4InvoiceTemplate({ doc, profile }: { doc: any; profile:
           </div>
 
           {/* UPI Scan to Pay Card (Invoices only) */}
-          {(profile?.enable_scan_to_pay !== 0 && profile?.enable_scan_to_pay !== false) && !isQuotation && upiLink && (
+          {((seller?.enable_scan_to_pay ?? profile?.enable_scan_to_pay) !== 0 && (seller?.enable_scan_to_pay ?? profile?.enable_scan_to_pay) !== false) && !isQuotation && upiLink && (
             <div style={{ textAlign: 'center', marginTop: 14, padding: 12, border: '1px dashed #cbd5e1', borderRadius: 10, background: '#f8fafc' }}>
               <p style={{ fontSize: 10, fontWeight: 800, color: accentColor, margin: '0 0 6px 0', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 {qrHeader}

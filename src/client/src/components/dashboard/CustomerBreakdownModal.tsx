@@ -4,13 +4,13 @@ import { X, Users } from 'lucide-react'
 import { api } from '../../utils/api'
 import { formatINR } from '../../utils/upiHelper'
 
-export default function CustomerBreakdownModal({ period, onClose }: { period: string; onClose: () => void }) {
+export default function CustomerBreakdownModal({ period, seller_profile_id, onClose }: { period: string; seller_profile_id?: string; onClose: () => void }) {
   const [rows, setRows] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    api.dashboard.customerBreakdown(period).then(r => { setRows(r); setLoading(false) })
-  }, [period])
+    api.dashboard.customerBreakdown(period, seller_profile_id).then(r => { setRows(r); setLoading(false) })
+  }, [period, seller_profile_id])
 
   return (
     <div className="modal-backdrop" onClick={onClose}>

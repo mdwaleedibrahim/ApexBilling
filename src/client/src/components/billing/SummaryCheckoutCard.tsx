@@ -83,7 +83,7 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
     try {
       const pm = mode || paymentMode
       const ps = status || paymentStatus
-      const defaultUpi = upiAccounts.find((a: any) => a.is_default)?.upi_id || upiAccounts[0]?.upi_id || sellerProfile?.active_upi_id
+      const defaultUpi = sellerProfile?.active_upi_id || upiAccounts.find((a: any) => a.is_default)?.upi_id || upiAccounts[0]?.upi_id
       const selectedUpi = store.selectedUpiId || defaultUpi
 
       // Safety check: ensure quotation terms are submitted for quotations, and invoice terms for invoices
@@ -164,6 +164,7 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
       const body = {
         doc_type: docType,
         doc_date: docDate,
+        seller_profile_id: store.sellerProfileId || sellerProfile?.id || null,
         customer_phone: customer?.phone || null,
         customer_snapshot: JSON.stringify(customer || {}),
         items: items.map(i => ({

@@ -22,6 +22,7 @@
 ## 🌟 Key Capabilities & Features
 
 ### ⚡ 1. Ultra-Fast POS Billing Workspace
+- **Multi-Seller Profile Switcher**: Switch the active Seller GST Profile on the fly directly from the top-bar dropdown; active seller selection is remembered per memory slot and populates all tax, address, bank, and UPI details.
 - **5 Concurrent Memory Slots (`Alt+1..5`)**: Switch and hold multiple customer carts simultaneously without data loss or UI slowdown.
 - **High-Speed Keyboard Navigation**: Complete entire billing workflows using keyboard hotkeys (`F2` search, `F4` quotation, `F7` cash, `F8` UPI QR).
 - **Live SKU & Barcode Search**: Instant product lookup with keyboard arrow navigation and quick auto-fill.
@@ -45,6 +46,7 @@
 - **Opaque Autocomplete Combobox**: Fast, distraction-free customer search with phone, name, and credit indicators.
 
 ### 📊 3. Executive Sales & PnL Analytics Dashboard
+- **Seller Profile PnL Filter**: Inspect metrics for a specific Seller GST Profile or view combined performance across all profiles (`ALL` default mode).
 - **Real-Time Revenue Metrics**: Instant KPI summary cards for *Today*, *This Week*, *This Month*, and *This Year*.
 - **Profit & Loss (PnL) Engine**: Automatic breakdown of *Gross Revenue*, *Cost of Goods Sold (COGS)*, *GST Tax Liability*, and *Gross Net Profit* with dynamic margin percentage.
 - **12-Month Sales Trend Breakdown**: Interactive monthly sales chart to track seasonal trends and business growth.
@@ -52,6 +54,7 @@
 - **CSV Sales Report Export**: 1-click export of financial reports for accounting and audit compliance.
 
 ### 🧾 4. Executive Invoice & Thermal Receipt Layouts
+- **Immutable Seller Snapshot**: Invoices and quotations freeze the active seller's business name, GSTIN, address, bank, and UPI details at creation time, guaranteeing audit immutability.
 - **Zero-Blank-Page A4 GST Tax Invoice**: Clean typography, structured seller/buyer info, itemized HSN table, CGST/SGST split, bank details, authorized signatory, dynamic UPI QR code, and zero extra trailing blank pages.
 - **Multi-Payment Audit Trail**: Transparent breakdown of all historical partial payments with exact transaction timestamps, payment modes (Cash / UPI), cumulative total paid, and outstanding balance due.
 - **Context-Aware Dynamic QR**: Generates dynamic UPI QR codes customized for the remaining balance due or installment amount with clear payment instructions.
@@ -65,6 +68,7 @@
 - **Instant QR Verification**: Works with PhonePe, Google Pay, Paytm, BHIM, and all banking UPI apps.
 
 ### 🔄 6. Records Management & Atomic Stock Reconciler
+- **Seller Profile Filter**: Filter historical records by Seller GST Profile or browse all transactions combined.
 - **Unified Register**: Search and filter past invoices and quotations by type, date range, customer, or payment status.
 - **Dedicated Pending Balance Tracker**: View outstanding credit balances for invoices directly in the main records register table.
 - **Atomic Stock Restoration**: Editing a historical invoice automatically restocks old items, validates new stock levels, recalculates tax totals, and increments revision numbers (`v1` → `v2`).
@@ -78,15 +82,17 @@
 - **High-Speed CSV Bulk Importer**: Upload 2,000+ SKUs with pricing, HSN codes, and initial stock quantities in under 1.5 seconds.
 
 ### 👥 8. Customer Directory & Ledger
+- **Shared Across All Profiles**: Customer database, credit balances, and transaction history are seamlessly shared across all seller entities.
 - **Phone-Number-Indexed Master**: Fast lookup by customer phone number, name, or GSTIN.
 - **Automatic Registration**: Adding a customer during billing OR quotation creation automatically saves them to the master database.
 - **Outstanding Balance Tracker**: Monitor customer credit, pending dues, and payment history.
 - **Analytics Shortcut**: Direct icon button next to every customer to view their complete analytics profile.
 
 ### ⚙️ 9. Administration & Data Resiliency
-- **Business Profile**: Configure Company Name, Trade Name, GSTIN, PAN, Phone, Email, Address, and Bank Account Details.
+- **Multi-Seller GST Profiles**: Manage multiple business profiles with individual Business Names, Trade Names, GSTINs, PANs, Phone, Email, Addresses, linked Bank Accounts, and default UPIs.
+- **Saved Bank Accounts Manager**: Centralized bank account management (Bank Name, Account Number, IFSC, Branch, Account Holder) selectable across profiles.
+- **Global Store & POS Settings**: Configure store-wide invoice and quotation terms & conditions, scan-to-pay toggles, POS price display, and stock validation rules.
 - **Universal In-App Styled Dialog System**: Replaced intrusive browser-native popups (`confirm()`, `alert()`) with beautiful dark glassmorphism modal dialogs featuring keyboard bindings (`Enter` to confirm, `Esc` to cancel).
-- **POS Feature Toggles**: Control visibility of purchase prices, profit margins, and stock limit constraints.
 - **1-Click JSON Backup & Restore**: Export full database snapshots for offsite archival and restore seamlessly.
 
 ---
