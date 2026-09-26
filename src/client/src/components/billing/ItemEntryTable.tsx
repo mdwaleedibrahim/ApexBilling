@@ -74,7 +74,7 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
         return
       }
     }
-    addItem({ productId: p.id, productName: p.name, hsnSac: p.hsn_sac, unit: p.unit || 'PCS', purchasePrice: p.purchase_price || 0, quantity: 1, unitPrice: p.selling_price, mrp: p.mrp || 0, gstRate: p.tax_rate })
+    addItem({ productId: p.id, sku: p.sku || '', productName: p.name, hsnSac: p.hsn_sac, unit: p.unit || 'PCS', purchasePrice: p.purchase_price || 0, quantity: 1, unitPrice: p.selling_price, mrp: p.mrp || 0, gstRate: p.tax_rate })
     setSearch(''); setResults([]); setSearchOpen(false)
     searchRef.current?.focus()
   }
@@ -82,6 +82,7 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
   const selectProductForRow = (rowId: string, p: any) => {
     updateItem(rowId, {
       productId: p.id,
+      sku: p.sku || '',
       productName: p.name,
       hsnSac: p.hsn_sac || '',
       unit: p.unit || 'PCS',
@@ -94,7 +95,7 @@ export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any 
   }
 
   const addBlank = () => {
-    addItem({ productName: '', hsnSac: '', unit: 'PCS', purchasePrice: 0, quantity: 1, unitPrice: 0, mrp: 0, gstRate: 18 })
+    addItem({ productName: '', sku: '', hsnSac: '', unit: 'PCS', purchasePrice: 0, quantity: 1, unitPrice: 0, mrp: 0, gstRate: 18 })
   }
 
   return (

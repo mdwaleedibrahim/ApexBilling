@@ -281,6 +281,16 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
 
       {/* Items Table with Autofit Columns */}
       {(() => {
+        const showHsn = (() => {
+          if (profile?.show_hsn_column !== undefined) {
+            return profile.show_hsn_column !== 0 && profile.show_hsn_column !== false
+          }
+          if (seller?.show_hsn_column !== undefined) {
+            return seller.show_hsn_column !== 0 && seller.show_hsn_column !== false
+          }
+          return true
+        })()
+
         // Word wrap within column by default. Only enter description in full line if wrapping exceeds 3 lines (>75 chars with tax, >105 without tax, or >=3 newlines)
         const shouldSpanFullLine = (name: string) => {
           if (!name) return false
@@ -292,24 +302,26 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
         const tableColumns = hideTax
           ? [
               { id: 'num', label: '#', align: 'center', width: '4%' },
-              { id: 'desc', label: 'Item Description', align: 'left', width: '38%' },
-              { id: 'hsn', label: 'HSN/SAC', align: 'left', width: '12%' },
+              { id: 'sku', label: 'SKU ID', align: 'left', width: showHsn ? '14%' : '16%' },
+              { id: 'desc', label: 'Item Description', align: 'left', width: showHsn ? '32%' : '40%' },
+              ...(showHsn ? [{ id: 'hsn', label: 'HSN/SAC', align: 'left', width: '10%' }] : []),
               { id: 'qty', label: 'Qty', align: 'center', width: '8%' },
               { id: 'unit', label: 'Unit', align: 'center', width: '8%' },
-              { id: 'price', label: 'Price', align: 'right', width: '14%' },
-              { id: 'total', label: 'Total', align: 'right', width: '16%' },
+              { id: 'price', label: 'Price', align: 'right', width: '12%' },
+              { id: 'total', label: 'Total', align: 'right', width: '12%' },
             ]
           : [
               { id: 'num', label: '#', align: 'center', width: '3%' },
-              { id: 'desc', label: 'Item Description', align: 'left', width: '25%' },
-              { id: 'hsn', label: 'HSN/SAC', align: 'left', width: '9%' },
+              { id: 'sku', label: 'SKU ID', align: 'left', width: showHsn ? '11%' : '13%' },
+              { id: 'desc', label: 'Item Description', align: 'left', width: showHsn ? '21%' : '25%' },
+              ...(showHsn ? [{ id: 'hsn', label: 'HSN/SAC', align: 'left', width: '8%' }] : []),
               { id: 'qty', label: 'Qty', align: 'center', width: '6%' },
               { id: 'unit', label: 'Unit', align: 'center', width: '6%' },
-              { id: 'price', label: 'Price', align: 'right', width: '10%' },
-              { id: 'taxable', label: 'Taxable', align: 'right', width: '11%' },
-              { id: 'cgst', label: 'CGST', align: 'right', width: '9%' },
-              { id: 'sgst', label: 'SGST', align: 'right', width: '9%' },
-              { id: 'total', label: 'Total', align: 'right', width: '12%' },
+              { id: 'price', label: 'Price', align: 'right', width: showHsn ? '9%' : '10%' },
+              { id: 'taxable', label: 'Taxable', align: 'right', width: showHsn ? '10%' : '11%' },
+              { id: 'cgst', label: 'CGST', align: 'right', width: '8%' },
+              { id: 'sgst', label: 'SGST', align: 'right', width: '8%' },
+              { id: 'total', label: 'Total', align: 'right', width: showHsn ? '11%' : '10%' },
             ]
 
         const totalCols = tableColumns.length
@@ -374,10 +386,15 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                         {/* Subsequent line for pricing, quantity, and tax details */}
                         <tr style={{ background: rowBg, borderBottom: '1px solid #e2e8f0', breakInside: 'avoid' }}>
                           <td style={{ padding: '3px 6px 7px 6px', textAlign: 'center', fontSize: 10, color: '#94a3b8' }}>↳</td>
-                          <td style={{ padding: '3px 6px 7px 6px' }}></td>
-                          <td style={{ padding: '3px 6px 7px 6px', fontSize: 10, color: '#475569', whiteSpace: 'nowrap' }}>
-                            {item.hsn_sac || '—'}
+                          <td style={{ padding: '3px 6px 7px 6px', fontSize: 10, fontFamily: 'monospace', color: '#334155', fontWeight: 600, wordBreak: 'break-all' }}>
+                            {item.sku || '—'}
                           </td>
+                          <td style={{ padding: '3px 6px 7px 6px' }}></td>
+                          {showHsn && (
+                            <td style={{ padding: '3px 6px 7px 6px', fontSize: 10, color: '#475569', whiteSpace: 'nowrap' }}>
+                              {item.hsn_sac || '—'}
+                            </td>
+                          )}
                           <td style={{ padding: '3px 6px 7px 6px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>
                             {item.quantity}
                           </td>
@@ -418,6 +435,16 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                       <td style={{ padding: '7px 6px', textAlign: 'center', fontSize: 11, color: '#64748b' }}>{i + 1}</td>
                       <td style={{
                         padding: '7px 6px',
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                        color: '#334155',
+                        fontWeight: 600,
+                        wordBreak: 'break-all',
+                      }}>
+                        {item.sku || '—'}
+                      </td>
+                      <td style={{
+                        padding: '7px 6px',
                         fontSize: 11,
                         fontWeight: 600,
                         color: '#0f172a',
@@ -433,7 +460,9 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                           </div>
                         )}
                       </td>
-                      <td style={{ padding: '7px 6px', fontSize: 10, color: '#475569', whiteSpace: 'nowrap' }}>{item.hsn_sac || '—'}</td>
+                      {showHsn && (
+                        <td style={{ padding: '7px 6px', fontSize: 10, color: '#475569', whiteSpace: 'nowrap' }}>{item.hsn_sac || '—'}</td>
+                      )}
                       <td style={{ padding: '7px 6px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>{item.quantity}</td>
                       <td style={{ padding: '7px 6px', textAlign: 'center', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>{item.unit || 'PCS'}</td>
                       <td style={{ padding: '7px 6px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>{formatINR(item.unit_price)}</td>

@@ -57,6 +57,7 @@ export async function generatePaymentQrCardBlob(params: {
   storeName?: string
   upiId?: string | null
   payeeName?: string | null
+  reminderNumber?: number
 }): Promise<{ blob: Blob | null; dataUrl: string | null }> {
   const {
     qrCanvasElement,
@@ -68,6 +69,7 @@ export async function generatePaymentQrCardBlob(params: {
     storeName,
     upiId,
     payeeName,
+    reminderNumber,
   } = params
 
   const width = 800
@@ -286,7 +288,8 @@ export async function generatePaymentQrCardBlob(params: {
 
   ctx.fillStyle = '#94a3b8'
   ctx.font = '500 10.5px Inter, sans-serif'
-  ctx.fillText('Powered by ApexBill • Payment Reminder', width / 2, cardY + cardH - 24)
+  const reminderSuffix = reminderNumber ? ` - ${reminderNumber}` : ''
+  ctx.fillText(`Powered by ApexBill • Payment Reminder${reminderSuffix}`, width / 2, cardY + cardH - 24)
 
   // Export as Blob and DataURL
   const dataUrl = canvas.toDataURL('image/png')

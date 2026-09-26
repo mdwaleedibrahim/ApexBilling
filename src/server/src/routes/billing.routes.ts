@@ -212,12 +212,26 @@ export async function billingRoutes(app: FastifyInstance) {
     }
   );
 
+  const QUERY_DOC_ITEMS = `
+    SELECT di.*,
+      COALESCE(
+        NULLIF(di.sku, ''),
+        p.sku,
+        (SELECT p2.sku FROM products p2 WHERE LOWER(TRIM(p2.name)) = LOWER(TRIM(di.product_name)) LIMIT 1),
+        ''
+      ) as sku
+    FROM document_items di
+    LEFT JOIN products p ON di.product_id = p.id
+    WHERE di.document_id = ?
+    ORDER BY di.rowid
+  `;
+
   // GET /api/documents/:id - full detail with line items
   app.get<{ Params: { id: string } }>('/api/documents/:id', (req, reply) => {
     const db = getDb();
     const doc = db.prepare(`SELECT * FROM documents WHERE id = ?`).get(req.params.id);
     if (!doc) return reply.status(404).send({ error: 'Document not found' });
-    const items = db.prepare(`SELECT * FROM document_items WHERE document_id = ? ORDER BY rowid`).all(req.params.id);
+    const items = db.prepare(QUERY_DOC_ITEMS).all(req.params.id);
     return reply.send({ ...doc as any, items });
   });
 
@@ -338,12 +352,21 @@ export async function billingRoutes(app: FastifyInstance) {
         JSON.stringify(initialHistory), qr_amount_type || 'FULL');
 
       const insertItem = db.prepare(`
-        INSERT INTO document_items (id, document_id, product_id, product_name, hsn_sac, unit, quantity, unit_price, mrp,
+        INSERT INTO document_items (id, document_id, product_id, sku, product_name, hsn_sac, unit, quantity, unit_price, mrp,
           gross_amount, taxable_value, gst_rate, cgst_rate, cgst_amount, sgst_rate, sgst_amount, total_amount, purchase_price)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `);
       for (const item of totals.items) {
-        insertItem.run(randomUUID(), id, item.productId || null, item.productName, item.hsnSac || null,
+        let itemSku = item.sku;
+        if (!itemSku && item.productId) {
+          const prod: any = db.prepare(`SELECT sku FROM products WHERE id = ?`).get(item.productId);
+          if (prod?.sku) itemSku = prod.sku;
+        }
+        if (!itemSku && item.productName) {
+          const prod: any = db.prepare(`SELECT sku FROM products WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1`).get(item.productName);
+          if (prod?.sku) itemSku = prod.sku;
+        }
+        insertItem.run(randomUUID(), id, item.productId || null, itemSku || null, item.productName, item.hsnSac || null,
           item.unit || 'PCS', item.quantity, item.unitPrice, item.mrp || 0, item.grossAmount, item.taxableValue,
           item.gstRate, item.cgstRate, item.cgstAmount, item.sgstRate, item.sgstAmount, item.totalAmount,
           item.purchasePrice || 0);
@@ -361,7 +384,7 @@ export async function billingRoutes(app: FastifyInstance) {
     });
 
     const doc = db.prepare(`SELECT * FROM documents WHERE id = ?`).get(id) as any;
-    const items = db.prepare(`SELECT * FROM document_items WHERE document_id = ?`).all(id);
+    const items = db.prepare(QUERY_DOC_ITEMS).all(id);
     // Recalc customer balance after new document
     if (doc?.customer_phone) recalcCustomerBalance(db, doc.customer_phone);
     return reply.status(201).send({ ...doc as any, items });
@@ -507,12 +530,21 @@ export async function billingRoutes(app: FastifyInstance) {
 
       db.prepare(`DELETE FROM document_items WHERE document_id = ?`).run(req.params.id);
       const insertItem = db.prepare(`
-        INSERT INTO document_items (id, document_id, product_id, product_name, hsn_sac, unit, quantity, unit_price, mrp,
+        INSERT INTO document_items (id, document_id, product_id, sku, product_name, hsn_sac, unit, quantity, unit_price, mrp,
           gross_amount, taxable_value, gst_rate, cgst_rate, cgst_amount, sgst_rate, sgst_amount, total_amount, purchase_price)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `);
       for (const item of totals.items) {
-        insertItem.run(randomUUID(), req.params.id, item.productId || null, item.productName,
+        let itemSku = item.sku;
+        if (!itemSku && item.productId) {
+          const prod: any = db.prepare(`SELECT sku FROM products WHERE id = ?`).get(item.productId);
+          if (prod?.sku) itemSku = prod.sku;
+        }
+        if (!itemSku && item.productName) {
+          const prod: any = db.prepare(`SELECT sku FROM products WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1`).get(item.productName);
+          if (prod?.sku) itemSku = prod.sku;
+        }
+        insertItem.run(randomUUID(), req.params.id, item.productId || null, itemSku || null, item.productName,
           item.hsnSac || null, item.unit || 'PCS', item.quantity, item.unitPrice, item.mrp || 0, item.grossAmount, item.taxableValue,
           item.gstRate, item.cgstRate, item.cgstAmount, item.sgstRate, item.sgstAmount, item.totalAmount,
           item.purchasePrice || 0);
@@ -520,7 +552,7 @@ export async function billingRoutes(app: FastifyInstance) {
     });
 
     const doc = db.prepare(`SELECT * FROM documents WHERE id = ?`).get(req.params.id) as any;
-    const items = db.prepare(`SELECT * FROM document_items WHERE document_id = ?`).all(req.params.id);
+    const items = db.prepare(QUERY_DOC_ITEMS).all(req.params.id);
     // Recalc customer balance after edit
     if (doc?.customer_phone) recalcCustomerBalance(db, doc.customer_phone);
     return reply.send({ ...doc as any, items });
@@ -586,6 +618,18 @@ export async function billingRoutes(app: FastifyInstance) {
     }
   );
 
+  // POST /api/documents/:id/reminder - Increment and record payment reminder count
+  app.post<{ Params: { id: string } }>('/api/documents/:id/reminder', (req, reply) => {
+    const db = getDb();
+    const doc = db.prepare(`SELECT * FROM documents WHERE id = ?`).get(req.params.id) as any;
+    if (!doc) return reply.status(404).send({ error: 'Document not found' });
+    const currentCount = Number(doc.reminder_count) || 0;
+    const nextCount = currentCount + 1;
+    db.prepare(`UPDATE documents SET reminder_count = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(nextCount, req.params.id);
+    const updated = db.prepare(`SELECT * FROM documents WHERE id = ?`).get(req.params.id) as any;
+    return reply.send({ success: true, reminder_count: nextCount, doc: updated });
+  });
+
   // POST /api/documents/:id/convert - Convert Quotation to Invoice
   app.post<{ Params: { id: string }; Body: { payment_mode?: string; payment_status?: string; paid_amount?: number; partial_payment_mode?: string } }>(
     '/api/documents/:id/convert', (req, reply) => {
@@ -594,7 +638,7 @@ export async function billingRoutes(app: FastifyInstance) {
       if (!quo) return reply.status(404).send({ error: 'Quotation not found' });
       if (quo.doc_type !== 'QUOTATION') return reply.status(400).send({ error: 'Document is not a quotation' });
 
-      const items: any[] = db.prepare(`SELECT * FROM document_items WHERE document_id = ?`).all(req.params.id) as any[];
+      const items: any[] = db.prepare(QUERY_DOC_ITEMS).all(req.params.id) as any[];
       const payment_mode = req.body?.payment_mode || 'CASH';
       const payment_status = req.body?.payment_status || 'PAID';
       const paid_amount = req.body?.paid_amount !== undefined ? req.body.paid_amount : (payment_status === 'PAID' ? quo.grand_total : 0);
@@ -642,15 +686,15 @@ export async function billingRoutes(app: FastifyInstance) {
         );
 
         const insertItem = db.prepare(`
-          INSERT INTO document_items (id, document_id, product_id, product_name, hsn_sac, unit, quantity, unit_price,
+          INSERT INTO document_items (id, document_id, product_id, sku, product_name, hsn_sac, unit, quantity, unit_price, mrp,
             gross_amount, taxable_value, gst_rate, cgst_rate, cgst_amount, sgst_rate, sgst_amount, total_amount, purchase_price)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         `);
 
         for (const item of items) {
           insertItem.run(
-            randomUUID(), invoiceId, item.product_id, item.product_name, item.hsn_sac, item.unit || 'PCS',
-            item.quantity, item.unit_price, item.gross_amount, item.taxable_value,
+            randomUUID(), invoiceId, item.product_id, item.sku || null, item.product_name, item.hsn_sac, item.unit || 'PCS',
+            item.quantity, item.unit_price, item.mrp || 0, item.gross_amount, item.taxable_value,
             item.gst_rate, item.cgst_rate, item.cgst_amount, item.sgst_rate, item.sgst_amount, item.total_amount,
             item.purchase_price || 0
           );
@@ -661,7 +705,7 @@ export async function billingRoutes(app: FastifyInstance) {
       });
 
       const newInvoice = db.prepare(`SELECT * FROM documents WHERE id = ?`).get(invoiceId) as any;
-      const newItems = db.prepare(`SELECT * FROM document_items WHERE document_id = ?`).all(invoiceId);
+      const newItems = db.prepare(QUERY_DOC_ITEMS).all(invoiceId);
       // Recalc customer balance after quotation-to-invoice conversion
       if (newInvoice?.customer_phone) recalcCustomerBalance(db, newInvoice.customer_phone);
       return reply.status(201).send({ ...newInvoice as any, items: newItems });

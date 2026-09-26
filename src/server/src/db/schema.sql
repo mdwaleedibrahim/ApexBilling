@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS seller_profile (
     show_profit_loss_in_pos INTEGER DEFAULT 1,
     show_profit_in_records INTEGER DEFAULT 1,
     restrict_sales_to_stock_qty INTEGER DEFAULT 0,
+    show_hsn_column INTEGER DEFAULT 1,
     invoice_terms TEXT DEFAULT '["Goods once sold can''t be returned", "Goods can be exchanged with valid bill within 7 days of purchase"]',
     quotation_terms TEXT DEFAULT '["Quotation valid for 3 days only"]',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -139,6 +140,7 @@ CREATE TABLE IF NOT EXISTS documents (
     partial_payment_mode TEXT,
     payment_history TEXT DEFAULT '[]',
     qr_amount_type TEXT DEFAULT 'FULL',
+    reminder_count INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -149,6 +151,7 @@ CREATE TABLE IF NOT EXISTS document_items (
     id TEXT PRIMARY KEY,
     document_id TEXT REFERENCES documents(id) ON DELETE CASCADE,
     product_id TEXT REFERENCES products(id),
+    sku TEXT,
     product_name TEXT NOT NULL,
     hsn_sac TEXT,
     unit TEXT DEFAULT 'PCS',

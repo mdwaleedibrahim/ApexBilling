@@ -2,6 +2,7 @@
 
 export interface LineItem {
   productId?: string
+  sku?: string
   productName: string
   hsnSac?: string
   unit?: string

@@ -304,7 +304,7 @@ export async function settingsRoutes(app: FastifyInstance) {
     const db = getDb();
     const {
       enable_scan_to_pay, show_purchase_price_in_pos, show_profit_loss_in_pos,
-      show_profit_in_records, restrict_sales_to_stock_qty,
+      show_profit_in_records, restrict_sales_to_stock_qty, show_hsn_column,
       invoice_terms, quotation_terms
     } = (req.body || {}) as any;
 
@@ -324,6 +324,7 @@ export async function settingsRoutes(app: FastifyInstance) {
         show_profit_loss_in_pos = COALESCE(?, show_profit_loss_in_pos),
         show_profit_in_records = COALESCE(?, show_profit_in_records),
         restrict_sales_to_stock_qty = COALESCE(?, restrict_sales_to_stock_qty),
+        show_hsn_column = COALESCE(?, show_hsn_column),
         invoice_terms = COALESCE(?, invoice_terms),
         quotation_terms = COALESCE(?, quotation_terms),
         updated_at = CURRENT_TIMESTAMP
@@ -334,6 +335,7 @@ export async function settingsRoutes(app: FastifyInstance) {
       show_profit_loss_in_pos !== undefined ? (show_profit_loss_in_pos ? 1 : 0) : null,
       show_profit_in_records !== undefined ? (show_profit_in_records ? 1 : 0) : null,
       restrict_sales_to_stock_qty !== undefined ? (restrict_sales_to_stock_qty ? 1 : 0) : null,
+      show_hsn_column !== undefined ? (show_hsn_column ? 1 : 0) : null,
       invoiceTermsStr !== undefined ? invoiceTermsStr : (current?.invoice_terms || null),
       quotationTermsStr !== undefined ? quotationTermsStr : (current?.quotation_terms || null)
     );
@@ -361,6 +363,7 @@ export async function settingsRoutes(app: FastifyInstance) {
         show_profit_loss_in_pos: storeSettings.show_profit_loss_in_pos,
         show_profit_in_records: storeSettings.show_profit_in_records,
         restrict_sales_to_stock_qty: storeSettings.restrict_sales_to_stock_qty,
+        show_hsn_column: storeSettings.show_hsn_column,
         invoice_terms: storeSettings.invoice_terms,
         quotation_terms: storeSettings.quotation_terms,
       };
@@ -387,7 +390,7 @@ export async function settingsRoutes(app: FastifyInstance) {
       address_line1, address_line2, city, state_code, pincode,
       bank_name, bank_account_no, bank_ifsc, bank_branch, active_upi_id, enable_scan_to_pay,
       show_purchase_price_in_pos, show_profit_loss_in_pos, show_profit_in_records, restrict_sales_to_stock_qty,
-      invoice_terms, quotation_terms
+      show_hsn_column, invoice_terms, quotation_terms
     } = (req.body || {}) as any;
 
     const invoiceTermsStr = invoice_terms !== undefined
@@ -424,6 +427,7 @@ export async function settingsRoutes(app: FastifyInstance) {
           show_profit_loss_in_pos = COALESCE(?, show_profit_loss_in_pos),
           show_profit_in_records = COALESCE(?, show_profit_in_records),
           restrict_sales_to_stock_qty = COALESCE(?, restrict_sales_to_stock_qty),
+          show_hsn_column = COALESCE(?, show_hsn_column),
           invoice_terms = COALESCE(?, invoice_terms),
           quotation_terms = COALESCE(?, quotation_terms),
           updated_at = CURRENT_TIMESTAMP
@@ -450,6 +454,7 @@ export async function settingsRoutes(app: FastifyInstance) {
         show_profit_loss_in_pos !== undefined ? (show_profit_loss_in_pos ? 1 : 0) : null,
         show_profit_in_records !== undefined ? (show_profit_in_records ? 1 : 0) : null,
         restrict_sales_to_stock_qty !== undefined ? (restrict_sales_to_stock_qty ? 1 : 0) : null,
+        show_hsn_column !== undefined ? (show_hsn_column ? 1 : 0) : null,
         invoiceTermsStr !== undefined ? invoiceTermsStr : null,
         quotationTermsStr !== undefined ? quotationTermsStr : null
       );

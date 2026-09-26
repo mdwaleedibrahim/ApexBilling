@@ -168,7 +168,7 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
         customer_phone: customer?.phone || null,
         customer_snapshot: JSON.stringify(customer || {}),
         items: items.map(i => ({
-          productId: i.productId, productName: i.productName, hsnSac: i.hsnSac, unit: i.unit,
+          productId: i.productId, sku: i.sku || '', productName: i.productName, hsnSac: i.hsnSac, unit: i.unit,
           purchasePrice: i.purchasePrice, quantity: i.quantity, unitPrice: i.unitPrice, mrp: i.mrp, gstRate: i.gstRate,
         })),
         discount_pct: discountPct,

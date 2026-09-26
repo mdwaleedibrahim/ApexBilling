@@ -456,7 +456,7 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
             { id: 'bank', label: '🏦 Bank Accounts' },
             { id: 'upi', label: '📱 UPI Accounts' },
             { id: 'store', label: '⚙️ Store & POS' },
-            { id: 'admin', label: '🛡️ Resiliency' }
+            { id: 'admin', label: '🛡️ Admin' }
           ].map(t => (
             <button
               key={t.id}
@@ -1166,6 +1166,26 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
                   type="checkbox"
                   checked={storeSettings.restrict_sales_to_stock_qty !== 0 && storeSettings.restrict_sales_to_stock_qty !== false}
                   onChange={e => setStoreSettings((s: any) => ({ ...s, restrict_sales_to_stock_qty: e.target.checked ? 1 : 0 }))}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div>
+              </label>
+            </div>
+
+            {/* Show HSN Column in Invoices & Quotations Toggle */}
+            <div className="p-3.5 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <FileText size={18} className="text-cyan-400" />
+                <div>
+                  <p className="text-sm font-medium text-gray-200">Show HSN/SAC Column in Invoices & Quotations</p>
+                  <p className="text-xs text-gray-400">Display HSN/SAC code column in A4 print layout for billing invoices and quotations</p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={storeSettings.show_hsn_column !== 0 && storeSettings.show_hsn_column !== false}
+                  onChange={e => setStoreSettings((s: any) => ({ ...s, show_hsn_column: e.target.checked ? 1 : 0 }))}
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div>

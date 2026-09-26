@@ -12,6 +12,7 @@ import { generatePaymentQrCardBlob } from './qrImageHelper'
 import { formatINR, formatDate, buildUpiLink } from './upiHelper'
 import { useDialogStore } from '../store/useDialogStore'
 import { useWhatsAppShareStore } from '../store/useWhatsAppShareStore'
+import { api } from './api'
 import {
   CheckCircle2,
   MessageSquare,
@@ -83,6 +84,7 @@ export function generateWhatsAppReminderMessage(params: {
   upiId?: string | null
   payeeName?: string | null
   upiLink?: string | null
+  reminderNumber?: number
 }): string {
   const {
     docNumber,
@@ -94,10 +96,12 @@ export function generateWhatsAppReminderMessage(params: {
     storeName,
     upiId,
     payeeName,
-    upiLink
+    upiLink,
+    reminderNumber
   } = params
 
-  let msg = `🔔 *PAYMENT REMINDER*`
+  const reminderNum = reminderNumber && reminderNumber > 0 ? reminderNumber : 1
+  let msg = `🔔 *PAYMENT REMINDER - ${reminderNum}*`
   if (storeName) {
     msg += `\n*From:* ${storeName}`
   }
@@ -408,7 +412,8 @@ export async function sendPaymentReminderViaWhatsApp(
   element: HTMLElement | null,
   doc: any,
   profile: any,
-  getElementAsync?: () => Promise<HTMLElement | null>
+  getElementAsync?: () => Promise<HTMLElement | null>,
+  onReminderSent?: (newCount: number) => void
 ): Promise<void> {
   const snap = typeof doc.customer_snapshot === 'string'
     ? (() => { try { return JSON.parse(doc.customer_snapshot) } catch { return {} } })()
@@ -424,6 +429,24 @@ export async function sendPaymentReminderViaWhatsApp(
       'Missing Customer Phone'
     )
     return
+  }
+
+  // Calculate reminder number for this invoice (1, 2, 3...)
+  const currentCount = Number(doc.reminder_count) || 0
+  const reminderNumber = currentCount + 1
+
+  // Asynchronously record the increment in backend database and optimistically update in memory
+  if (doc.id) {
+    api.documents.recordReminder(doc.id).then((res) => {
+      if (res?.reminder_count) {
+        doc.reminder_count = res.reminder_count
+        onReminderSent?.(res.reminder_count)
+      }
+    }).catch(err => {
+      console.warn('Failed to record reminder count on backend:', err)
+    })
+    doc.reminder_count = reminderNumber
+    onReminderSent?.(reminderNumber)
   }
 
   const cleanedPhone = cleanPhoneForWhatsApp(phone)
@@ -460,7 +483,8 @@ export async function sendPaymentReminderViaWhatsApp(
     storeName,
     upiId,
     payeeName,
-    upiLink: upiLink || undefined
+    upiLink: upiLink || undefined,
+    reminderNumber
   })
 
   const qrFilename = `${doc.doc_number}-Payment-QR.png`
@@ -475,6 +499,7 @@ export async function sendPaymentReminderViaWhatsApp(
     filename,
     qrFilename,
     mode: 'reminder',
+    reminderNumber,
     balanceDue,
     upiLink,
     upiId,
@@ -525,7 +550,8 @@ export async function sendPaymentReminderViaWhatsApp(
         customerName,
         storeName,
         upiId,
-        payeeName
+        payeeName,
+        reminderNumber
       })
       generatedQr = qrResult.blob
       store.setQrBlob(qrResult.blob, qrResult.dataUrl)
@@ -544,7 +570,7 @@ export async function sendPaymentReminderViaWhatsApp(
           qrBlob: generatedQr,
           pdfFilename: filename,
           qrFilename,
-          title: `Payment Reminder - ${doc.doc_number}`
+          title: `Payment Reminder - ${reminderNumber} - ${doc.doc_number}`
         })
         store.setAutoShareResult(true, shareSuccess)
         if (shareSuccess) {
@@ -589,6 +615,7 @@ export function WhatsAppShareModal() {
     upiLink,
     upiId,
     payeeName,
+    reminderNumber,
     setStep1Completed,
     setStep2Completed,
     close
@@ -622,7 +649,9 @@ export function WhatsAppShareModal() {
         qrBlob: isReminder ? qrBlob : null,
         pdfFilename: filename,
         qrFilename: isReminder ? qrFilename : undefined,
-        title: isReminder ? `Reminder: Invoice ${doc.doc_number}` : filename
+        title: isReminder
+          ? (reminderNumber ? `Payment Reminder - ${reminderNumber} - ${doc.doc_number}` : `Reminder: Invoice ${doc.doc_number}`)
+          : filename
       })
       if (success) {
         setStep2Completed(true)
@@ -688,10 +717,17 @@ export function WhatsAppShareModal() {
             </div>
             <div>
               <h3 className="text-sm font-semibold text-gray-100 flex items-center gap-2">
-                {isReminder ? 'Payment Reminder • WhatsApp' : 'WhatsApp 2-Step Share'}
+                {isReminder
+                  ? (reminderNumber ? `Payment Reminder - ${reminderNumber} • WhatsApp` : 'Payment Reminder • WhatsApp')
+                  : 'WhatsApp 2-Step Share'}
                 <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                   {doc.doc_number}
                 </span>
+                {isReminder && reminderNumber && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono font-bold border border-amber-500/30">
+                    Reminder #{reminderNumber}
+                  </span>
+                )}
                 {isReminder && balanceDue > 0 && (
                   <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 font-mono font-bold border border-red-500/30">
                     Due: {formatINR(balanceDue)}
@@ -799,7 +835,9 @@ export function WhatsAppShareModal() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h4 className="text-sm font-semibold text-gray-200">
-                      {isReminder ? 'Step 1: Direct Reminder Message' : 'Step 1: Direct Message'}
+                      {isReminder
+                        ? (reminderNumber ? `Step 1: Direct Reminder Message (#${reminderNumber})` : 'Step 1: Direct Reminder Message')
+                        : 'Step 1: Direct Message'}
                     </h4>
                     {step1Completed && (
                       <span className="text-[10px] font-medium text-emerald-400 uppercase tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1">
@@ -809,7 +847,7 @@ export function WhatsAppShareModal() {
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {isReminder
-                      ? 'Directly opens WhatsApp chat with balance due, breakdown & UPI payment link.'
+                      ? `Directly opens WhatsApp chat with Payment Reminder - ${reminderNumber || 1}, balance due, breakdown & UPI payment link.`
                       : 'Directly shares document number & store name (no share menu).'}
                   </p>
                   <div className="mt-2 text-xs font-mono bg-gray-950/70 border border-white/5 p-2.5 rounded text-gray-300 whitespace-pre-line select-all max-h-36 overflow-y-auto">

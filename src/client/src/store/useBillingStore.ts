@@ -172,7 +172,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
 
   loadFromDoc: (doc) => {
     const items: CartItem[] = (doc.items || []).map((i: any) => ({
-      id: uuid(), productId: i.product_id, productName: i.product_name,
+      id: uuid(), productId: i.product_id, sku: i.sku || '', productName: i.product_name,
       hsnSac: i.hsn_sac, unit: i.unit || 'PCS', purchasePrice: i.purchase_price || 0, quantity: i.quantity, unitPrice: i.unit_price, mrp: i.mrp || 0, gstRate: i.gst_rate,
     }))
     const customer = doc.customer_snapshot ? (() => {
@@ -216,7 +216,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   },
   convertQuotationToInvoice: (doc) => {
     const items: CartItem[] = (doc.items || []).map((i: any) => ({
-      id: uuid(), productId: i.product_id, productName: i.product_name,
+      id: uuid(), productId: i.product_id, sku: i.sku || '', productName: i.product_name,
       hsnSac: i.hsn_sac, unit: i.unit || 'PCS', purchasePrice: i.purchase_price || 0, quantity: i.quantity, unitPrice: i.unit_price, mrp: i.mrp || 0, gstRate: i.gst_rate,
     }))
     const customer = doc.customer_snapshot ? (() => {

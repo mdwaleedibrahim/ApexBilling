@@ -23,6 +23,7 @@ export interface WhatsAppShareState {
   upiLink?: string | null
   upiId?: string | null
   payeeName?: string | null
+  reminderNumber?: number
 
   // Actions
   open: (payload: {
@@ -42,6 +43,7 @@ export interface WhatsAppShareState {
     upiLink?: string | null
     upiId?: string | null
     payeeName?: string | null
+    reminderNumber?: number
   }) => void
   setPdfBlob: (blob: Blob | null) => void
   setQrBlob: (blob: Blob | null, dataUrl?: string | null) => void
@@ -100,7 +102,8 @@ export const useWhatsAppShareStore = create<WhatsAppShareState>((set) => ({
     balanceDue: payload.balanceDue ?? 0,
     upiLink: payload.upiLink || null,
     upiId: payload.upiId || null,
-    payeeName: payload.payeeName || null
+    payeeName: payload.payeeName || null,
+    reminderNumber: payload.reminderNumber
   }),
 
   setPdfBlob: (blob) => set({ pdfBlob: blob, isGeneratingPdf: false }),
@@ -128,6 +131,7 @@ export const useWhatsAppShareStore = create<WhatsAppShareState>((set) => ({
     balanceDue: 0,
     upiLink: null,
     upiId: null,
-    payeeName: null
+    payeeName: null,
+    reminderNumber: undefined
   })
 }))

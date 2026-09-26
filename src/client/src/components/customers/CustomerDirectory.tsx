@@ -82,6 +82,9 @@ export default function CustomerDirectory({ onViewAnalytics }: { onViewAnalytics
 
   const handleSendReminder = (inv: any) => {
     try {
+      const onReminderSent = (newCount: number) => {
+        setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, reminder_count: newCount } : i))
+      }
       sendPaymentReminderViaWhatsApp(
         null,
         inv,
@@ -97,7 +100,8 @@ export default function CustomerDirectory({ onViewAnalytics }: { onViewAnalytics
           setReminderDoc(fullDoc)
           await new Promise(r => setTimeout(r, 120))
           return hiddenPdfRef.current
-        }
+        },
+        onReminderSent
       )
     } catch (e) {
       console.error('Failed to send reminder from customer directory:', e)
@@ -391,10 +395,15 @@ export default function CustomerDirectory({ onViewAnalytics }: { onViewAnalytics
                         <button
                           type="button"
                           onClick={() => handleSendReminder(inv)}
-                          className="btn-ghost p-1.5 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 transition-colors"
-                          title={`Send WhatsApp Reminder (${formatINR(pending)} Due)`}
+                          className="btn-ghost p-1.5 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 transition-colors relative"
+                          title={`Send Payment Reminder - ${(Number(inv.reminder_count) || 0) + 1} via WhatsApp (${formatINR(pending)} Due)${inv.reminder_count ? ` • Sent ${inv.reminder_count} time(s)` : ''}`}
                         >
                           <BellRing size={14} className="text-amber-400" />
+                          {Boolean(inv.reminder_count && inv.reminder_count > 0) && (
+                            <span className="absolute -top-1 -right-1 text-[9px] font-bold bg-amber-500 text-gray-950 rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none">
+                              {inv.reminder_count}
+                            </span>
+                          )}
                         </button>
                       )}
                     </div>

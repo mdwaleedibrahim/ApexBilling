@@ -62,6 +62,8 @@ export const api = {
     delete: (id: string) => req<any>(`/documents/${id}`, { method: 'DELETE' }),
     setStatus: (id: string, payment_status: string, payment_mode?: string, paid_amount?: number, partial_payment_mode?: string) =>
       req<any>(`/documents/${id}/status`, { method: 'PATCH', body: JSON.stringify({ payment_status, payment_mode, paid_amount, partial_payment_mode }) }),
+    recordReminder: (id: string) =>
+      req<{ success: boolean; reminder_count: number; doc?: any }>(`/documents/${id}/reminder`, { method: 'POST' }),
   },
 
   // ── Customers ─────────────────────────────────────────────────────────────

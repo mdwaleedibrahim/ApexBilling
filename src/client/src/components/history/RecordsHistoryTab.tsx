@@ -124,8 +124,15 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
 
   const handleSendReminder = (doc: any) => {
     setSharingQrMode('balance')
+    const onReminderSent = (newCount: number) => {
+      setDocs(prev => prev.map(d => d.id === doc.id ? { ...d, reminder_count: newCount } : d))
+      if (viewDoc && viewDoc.id === doc.id) {
+        setViewDoc((prev: any) => prev ? { ...prev, reminder_count: newCount } : prev)
+      }
+    }
+
     if (viewDoc && viewDoc.id === doc.id && viewModalPdfRef.current) {
-      sendPaymentReminderViaWhatsApp(viewModalPdfRef.current, viewDoc, profile)
+      sendPaymentReminderViaWhatsApp(viewModalPdfRef.current, viewDoc, profile, undefined, onReminderSent)
     } else {
       sendPaymentReminderViaWhatsApp(
         null,
@@ -136,7 +143,8 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
           setSharingDoc(fullDoc)
           await new Promise(r => setTimeout(r, 120))
           return hiddenPdfRef.current
-        }
+        },
+        onReminderSent
       )
     }
   }
@@ -294,10 +302,15 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
                         {pendingAmount > 0 && (
                           <button
                             onClick={() => handleSendReminder(doc)}
-                            className="btn-ghost p-1.5 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 transition-colors"
-                            title={`Send Payment Reminder via WhatsApp (${formatINR(pendingAmount)} Due)`}
+                            className="btn-ghost p-1.5 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 transition-colors relative"
+                            title={`Send Payment Reminder - ${(Number(doc.reminder_count) || 0) + 1} via WhatsApp (${formatINR(pendingAmount)} Due)${doc.reminder_count ? ` • Sent ${doc.reminder_count} time(s)` : ''}`}
                           >
                             <BellRing size={14} className="text-amber-400" />
+                            {Boolean(doc.reminder_count && doc.reminder_count > 0) && (
+                              <span className="absolute -top-1 -right-1 text-[9px] font-bold bg-amber-500 text-gray-950 rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none">
+                                {doc.reminder_count}
+                              </span>
+                            )}
                           </button>
                         )}
                         <button onClick={() => handlePrint(doc)} className="btn-ghost p-1.5 text-gray-300" title="Print"><Printer size={14} /></button>
@@ -344,9 +357,10 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
                   <button
                     onClick={() => handleSendReminder(viewDoc)}
                     className="btn-primary text-xs py-1.5 bg-amber-600 hover:bg-amber-500 border-0 flex items-center gap-1.5 shadow-sm shadow-amber-600/30 text-white font-medium"
-                    title={`Send Payment Reminder via WhatsApp (${formatINR(Math.max(0, viewDoc.grand_total - (viewDoc.paid_amount || 0)))} Due)`}
+                    title={`Send Payment Reminder - ${(Number(viewDoc.reminder_count) || 0) + 1} via WhatsApp (${formatINR(Math.max(0, viewDoc.grand_total - (viewDoc.paid_amount || 0)))} Due)`}
                   >
-                    <BellRing size={14} className="text-white" /> Send Reminder
+                    <BellRing size={14} className="text-white" />
+                    {viewDoc.reminder_count ? `Send Reminder (#${(Number(viewDoc.reminder_count) || 0) + 1})` : 'Send Reminder'}
                   </button>
                 )}
                 {viewDoc.doc_type === 'QUOTATION' && viewDoc.payment_status !== 'CANCELLED' && (

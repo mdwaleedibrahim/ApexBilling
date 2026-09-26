@@ -134,7 +134,7 @@ export async function adminRoutes(app: FastifyInstance) {
             bank_name=?, bank_account_no=?, bank_ifsc=?, bank_branch=?, active_upi_id=?,
             enable_scan_to_pay=?, show_purchase_price_in_pos=?, show_profit_loss_in_pos=?,
             show_profit_in_records=?,
-            restrict_sales_to_stock_qty=?, invoice_terms=?, quotation_terms=?, updated_at=CURRENT_TIMESTAMP
+            restrict_sales_to_stock_qty=?, show_hsn_column=?, invoice_terms=?, quotation_terms=?, updated_at=CURRENT_TIMESTAMP
           WHERE id=1
         `).run(
           p.business_name, p.trade_name || null, p.gstin, p.pan || null, p.phone, p.email || null,
@@ -144,6 +144,7 @@ export async function adminRoutes(app: FastifyInstance) {
           p.show_purchase_price_in_pos ?? 1, p.show_profit_loss_in_pos ?? 1,
           p.show_profit_in_records ?? 1,
           p.restrict_sales_to_stock_qty ?? 0,
+          p.show_hsn_column ?? 1,
           p.invoice_terms ? (typeof p.invoice_terms === 'string' ? p.invoice_terms : JSON.stringify(p.invoice_terms)) : null,
           p.quotation_terms ? (typeof p.quotation_terms === 'string' ? p.quotation_terms : JSON.stringify(p.quotation_terms)) : null
         )
@@ -218,8 +219,9 @@ export async function adminRoutes(app: FastifyInstance) {
           INSERT INTO documents (id, doc_type, doc_number, parent_doc_id, doc_date,
             seller_profile_id, seller_snapshot, customer_phone, customer_snapshot,
             gross_subtotal, discount_pct, discount_amount, taxable_amount, cgst_total, sgst_total,
-            round_off, grand_total, payment_mode, payment_status, selected_upi_id, revision_number, notes, terms_and_conditions, hide_tax_on_invoice)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            round_off, grand_total, payment_mode, payment_status, selected_upi_id, revision_number, notes, terms_and_conditions, hide_tax_on_invoice,
+            paid_amount, partial_payment_mode, payment_history, qr_amount_type, reminder_count)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         `)
         for (const d of payload.documents) {
           insertDoc.run(
@@ -233,7 +235,12 @@ export async function adminRoutes(app: FastifyInstance) {
             d.payment_mode || 'CASH', d.payment_status || 'PAID', d.selected_upi_id || null,
             d.revision_number || 1, d.notes || null,
             d.terms_and_conditions ? (typeof d.terms_and_conditions === 'string' ? d.terms_and_conditions : JSON.stringify(d.terms_and_conditions)) : null,
-            d.hide_tax_on_invoice ? 1 : 0
+            d.hide_tax_on_invoice ? 1 : 0,
+            d.paid_amount || 0,
+            d.partial_payment_mode || null,
+            d.payment_history ? (typeof d.payment_history === 'string' ? d.payment_history : JSON.stringify(d.payment_history)) : '[]',
+            d.qr_amount_type || 'FULL',
+            d.reminder_count || 0
           )
         }
       }
@@ -241,14 +248,14 @@ export async function adminRoutes(app: FastifyInstance) {
       // Restore Document Items
       if (Array.isArray(payload.documentItems)) {
         const insertItem = db.prepare(`
-          INSERT INTO document_items (id, document_id, product_id, product_name, hsn_sac, unit, quantity, unit_price,
+          INSERT INTO document_items (id, document_id, product_id, sku, product_name, hsn_sac, unit, quantity, unit_price, mrp,
             gross_amount, taxable_value, gst_rate, cgst_rate, cgst_amount, sgst_rate, sgst_amount, total_amount, purchase_price)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         `)
         for (const item of payload.documentItems) {
           insertItem.run(
-            item.id, item.document_id, item.product_id || null, item.product_name, item.hsn_sac || null,
-            item.unit || 'PCS', item.quantity, item.unit_price, item.gross_amount, item.taxable_value,
+            item.id, item.document_id, item.product_id || null, item.sku || null, item.product_name, item.hsn_sac || null,
+            item.unit || 'PCS', item.quantity, item.unit_price, item.mrp || 0, item.gross_amount, item.taxable_value,
             item.gst_rate, item.cgst_rate || 0, item.cgst_amount || 0, item.sgst_rate || 0, item.sgst_amount || 0,
             item.total_amount, item.purchase_price || 0
           )

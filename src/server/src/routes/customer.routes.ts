@@ -159,7 +159,7 @@ export async function customerRoutes(app: FastifyInstance) {
   app.get<{ Params: { phone: string } }>('/api/customers/:phone/invoices', (req, reply) => {
     const db = getDb();
     const rows = db.prepare(`
-      SELECT id, doc_type, doc_number, doc_date, grand_total, payment_status
+      SELECT id, doc_type, doc_number, doc_date, grand_total, payment_status, paid_amount, reminder_count
       FROM documents WHERE customer_phone = ?
       ORDER BY doc_date DESC, created_at DESC
     `).all(req.params.phone);

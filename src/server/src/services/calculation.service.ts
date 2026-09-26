@@ -6,6 +6,7 @@
 
 export interface LineItemInput {
   productId?: string;
+  sku?: string;
   productName: string;
   hsnSac?: string;
   unit?: string;
