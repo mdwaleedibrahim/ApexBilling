@@ -106,6 +106,14 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
     }
   })()
 
+  const totalMrpSavings = items.reduce((sum: number, item: any) => {
+    const mrp = parseFloat(item.mrp) || 0
+    const selling = parseFloat(item.unit_price) || 0
+    const qty = parseFloat(item.quantity) || 0
+    const saving = (mrp - selling) * qty
+    return saving > 0.005 ? sum + saving : sum
+  }, 0)
+
   return (
     <div className="print-container bg-white text-gray-900 p-8 relative" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif", color: '#0f172a', boxSizing: 'border-box', width: '100%', maxWidth: '210mm', margin: '0 auto' }}>
       
@@ -301,27 +309,27 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
 
         const tableColumns = hideTax
           ? [
-              { id: 'num', label: '#', align: 'center', width: '4%' },
-              { id: 'sku', label: 'SKU ID', align: 'left', width: showHsn ? '14%' : '16%' },
-              { id: 'desc', label: 'Item Description', align: 'left', width: showHsn ? '32%' : '40%' },
-              ...(showHsn ? [{ id: 'hsn', label: 'HSN/SAC', align: 'left', width: '10%' }] : []),
-              { id: 'qty', label: 'Qty', align: 'center', width: '8%' },
-              { id: 'unit', label: 'Unit', align: 'center', width: '8%' },
-              { id: 'price', label: 'Price', align: 'right', width: '12%' },
-              { id: 'total', label: 'Total', align: 'right', width: '12%' },
+              { id: 'num', label: '#', align: 'center', width: '3.5%' },
+              { id: 'sku', label: 'SKU ID', align: 'left', width: showHsn ? '11%' : '12%' },
+              { id: 'desc', label: 'Item Description', align: 'left', width: showHsn ? '38.5%' : '46.5%' },
+              ...(showHsn ? [{ id: 'hsn', label: 'HSN', align: 'left', width: '8%' }] : []),
+              { id: 'qty', label: 'Qty', align: 'center', width: showHsn ? '6%' : '7%' },
+              { id: 'unit', label: 'Unit', align: 'center', width: showHsn ? '6%' : '7%' },
+              { id: 'price', label: 'Price', align: 'center', width: showHsn ? '13.5%' : '12%' },
+              { id: 'total', label: 'Total', align: 'right', width: showHsn ? '13.5%' : '12%' },
             ]
           : [
               { id: 'num', label: '#', align: 'center', width: '3%' },
-              { id: 'sku', label: 'SKU ID', align: 'left', width: showHsn ? '11%' : '13%' },
-              { id: 'desc', label: 'Item Description', align: 'left', width: showHsn ? '21%' : '25%' },
-              ...(showHsn ? [{ id: 'hsn', label: 'HSN/SAC', align: 'left', width: '8%' }] : []),
-              { id: 'qty', label: 'Qty', align: 'center', width: '6%' },
-              { id: 'unit', label: 'Unit', align: 'center', width: '6%' },
-              { id: 'price', label: 'Price', align: 'right', width: showHsn ? '9%' : '10%' },
-              { id: 'taxable', label: 'Taxable', align: 'right', width: showHsn ? '10%' : '11%' },
-              { id: 'cgst', label: 'CGST', align: 'right', width: '8%' },
-              { id: 'sgst', label: 'SGST', align: 'right', width: '8%' },
-              { id: 'total', label: 'Total', align: 'right', width: showHsn ? '11%' : '10%' },
+              { id: 'sku', label: 'SKU ID', align: 'left', width: showHsn ? '8.5%' : '9.5%' },
+              { id: 'desc', label: 'Item Description', align: 'left', width: showHsn ? '25%' : '29.5%' },
+              ...(showHsn ? [{ id: 'hsn', label: 'HSN', align: 'left', width: '6.5%' }] : []),
+              { id: 'qty', label: 'Qty', align: 'center', width: '5%' },
+              { id: 'unit', label: 'Unit', align: 'center', width: '5%' },
+              { id: 'price', label: 'Price', align: 'center', width: showHsn ? '13%' : '14%' },
+              { id: 'taxable', label: 'Taxable', align: 'right', width: showHsn ? '9.5%' : '10%' },
+              { id: 'cgst', label: 'CGST', align: 'right', width: '7%' },
+              { id: 'sgst', label: 'SGST', align: 'right', width: '7%' },
+              { id: 'total', label: 'Total', align: 'right', width: showHsn ? '10.5%' : '10%' },
             ]
 
         const totalCols = tableColumns.length
@@ -329,6 +337,11 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
         return (
           <div className="items-table-wrapper" style={{ borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 20, width: '100%', boxSizing: 'border-box' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+              <colgroup>
+                {tableColumns.map((col) => (
+                  <col key={col.id} style={{ width: col.width }} />
+                ))}
+              </colgroup>
               <thead>
                 <tr style={{ background: headerBg, color: 'white' }}>
                   {tableColumns.map((col) => (
@@ -336,7 +349,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                       key={col.id}
                       style={{
                         width: col.width,
-                        padding: '8px 6px',
+                        padding: '8px 8px',
                         fontSize: 10,
                         fontWeight: 700,
                         letterSpacing: '0.03em',
@@ -385,27 +398,41 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                         </tr>
                         {/* Subsequent line for pricing, quantity, and tax details */}
                         <tr style={{ background: rowBg, borderBottom: '1px solid #e2e8f0', breakInside: 'avoid' }}>
-                          <td style={{ padding: '3px 6px 7px 6px', textAlign: 'center', fontSize: 10, color: '#94a3b8' }}>↳</td>
+                          <td style={{ padding: '3px 4px 7px 4px', textAlign: 'center', fontSize: 10, color: '#94a3b8' }}>↳</td>
                           <td style={{ padding: '3px 6px 7px 6px', fontSize: 10, fontFamily: 'monospace', color: '#334155', fontWeight: 600, wordBreak: 'break-all' }}>
                             {item.sku || '—'}
                           </td>
-                          <td style={{ padding: '3px 6px 7px 6px' }}></td>
+                          <td style={{ padding: '3px 8px 7px 8px' }}></td>
                           {showHsn && (
                             <td style={{ padding: '3px 6px 7px 6px', fontSize: 10, color: '#475569', whiteSpace: 'nowrap' }}>
                               {item.hsn_sac || '—'}
                             </td>
                           )}
-                          <td style={{ padding: '3px 6px 7px 6px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>
+                          <td style={{ padding: '3px 4px 7px 4px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>
                             {item.quantity}
                           </td>
-                          <td style={{ padding: '3px 6px 7px 6px', textAlign: 'center', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
+                          <td style={{ padding: '3px 4px 7px 4px', textAlign: 'center', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
                             {item.unit || 'PCS'}
                           </td>
-                          <td style={{ padding: '3px 6px 7px 6px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>
-                            {formatINR(item.unit_price)}
+                          <td style={{ padding: '3px 8px 7px 8px', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>
+                            {(() => {
+                              const mrp = parseFloat(item.mrp) || 0
+                              const price = parseFloat(item.unit_price) || 0
+                              const pct = mrp > price && mrp > 0 ? Math.round(((mrp - price) / mrp) * 100) : 0
+                              return (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 4 }}>
+                                  {pct > 0 ? (
+                                    <span style={{ color: '#dc2626', fontSize: 9.5, fontWeight: 700, whiteSpace: 'nowrap', lineHeight: 1 }}>-{pct}%</span>
+                                  ) : (
+                                    <span />
+                                  )}
+                                  <span style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>{formatINR(price)}</span>
+                                </div>
+                              )
+                            })()}
                           </td>
                           {!hideTax && (
-                            <td style={{ padding: '3px 6px 7px 6px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>
+                            <td style={{ padding: '3px 8px 7px 8px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>
                               {formatINR(item.taxable_value)}
                             </td>
                           )}
@@ -421,7 +448,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                               <span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: 9.5 }}>{formatINR(item.sgst_amount)}</span>
                             </td>
                           )}
-                          <td style={{ padding: '3px 6px 7px 6px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>
+                          <td style={{ padding: '3px 8px 7px 8px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>
                             {formatINR(item.total_amount)}
                           </td>
                         </tr>
@@ -432,7 +459,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                   // Standard single line for compact item names
                   return (
                     <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: rowBg, breakInside: 'avoid' }}>
-                      <td style={{ padding: '7px 6px', textAlign: 'center', fontSize: 11, color: '#64748b' }}>{i + 1}</td>
+                      <td style={{ padding: '7px 4px', textAlign: 'center', fontSize: 11, color: '#64748b' }}>{i + 1}</td>
                       <td style={{
                         padding: '7px 6px',
                         fontSize: 10,
@@ -444,7 +471,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                         {item.sku || '—'}
                       </td>
                       <td style={{
-                        padding: '7px 6px',
+                        padding: '7px 8px',
                         fontSize: 11,
                         fontWeight: 600,
                         color: '#0f172a',
@@ -463,10 +490,26 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                       {showHsn && (
                         <td style={{ padding: '7px 6px', fontSize: 10, color: '#475569', whiteSpace: 'nowrap' }}>{item.hsn_sac || '—'}</td>
                       )}
-                      <td style={{ padding: '7px 6px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>{item.quantity}</td>
-                      <td style={{ padding: '7px 6px', textAlign: 'center', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>{item.unit || 'PCS'}</td>
-                      <td style={{ padding: '7px 6px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>{formatINR(item.unit_price)}</td>
-                      {!hideTax && <td style={{ padding: '7px 6px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>{formatINR(item.taxable_value)}</td>}
+                      <td style={{ padding: '7px 4px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>{item.quantity}</td>
+                      <td style={{ padding: '7px 4px', textAlign: 'center', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>{item.unit || 'PCS'}</td>
+                      <td style={{ padding: '7px 8px', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>
+                        {(() => {
+                          const mrp = parseFloat(item.mrp) || 0
+                          const price = parseFloat(item.unit_price) || 0
+                          const pct = mrp > price && mrp > 0 ? Math.round(((mrp - price) / mrp) * 100) : 0
+                          return (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 4 }}>
+                              {pct > 0 ? (
+                                <span style={{ color: '#dc2626', fontSize: 9.5, fontWeight: 700, whiteSpace: 'nowrap', lineHeight: 1 }}>-{pct}%</span>
+                              ) : (
+                                <span />
+                              )}
+                              <span style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>{formatINR(price)}</span>
+                            </div>
+                          )
+                        })()}
+                      </td>
+                      {!hideTax && <td style={{ padding: '7px 8px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>{formatINR(item.taxable_value)}</td>}
                       {!hideTax && (
                         <td style={{ padding: '7px 6px', textAlign: 'right', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
                           {item.cgst_rate}%<span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: 9.5 }}>{formatINR(item.cgst_amount)}</span>
@@ -477,7 +520,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                           {item.sgst_rate}%<span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: 9.5 }}>{formatINR(item.sgst_amount)}</span>
                         </td>
                       )}
-                      <td style={{ padding: '7px 6px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>{formatINR(item.total_amount)}</td>
+                      <td style={{ padding: '7px 8px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>{formatINR(item.total_amount)}</td>
                     </tr>
                   )
                 })}
@@ -495,6 +538,12 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
           <div style={{ padding: '10px 14px', borderRadius: 10, background: '#f1f5f9', borderLeft: `4px solid ${accentColor}` }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Amount in Words:</span>
             <p style={{ margin: '2px 0 0 0', fontSize: 11, fontWeight: 600, color: '#1e293b' }}>{amountInWords(doc.grand_total)}</p>
+            {totalMrpSavings >= 0.5 && (
+              <p style={{ margin: '4px 0 0 0', fontSize: 10, fontStyle: 'italic', color: '#166534' }}>
+                {isQuotation ? 'You could save ' : 'You saved '}
+                <strong style={{ fontWeight: 700 }}>{amountInWords(totalMrpSavings)} ({formatINR(totalMrpSavings)})</strong>
+              </p>
+            )}
           </div>
 
           {seller.bank_name && (
@@ -592,6 +641,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
           <strong>Notes / Remarks:</strong> {doc.notes}
         </div>
       )}
+
 
       {/* Brand Greeting & Printable Footer */}
       <div className="avoid-break" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>

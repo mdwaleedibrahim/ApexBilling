@@ -7,8 +7,9 @@ import { formatINR } from '../../utils/upiHelper'
 import { GST_RATES } from '../../utils/gstEngine'
 import { useDialogStore } from '../../store/useDialogStore'
 
-export default function ItemEntryTable({ sellerProfile }: { sellerProfile?: any } = {}) {
-  const showPurchasePrice = !!sellerProfile?.show_purchase_price_in_pos
+export default function ItemEntryTable({ sellerProfile, showPricingOverride = null }: { sellerProfile?: any, showPricingOverride?: boolean | null } = {}) {
+  const settingsShowPurchase = !!sellerProfile?.show_purchase_price_in_pos
+  const showPurchasePrice = showPricingOverride !== null ? showPricingOverride : settingsShowPurchase
   const { items, addItem, updateItem, removeItem, discountPct } = useBillingStore()
   const [search, setSearch] = useState('')
   const [results, setResults] = useState<any[]>([])

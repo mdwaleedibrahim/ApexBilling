@@ -13,9 +13,12 @@ const MODE_ICONS: Record<string, any> = {
 interface Props {
   onSuccess: (doc: any) => void
   sellerProfile: any
+  showPricingOverride?: boolean | null   // null = follow Settings
+  onTogglePricing?: (effectiveShow: boolean) => void
+  onPreview?: () => void
 }
 
-export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props) {
+export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPricingOverride = null, onTogglePricing, onPreview }: Props) {
   const store = useBillingStore()
   const { totals, discountPct, setDiscountPct, additionalDiscount, setAdditionalDiscount,
           paymentMode, setPaymentMode, paymentStatus, setPaymentStatus, docType, setDocType,
@@ -249,7 +252,10 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
     </div>
   )
 
-  const showProfitLoss = sellerProfile?.show_profit_loss_in_pos !== 0 && sellerProfile?.show_profit_loss_in_pos !== false
+  // Effective pricing visibility: override wins over Settings
+  const settingsShowProfit   = sellerProfile?.show_profit_loss_in_pos !== 0 && sellerProfile?.show_profit_loss_in_pos !== false
+  const effectiveShowPricing = showPricingOverride !== null ? showPricingOverride : settingsShowProfit
+  const showProfitLoss = effectiveShowPricing
   const netRevenue = totals.rawGrandTotal
   const profitAmount = netRevenue - totalPurchaseCost
   const profitPct = totalPurchaseCost > 0 ? (profitAmount / totalPurchaseCost) * 100 : (netRevenue > 0 ? 100 : 0)
@@ -276,15 +282,33 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
         </div>
       )}
 
-      {/* Doc type toggle */}
-      <div className="flex rounded-xl overflow-hidden border border-white/10">
-        {(['INVOICE','QUOTATION'] as const).map(t => (
-          <button key={t} onClick={() => setDocType(t)}
-            className={`flex-1 py-2 text-xs font-semibold transition-colors
-              ${docType === t ? 'bg-brand-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}>
-            {t}
-          </button>
-        ))}
+      {/* ₹ Pricing visibility toggle + Doc type toggle */}
+      <div className="flex items-center gap-2">
+        {/* Rupee toggle: show/hide purchase price & profit */}
+        <button
+          type="button"
+          onClick={() => onTogglePricing?.(effectiveShowPricing)}
+          title={effectiveShowPricing ? 'Hide purchase price & profit (pricing visible)' : 'Show purchase price & profit (pricing hidden)'}
+          className={`flex items-center justify-center w-8 h-8 rounded-lg text-base font-bold transition-all flex-shrink-0 border ${
+            effectiveShowPricing
+              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30 shadow-sm shadow-emerald-500/20'
+              : 'bg-white/5 text-gray-500 border-white/10 hover:bg-white/10'
+          }`}
+          aria-label={effectiveShowPricing ? 'Hide pricing details' : 'Show pricing details'}
+        >
+          ₹
+        </button>
+
+        {/* Doc type toggle */}
+        <div className="flex flex-1 rounded-xl overflow-hidden border border-white/10">
+          {(['INVOICE','QUOTATION'] as const).map(t => (
+            <button key={t} onClick={() => setDocType(t)}
+              className={`flex-1 py-2 text-xs font-semibold transition-colors
+                ${docType === t ? 'bg-brand-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}>
+              {t}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Date */}
@@ -742,6 +766,25 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile }: Props)
       </div>
 
       {error && <p className="text-xs text-red-400 bg-red-500/10 rounded-xl px-3 py-2">{error}</p>}
+
+      {/* Preview Button */}
+      <button
+        type="button"
+        onClick={onPreview}
+        disabled={items.length === 0}
+        className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border transition-all ${
+          items.length === 0
+            ? 'border-white/10 text-gray-600 bg-white/5 cursor-not-allowed opacity-50'
+            : 'border-brand-500/40 text-brand-300 bg-brand-500/10 hover:bg-brand-500/20 hover:border-brand-400 hover:text-brand-200 shadow-sm shadow-brand-500/10'
+        }`}
+        title={items.length === 0 ? 'Add items to preview' : `Preview ${docType === 'QUOTATION' ? 'Quotation' : 'Invoice'}`}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+        Preview {docType === 'QUOTATION' ? 'Quotation' : 'Invoice'}
+      </button>
 
       {/* Action Buttons */}
       <div className="space-y-2">
