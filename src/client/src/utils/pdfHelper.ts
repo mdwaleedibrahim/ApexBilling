@@ -28,7 +28,7 @@ function cleanupBlankTrailingPage(worker: any) {
 
 export async function generateInvoicePdfBlob(element: HTMLElement, filename: string): Promise<Blob> {
   const opt = {
-    margin: [0, 0, 0, 0],
+    margin: [10, 0, 10, 0],
     filename: filename,
     image: { type: 'jpeg', quality: 0.98 },
     html2canvas: {
@@ -43,6 +43,14 @@ export async function generateInvoicePdfBlob(element: HTMLElement, filename: str
           body > div[style*="visibility: hidden"] img,
           body > div[style*="visibility:hidden"] img {
             display: inline !important;
+          }
+          .print-container {
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+          }
+          .items-table-wrapper {
+            overflow: visible !important;
+            border-radius: 0 !important;
           }
         `
         clonedDoc.head?.appendChild(style)
@@ -61,7 +69,7 @@ export async function generateInvoicePdfBlob(element: HTMLElement, filename: str
 
 export async function downloadInvoicePdf(element: HTMLElement, filename: string): Promise<void> {
   const opt = {
-    margin: [0, 0, 0, 0],
+    margin: [10, 0, 10, 0],
     filename: filename,
     image: { type: 'jpeg', quality: 0.98 },
     html2canvas: {
@@ -76,6 +84,14 @@ export async function downloadInvoicePdf(element: HTMLElement, filename: string)
           body > div[style*="visibility: hidden"] img,
           body > div[style*="visibility:hidden"] img {
             display: inline !important;
+          }
+          .print-container {
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+          }
+          .items-table-wrapper {
+            overflow: visible !important;
+            border-radius: 0 !important;
           }
         `
         clonedDoc.head?.appendChild(style)

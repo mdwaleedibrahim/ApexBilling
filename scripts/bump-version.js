@@ -34,27 +34,6 @@ console.log(`[Version Bump] package.json: ${oldVer} -> ${newVersion}`);
 const changelogPath = path.join(rootDir, 'CHANGELOG.txt');
 const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
-let gitCommits = '';
-try {
-  const rawCommits = execSync('git log -n 6 --pretty=format:"%s (%h)"', { cwd: rootDir, encoding: 'utf8' }).trim();
-  gitCommits = rawCommits
-    .split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(Boolean)
-    .map(line => `  * ${line}`)
-    .join('\n');
-} catch (e) {
-  gitCommits = '  * Automated release build and package update.';
-}
-
-const newEntry = `========================================================================
-ApexBill Release v${newVersion} - ${timestamp}
-========================================================================
-Changes & Commits in this Build:
-${gitCommits || '  * Incremented minor version & compiled release package.'}
-
-`;
-
 const header = `========================================================================
                     ApexBill Product Changelog
 ========================================================================\n\n`;
@@ -80,6 +59,56 @@ if (fs.existsSync(changelogPath)) {
     }
   }
 }
+
+// Find existing commit hashes from previous entries in CHANGELOG.txt to avoid duplicating past commits
+const recordedHashes = new Set();
+const hashRegex = /\(([a-f0-9]{7,40})\)/g;
+let match;
+while ((match = hashRegex.exec(previousEntries)) !== null) {
+  recordedHashes.add(match[1].toLowerCase());
+}
+
+let gitCommits = '';
+try {
+  const rawLog = execSync('git log -n 100 --pretty=format:"%h%x09%s"', { cwd: rootDir, encoding: 'utf8' }).trim();
+  const lines = rawLog.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const newCommitLines = [];
+
+  for (const line of lines) {
+    const tabIdx = line.indexOf('\t');
+    if (tabIdx === -1) continue;
+    const hash = line.slice(0, tabIdx).trim().toLowerCase();
+    const subject = line.slice(tabIdx + 1).trim();
+
+    // Stop as soon as we hit a commit that was already documented in previous release changelog
+    if (recordedHashes.has(hash)) {
+      break;
+    }
+    newCommitLines.push(`  * ${subject} (${hash})`);
+  }
+
+  if (newCommitLines.length > 0) {
+    gitCommits = newCommitLines.join('\n');
+  } else if (recordedHashes.size === 0 && lines.length > 0) {
+    // If no previous changelog history exists at all, take the latest 5 commits
+    gitCommits = lines.slice(0, 5).map(line => {
+      const tabIdx = line.indexOf('\t');
+      const hash = line.slice(0, tabIdx).trim();
+      const subject = line.slice(tabIdx + 1).trim();
+      return `  * ${subject} (${hash})`;
+    }).join('\n');
+  }
+} catch (e) {
+  gitCommits = '  * Automated release build and package update.';
+}
+
+const newEntry = `========================================================================
+ApexBill Release v${newVersion} - ${timestamp}
+========================================================================
+Changes & Commits in this Build:
+${gitCommits || '  * Incremented minor version & compiled release package.'}
+
+`;
 
 fs.writeFileSync(changelogPath, header + newEntry + previousEntries, 'utf8');
 console.log(`[Changelog] Updated ${path.relative(rootDir, changelogPath)} for v${newVersion}`);
