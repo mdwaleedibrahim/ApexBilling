@@ -384,6 +384,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
               { id: 'qty', label: 'Qty', align: 'center', width: showHsn ? '6%' : '6%' },
               { id: 'unit', label: 'Unit', align: 'center', width: showHsn ? '6%' : '6%' },
               { id: 'discount', label: 'Disc.', align: 'center', width: showHsn ? '6%' : '6.5%' },
+                { id: 'total', label: 'Total', align: 'right', width: showHsn ? '13%' : '14.5%' },
             ]
             : [
               { id: 'num', label: '#', align: 'center', width: '3.5%' },
@@ -637,11 +638,9 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                                 {lineSgstRate}%<span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: 9.5 }}>{formatINR(lineSgstAmount)}</span>
                               </td>
                             )}
-                            {!hidePrice && (
-                              <td style={{ padding: '7px 8px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>
+                            <td style={{ padding: '7px 8px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>
                                 {formatINR(lineTotal)}
                               </td>
-                            )}
                           </>
                         )
                       })()}
