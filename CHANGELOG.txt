@@ -3,6 +3,20 @@
 ========================================================================
 
 ========================================================================
+ApexBill Release v2.15.0 - 2026-10-04 14:15:00
+========================================================================
+Changes & Commits in this Build:
+  * feat: add "Hide price in invoice" toggle to hide price and row total columns when tax is hidden
+  * feat: add dedicated Discount column before price in A4 template with combined % off MRP
+  * feat: adjust flat additional discount in ₹ to deduct from Grand Total and recalculate overall taxes without altering per-item unit prices
+
+========================================================================
+ApexBill Release v2.14.0 - 2026-10-02 06:45:45
+========================================================================
+Changes & Commits in this Build:
+  * feat: improve margins on invoice (cbbe7ba)
+
+========================================================================
 ApexBill Release v2.13.0 - 2026-09-30 21:51:17
 ========================================================================
 Changes & Commits in this Build:

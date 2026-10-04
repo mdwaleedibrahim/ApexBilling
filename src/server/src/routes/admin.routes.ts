@@ -219,9 +219,9 @@ export async function adminRoutes(app: FastifyInstance) {
           INSERT INTO documents (id, doc_type, doc_number, parent_doc_id, doc_date,
             seller_profile_id, seller_snapshot, customer_phone, customer_snapshot,
             gross_subtotal, discount_pct, discount_amount, taxable_amount, cgst_total, sgst_total,
-            round_off, grand_total, payment_mode, payment_status, selected_upi_id, revision_number, notes, terms_and_conditions, hide_tax_on_invoice,
+            round_off, grand_total, payment_mode, payment_status, selected_upi_id, revision_number, notes, terms_and_conditions, hide_tax_on_invoice, hide_price_on_invoice,
             paid_amount, partial_payment_mode, payment_history, qr_amount_type, reminder_count)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         `)
         for (const d of payload.documents) {
           insertDoc.run(
@@ -236,6 +236,7 @@ export async function adminRoutes(app: FastifyInstance) {
             d.revision_number || 1, d.notes || null,
             d.terms_and_conditions ? (typeof d.terms_and_conditions === 'string' ? d.terms_and_conditions : JSON.stringify(d.terms_and_conditions)) : null,
             d.hide_tax_on_invoice ? 1 : 0,
+            (d.hide_tax_on_invoice && d.hide_price_on_invoice) ? 1 : 0,
             d.paid_amount || 0,
             d.partial_payment_mode || null,
             d.payment_history ? (typeof d.payment_history === 'string' ? d.payment_history : JSON.stringify(d.payment_history)) : '[]',

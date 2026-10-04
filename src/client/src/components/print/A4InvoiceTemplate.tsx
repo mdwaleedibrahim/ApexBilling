@@ -10,7 +10,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
       if (doc.seller_snapshot) {
         return typeof doc.seller_snapshot === 'string' ? JSON.parse(doc.seller_snapshot) : doc.seller_snapshot
       }
-    } catch {}
+    } catch { }
     return null
   })()
   const seller = sellerSnap || profile || {}
@@ -33,7 +33,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
         const parsed = typeof doc.payment_history === 'string' ? JSON.parse(doc.payment_history) : doc.payment_history
         if (Array.isArray(parsed) && parsed.length > 0) return parsed
       }
-    } catch {}
+    } catch { }
     if ((doc.paid_amount || 0) > 0 && isCredit) {
       return [{ date: doc.doc_date, amount: doc.paid_amount || 0, mode: doc.partial_payment_mode || 'CASH' }]
     }
@@ -55,27 +55,28 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
   const qrAmount = (qrMode === 'balance' && balanceDue > 0)
     ? balanceDue
     : (isPartial
-        ? currentPartialPayment
-        : (isQrDelta && deltaAmount > 0 ? deltaAmount : doc.grand_total))
+      ? currentPartialPayment
+      : (isQrDelta && deltaAmount > 0 ? deltaAmount : doc.grand_total))
 
   const qrHeader = (qrMode === 'balance' && balanceDue > 0)
     ? `⚡ Scan to pay balance due (${formatINR(balanceDue)})`
     : (isPartial
-        ? `⚡ Scan to pay partial amount (${formatINR(currentPartialPayment)})`
-        : (isQrDelta && deltaAmount > 0
-          ? `⚡ Scan to pay delta amount (${formatINR(deltaAmount)})`
-          : '⚡ Scan to pay amount'))
+      ? `⚡ Scan to pay partial amount (${formatINR(currentPartialPayment)})`
+      : (isQrDelta && deltaAmount > 0
+        ? `⚡ Scan to pay delta amount (${formatINR(deltaAmount)})`
+        : '⚡ Scan to pay amount'))
 
   const upiLink = upiId
     ? buildUpiLink({
-        upiId,
-        payeeName,
-        amount: qrAmount,
-        docNumber: doc.doc_number,
-        note: qrMode === 'balance' ? `Invoice ${doc.doc_number} Balance Due` : undefined
-      })
+      upiId,
+      payeeName,
+      amount: qrAmount,
+      docNumber: doc.doc_number,
+      note: qrMode === 'balance' ? `Invoice ${doc.doc_number} Balance Due` : undefined
+    })
     : null
   const hideTax = !!doc.hide_tax_on_invoice
+  const hidePrice = hideTax && !!doc.hide_price_on_invoice
 
   const formatPaymentDate = (dStr: string) => {
     if (!dStr) return ''
@@ -106,17 +107,83 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
     }
   })()
 
-  const totalMrpSavings = items.reduce((sum: number, item: any) => {
+  // Document discount percentage and rate (applied via discount % panel)
+  const docDiscountPct = parseFloat(doc.discount_pct) || 0
+  const pctDiscountRate = docDiscountPct > 0
+    ? (docDiscountPct / 100)
+    : (doc.gross_subtotal > 0 && (doc.discount_amount || 0) > 0
+      ? ((doc.discount_amount || 0) / doc.gross_subtotal)
+      : 0)
+  const displayedDiscountPct = docDiscountPct > 0
+    ? docDiscountPct
+    : Math.round(pctDiscountRate * 100)
+
+  // Additional flat rupee discount (applied via ₹ panel)
+  const additionalRupeeDiscount = parseFloat(doc.additional_discount) || 0
+
+  // Displayed subtotal: net after percentage discount, before flat rupee discount
+  const pctDiscountAmount = doc.discount_amount != null
+    ? parseFloat(doc.discount_amount)
+    : ((doc.gross_subtotal || 0) * pctDiscountRate)
+  const displayedSubtotal = Math.max(0, (doc.gross_subtotal || 0) - pctDiscountAmount)
+
+  // Total customer savings across MRP markdown, percent discount, and rupee discount
+  const totalSavings = items.reduce((sum: number, item: any) => {
     const mrp = parseFloat(item.mrp) || 0
-    const selling = parseFloat(item.unit_price) || 0
+    const origPrice = parseFloat(item.unit_price) || 0
     const qty = parseFloat(item.quantity) || 0
-    const saving = (mrp - selling) * qty
-    return saving > 0.005 ? sum + saving : sum
-  }, 0)
+    const displayedPrice = origPrice * (1 - pctDiscountRate)
+    const basePrice = mrp > origPrice ? mrp : origPrice
+    const itemSaving = (basePrice - displayedPrice) * qty
+    return itemSaving > 0.005 ? sum + itemSaving : sum
+  }, 0) + additionalRupeeDiscount
+
+  // Overall bill taxable amount, CGST, and SGST (recalculated after deducting additional_discount from Grand Total)
+  const additionalDiscountRate = (additionalRupeeDiscount > 0 && displayedSubtotal > 0)
+    ? (additionalRupeeDiscount / displayedSubtotal)
+    : 0
+
+  const summaryTax = items.reduce(
+    (acc: { taxable: number; cgst: number; sgst: number }, item: any) => {
+      const origPrice = parseFloat(item.unit_price) || 0
+      const displayedPrice = origPrice * (1 - pctDiscountRate)
+      const qty = parseFloat(item.quantity) || 1
+      const lineTotal = qty * displayedPrice
+      const gstRate = parseFloat(item.gst_rate) || 0
+      const gstFactor = 1 + gstRate / 100
+
+      if (additionalDiscountRate > 0) {
+        const postAddlGross = lineTotal * (1 - additionalDiscountRate)
+        const postTaxable = postAddlGross / gstFactor
+        const postGst = postAddlGross - postTaxable
+        acc.taxable += postTaxable
+        acc.cgst += postGst / 2
+        acc.sgst += postGst / 2
+      } else {
+        const lineTaxable = gstFactor > 0 ? (lineTotal / gstFactor) : lineTotal
+        const lineGst = lineTotal - lineTaxable
+        acc.taxable += lineTaxable
+        acc.cgst += lineGst / 2
+        acc.sgst += lineGst / 2
+      }
+      return acc
+    },
+    { taxable: 0, cgst: 0, sgst: 0 }
+  )
+
+  const docTaxableAmount = (doc.taxable_amount != null && additionalDiscountRate === 0)
+    ? doc.taxable_amount
+    : summaryTax.taxable
+  const docCgstTotal = (doc.cgst_total != null && additionalDiscountRate === 0)
+    ? doc.cgst_total
+    : summaryTax.cgst
+  const docSgstTotal = (doc.sgst_total != null && additionalDiscountRate === 0)
+    ? doc.sgst_total
+    : summaryTax.sgst
 
   return (
     <div className="print-container bg-white text-gray-900 p-8 relative" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif", color: '#0f172a', boxSizing: 'border-box', width: '100%', maxWidth: '210mm', margin: '0 auto' }}>
-      
+
       {/* Watermarks */}
       {isPaid && (
         <div style={{ position: 'absolute', top: '38%', left: '22%', opacity: 0.06, transform: 'rotate(-25deg)', fontSize: 110, fontWeight: 900, color: '#059669', pointerEvents: 'none', zIndex: 0, letterSpacing: '0.08em' }}>PAID</div>
@@ -299,38 +366,50 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
           return true
         })()
 
-        // Word wrap within column by default. Only enter description in full line if wrapping exceeds 3 lines (>75 chars with tax, >105 without tax, or >=3 newlines)
+        // Word wrap within column by default. Only enter description in full line if wrapping exceeds 3 lines (>75 chars with tax, >105 without tax, >120 without price/tax, or >=3 newlines)
         const shouldSpanFullLine = (name: string) => {
           if (!name) return false
-          const maxChars = hideTax ? 105 : 75
+          const maxChars = hideTax ? (hidePrice ? 120 : 105) : 75
           const newlineCount = (name.match(/\n/g) || []).length
           return name.trim().length > maxChars || newlineCount >= 3
         }
 
         const tableColumns = hideTax
-          ? [
+          ? (hidePrice
+            ? [
               { id: 'num', label: '#', align: 'center', width: '3.5%' },
-              { id: 'sku', label: 'SKU ID', align: 'left', width: showHsn ? '11%' : '12%' },
-              { id: 'desc', label: 'Item Description', align: 'left', width: showHsn ? '38.5%' : '46.5%' },
+              { id: 'sku', label: 'SKU ID', align: 'left', width: showHsn ? '11%' : '13%' },
+              { id: 'desc', label: 'Item Description', align: 'left', width: showHsn ? '58.5%' : '65%' },
+              ...(showHsn ? [{ id: 'hsn', label: 'HSN', align: 'left', width: '9%' }] : []),
+              { id: 'qty', label: 'Qty', align: 'center', width: showHsn ? '6%' : '6%' },
+              { id: 'unit', label: 'Unit', align: 'center', width: showHsn ? '6%' : '6%' },
+              { id: 'discount', label: 'Disc.', align: 'center', width: showHsn ? '6%' : '6.5%' },
+            ]
+            : [
+              { id: 'num', label: '#', align: 'center', width: '3.5%' },
+              { id: 'sku', label: 'SKU ID', align: 'left', width: showHsn ? '10%' : '11%' },
+              { id: 'desc', label: 'Item Description', align: 'left', width: showHsn ? '35.5%' : '40%' },
               ...(showHsn ? [{ id: 'hsn', label: 'HSN', align: 'left', width: '8%' }] : []),
               { id: 'qty', label: 'Qty', align: 'center', width: showHsn ? '6%' : '7%' },
               { id: 'unit', label: 'Unit', align: 'center', width: showHsn ? '6%' : '7%' },
-              { id: 'price', label: 'Price', align: 'center', width: showHsn ? '13.5%' : '12%' },
-              { id: 'total', label: 'Total', align: 'right', width: showHsn ? '13.5%' : '12%' },
-            ]
+              { id: 'discount', label: 'Disc.', align: 'center', width: showHsn ? '8%' : '8.5%' },
+              { id: 'price', label: 'Price', align: 'right', width: showHsn ? '10%' : '11%' },
+              { id: 'total', label: 'Total', align: 'right', width: showHsn ? '13%' : '14.5%' },
+            ])
           : [
-              { id: 'num', label: '#', align: 'center', width: '3%' },
-              { id: 'sku', label: 'SKU ID', align: 'left', width: showHsn ? '8.5%' : '9.5%' },
-              { id: 'desc', label: 'Item Description', align: 'left', width: showHsn ? '25%' : '29.5%' },
-              ...(showHsn ? [{ id: 'hsn', label: 'HSN', align: 'left', width: '6.5%' }] : []),
-              { id: 'qty', label: 'Qty', align: 'center', width: '5%' },
-              { id: 'unit', label: 'Unit', align: 'center', width: '5%' },
-              { id: 'price', label: 'Price', align: 'center', width: showHsn ? '13%' : '14%' },
-              { id: 'taxable', label: 'Taxable', align: 'right', width: showHsn ? '9.5%' : '10%' },
-              { id: 'cgst', label: 'CGST', align: 'right', width: '7%' },
-              { id: 'sgst', label: 'SGST', align: 'right', width: '7%' },
-              { id: 'total', label: 'Total', align: 'right', width: showHsn ? '10.5%' : '10%' },
-            ]
+            { id: 'num', label: '#', align: 'center', width: '3%' },
+            { id: 'sku', label: 'SKU ID', align: 'left', width: showHsn ? '8%' : '9%' },
+            { id: 'desc', label: 'Item Description', align: 'left', width: showHsn ? '23%' : '27.5%' },
+            ...(showHsn ? [{ id: 'hsn', label: 'HSN', align: 'left', width: '6.5%' }] : []),
+            { id: 'qty', label: 'Qty', align: 'center', width: '5%' },
+            { id: 'unit', label: 'Unit', align: 'center', width: '5%' },
+            { id: 'discount', label: 'Disc.', align: 'center', width: '7%' },
+            { id: 'price', label: 'Price', align: 'right', width: showHsn ? '9.5%' : '10%' },
+            { id: 'taxable', label: 'Taxable', align: 'right', width: showHsn ? '9%' : '9.5%' },
+            { id: 'cgst', label: 'CGST', align: 'right', width: '7%' },
+            { id: 'sgst', label: 'SGST', align: 'right', width: '7%' },
+            { id: 'total', label: 'Total', align: 'right', width: showHsn ? '10%' : '10%' },
+          ]
 
         const totalCols = tableColumns.length
 
@@ -396,62 +475,80 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                             )}
                           </td>
                         </tr>
-                        {/* Subsequent line for pricing, quantity, and tax details */}
-                        <tr style={{ background: rowBg, borderBottom: '1px solid #e2e8f0', breakInside: 'avoid' }}>
-                          <td style={{ padding: '3px 4px 7px 4px', textAlign: 'center', fontSize: 10, color: '#94a3b8' }}>↳</td>
-                          <td style={{ padding: '3px 6px 7px 6px', fontSize: 10, fontFamily: 'monospace', color: '#334155', fontWeight: 600, wordBreak: 'break-all' }}>
-                            {item.sku || '—'}
-                          </td>
-                          <td style={{ padding: '3px 8px 7px 8px' }}></td>
-                          {showHsn && (
-                            <td style={{ padding: '3px 6px 7px 6px', fontSize: 10, color: '#475569', whiteSpace: 'nowrap' }}>
-                              {item.hsn_sac || '—'}
-                            </td>
-                          )}
-                          <td style={{ padding: '3px 4px 7px 4px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>
-                            {item.quantity}
-                          </td>
-                          <td style={{ padding: '3px 4px 7px 4px', textAlign: 'center', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
-                            {item.unit || 'PCS'}
-                          </td>
-                          <td style={{ padding: '3px 8px 7px 8px', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>
-                            {(() => {
-                              const mrp = parseFloat(item.mrp) || 0
-                              const price = parseFloat(item.unit_price) || 0
-                              const pct = mrp > price && mrp > 0 ? Math.round(((mrp - price) / mrp) * 100) : 0
-                              return (
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 4 }}>
-                                  {pct > 0 ? (
-                                    <span style={{ color: '#dc2626', fontSize: 9.5, fontWeight: 700, whiteSpace: 'nowrap', lineHeight: 1 }}>-{pct}%</span>
-                                  ) : (
-                                    <span />
-                                  )}
-                                  <span style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>{formatINR(price)}</span>
-                                </div>
-                              )
-                            })()}
-                          </td>
-                          {!hideTax && (
-                            <td style={{ padding: '3px 8px 7px 8px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>
-                              {formatINR(item.taxable_value)}
-                            </td>
-                          )}
-                          {!hideTax && (
-                            <td style={{ padding: '3px 6px 7px 6px', textAlign: 'right', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
-                              {item.cgst_rate}%
-                              <span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: 9.5 }}>{formatINR(item.cgst_amount)}</span>
-                            </td>
-                          )}
-                          {!hideTax && (
-                            <td style={{ padding: '3px 6px 7px 6px', textAlign: 'right', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
-                              {item.sgst_rate}%
-                              <span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: 9.5 }}>{formatINR(item.sgst_amount)}</span>
-                            </td>
-                          )}
-                          <td style={{ padding: '3px 8px 7px 8px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>
-                            {formatINR(item.total_amount)}
-                          </td>
-                        </tr>
+                        {(() => {
+                          const origPrice = parseFloat(item.unit_price) || 0
+                          const displayedPrice = origPrice * (1 - pctDiscountRate)
+                          const qty = parseFloat(item.quantity) || 1
+                          const lineTotal = qty * displayedPrice
+                          const gstRate = parseFloat(item.gst_rate) || 0
+                          const gstFactor = 1 + gstRate / 100
+                          const lineTaxable = gstFactor > 0 ? (lineTotal / gstFactor) : lineTotal
+                          const totalGst = lineTotal - lineTaxable
+                          const lineCgstRate = parseFloat(item.cgst_rate) || (gstRate / 2)
+                          const lineSgstRate = parseFloat(item.sgst_rate) || (gstRate / 2)
+                          const lineCgstAmount = totalGst / 2
+                          const lineSgstAmount = totalGst - lineCgstAmount
+                          const mrp = parseFloat(item.mrp) || 0
+
+                          return (
+                            <tr style={{ background: rowBg, borderBottom: '1px solid #e2e8f0', breakInside: 'avoid' }}>
+                              <td style={{ padding: '3px 4px 7px 4px', textAlign: 'center', fontSize: 10, color: '#94a3b8' }}>↳</td>
+                              <td style={{ padding: '3px 6px 7px 6px', fontSize: 10, fontFamily: 'monospace', color: '#334155', fontWeight: 600, wordBreak: 'break-all' }}>
+                                {item.sku || '—'}
+                              </td>
+                              <td style={{ padding: '3px 8px 7px 8px' }}></td>
+                              {showHsn && (
+                                <td style={{ padding: '3px 6px 7px 6px', fontSize: 10, color: '#475569', whiteSpace: 'nowrap' }}>
+                                  {item.hsn_sac || '—'}
+                                </td>
+                              )}
+                              <td style={{ padding: '3px 4px 7px 4px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>
+                                {item.quantity}
+                              </td>
+                              <td style={{ padding: '3px 4px 7px 4px', textAlign: 'center', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
+                                {item.unit || 'PCS'}
+                              </td>
+                              <td style={{ padding: '3px 6px 7px 6px', textAlign: 'center', fontSize: 11, whiteSpace: 'nowrap' }}>
+                                {mrp > displayedPrice && mrp > 0 ? (
+                                  <span style={{ color: '#dc2626', fontWeight: 700, fontSize: 10.5 }}>
+                                    {Math.round(((mrp - displayedPrice) / mrp) * 100)}%
+                                  </span>
+                                ) : displayedDiscountPct > 0 ? (
+                                  <span style={{ color: '#dc2626', fontWeight: 700, fontSize: 10.5 }}>{displayedDiscountPct}%</span>
+                                ) : (
+                                  <span style={{ color: '#94a3b8' }}>—</span>
+                                )}
+                              </td>
+                              {!hidePrice && (
+                                <td style={{ padding: '3px 8px 7px 8px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>
+                                  {formatINR(displayedPrice)}
+                                </td>
+                              )}
+                              {!hideTax && (
+                                <td style={{ padding: '3px 8px 7px 8px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>
+                                  {formatINR(lineTaxable)}
+                                </td>
+                              )}
+                              {!hideTax && (
+                                <td style={{ padding: '3px 6px 7px 6px', textAlign: 'right', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
+                                  {lineCgstRate}%
+                                  <span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: 9.5 }}>{formatINR(lineCgstAmount)}</span>
+                                </td>
+                              )}
+                              {!hideTax && (
+                                <td style={{ padding: '3px 6px 7px 6px', textAlign: 'right', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
+                                  {lineSgstRate}%
+                                  <span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: 9.5 }}>{formatINR(lineSgstAmount)}</span>
+                                </td>
+                              )}
+                              {!hidePrice && (
+                                <td style={{ padding: '3px 8px 7px 8px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>
+                                  {formatINR(lineTotal)}
+                                </td>
+                              )}
+                            </tr>
+                          )
+                        })()}
                       </Fragment>
                     )
                   }
@@ -492,35 +589,62 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                       )}
                       <td style={{ padding: '7px 4px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>{item.quantity}</td>
                       <td style={{ padding: '7px 4px', textAlign: 'center', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>{item.unit || 'PCS'}</td>
-                      <td style={{ padding: '7px 8px', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>
-                        {(() => {
-                          const mrp = parseFloat(item.mrp) || 0
-                          const price = parseFloat(item.unit_price) || 0
-                          const pct = mrp > price && mrp > 0 ? Math.round(((mrp - price) / mrp) * 100) : 0
-                          return (
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 4 }}>
-                              {pct > 0 ? (
-                                <span style={{ color: '#dc2626', fontSize: 9.5, fontWeight: 700, whiteSpace: 'nowrap', lineHeight: 1 }}>-{pct}%</span>
+                      {(() => {
+                        const origPrice = parseFloat(item.unit_price) || 0
+                        const displayedPrice = origPrice * (1 - pctDiscountRate)
+                        const qty = parseFloat(item.quantity) || 1
+                        const lineTotal = qty * displayedPrice
+                        const gstRate = parseFloat(item.gst_rate) || 0
+                        const gstFactor = 1 + gstRate / 100
+                        const lineTaxable = gstFactor > 0 ? (lineTotal / gstFactor) : lineTotal
+                        const totalGst = lineTotal - lineTaxable
+                        const lineCgstRate = parseFloat(item.cgst_rate) || (gstRate / 2)
+                        const lineSgstRate = parseFloat(item.sgst_rate) || (gstRate / 2)
+                        const lineCgstAmount = totalGst / 2
+                        const lineSgstAmount = totalGst - lineCgstAmount
+                        const mrp = parseFloat(item.mrp) || 0
+
+                        return (
+                          <>
+                            <td style={{ padding: '7px 6px', textAlign: 'center', fontSize: 11, whiteSpace: 'nowrap' }}>
+                              {mrp > displayedPrice && mrp > 0 ? (
+                                <span style={{ color: '#dc2626', fontWeight: 700, fontSize: 10.5 }}>
+                                  {Math.round(((mrp - displayedPrice) / mrp) * 100)}%
+                                </span>
+                              ) : displayedDiscountPct > 0 ? (
+                                <span style={{ color: '#dc2626', fontWeight: 700, fontSize: 10.5 }}>{displayedDiscountPct}%</span>
                               ) : (
-                                <span />
+                                <span style={{ color: '#94a3b8' }}>—</span>
                               )}
-                              <span style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>{formatINR(price)}</span>
-                            </div>
-                          )
-                        })()}
-                      </td>
-                      {!hideTax && <td style={{ padding: '7px 8px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>{formatINR(item.taxable_value)}</td>}
-                      {!hideTax && (
-                        <td style={{ padding: '7px 6px', textAlign: 'right', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
-                          {item.cgst_rate}%<span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: 9.5 }}>{formatINR(item.cgst_amount)}</span>
-                        </td>
-                      )}
-                      {!hideTax && (
-                        <td style={{ padding: '7px 6px', textAlign: 'right', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
-                          {item.sgst_rate}%<span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: 9.5 }}>{formatINR(item.sgst_amount)}</span>
-                        </td>
-                      )}
-                      <td style={{ padding: '7px 8px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>{formatINR(item.total_amount)}</td>
+                            </td>
+                            {!hidePrice && (
+                              <td style={{ padding: '7px 8px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>
+                                {formatINR(displayedPrice)}
+                              </td>
+                            )}
+                            {!hideTax && (
+                              <td style={{ padding: '7px 8px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>
+                                {formatINR(lineTaxable)}
+                              </td>
+                            )}
+                            {!hideTax && (
+                              <td style={{ padding: '7px 6px', textAlign: 'right', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
+                                {lineCgstRate}%<span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: 9.5 }}>{formatINR(lineCgstAmount)}</span>
+                              </td>
+                            )}
+                            {!hideTax && (
+                              <td style={{ padding: '7px 6px', textAlign: 'right', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
+                                {lineSgstRate}%<span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: 9.5 }}>{formatINR(lineSgstAmount)}</span>
+                              </td>
+                            )}
+                            {!hidePrice && (
+                              <td style={{ padding: '7px 8px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>
+                                {formatINR(lineTotal)}
+                              </td>
+                            )}
+                          </>
+                        )
+                      })()}
                     </tr>
                   )
                 })}
@@ -532,16 +656,16 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
 
       {/* Totals & Scan to Pay Grid */}
       <div className="avoid-break" style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 20, alignItems: 'start', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
-        
+
         {/* Left Column: Words & Bank details */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ padding: '10px 14px', borderRadius: 10, background: '#f1f5f9', borderLeft: `4px solid ${accentColor}` }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Amount in Words:</span>
             <p style={{ margin: '2px 0 0 0', fontSize: 11, fontWeight: 600, color: '#1e293b' }}>{amountInWords(doc.grand_total)}</p>
-            {totalMrpSavings >= 0.5 && (
+            {totalSavings >= 0.5 && (
               <p style={{ margin: '4px 0 0 0', fontSize: 10, fontStyle: 'italic', color: '#166534' }}>
                 {isQuotation ? 'You could save ' : 'You saved '}
-                <strong style={{ fontWeight: 700 }}>{amountInWords(totalMrpSavings)} ({formatINR(totalMrpSavings)})</strong>
+                <strong style={{ fontWeight: 700 }}>{amountInWords(totalSavings)} ({formatINR(totalSavings)})</strong>
               </p>
             )}
           </div>
@@ -563,12 +687,11 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
         <div>
           <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden', background: '#ffffff' }}>
             {[
-              ['Subtotal', formatINR(doc.gross_subtotal)],
-              doc.discount_pct > 0 ? [`Discount (${doc.discount_pct}%)`, `− ${formatINR(doc.discount_amount)}`] : null,
-              (doc.additional_discount && doc.additional_discount > 0) ? ['Additional discount', `− ${formatINR(doc.additional_discount)}`] : null,
-              !hideTax ? ['Taxable Value', formatINR(doc.taxable_amount)] : null,
-              !hideTax ? ['CGST Total', formatINR(doc.cgst_total)] : null,
-              !hideTax ? ['SGST Total', formatINR(doc.sgst_total)] : null,
+              ['Subtotal', formatINR(displayedSubtotal)],
+              additionalRupeeDiscount > 0 ? ['Discount', `− ${formatINR(additionalRupeeDiscount)}`] : null,
+              !hideTax ? ['Taxable Value', formatINR(docTaxableAmount)] : null,
+              !hideTax ? ['CGST Total', formatINR(docCgstTotal)] : null,
+              !hideTax ? ['SGST Total', formatINR(docSgstTotal)] : null,
               doc.round_off !== 0 ? ['Round Off', (doc.round_off > 0 ? '+' : '') + formatINR(Math.abs(doc.round_off))] : null,
               (!isCredit && isPartial) ? ['Amount Paid', formatINR(doc.paid_amount || 0)] : null,
               (!isCredit && isPartial) ? ['Balance Due', formatINR(balanceDue)] : null,

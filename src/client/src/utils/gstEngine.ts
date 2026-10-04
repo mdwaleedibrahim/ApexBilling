@@ -52,13 +52,18 @@ export function calcTotals(items: LineItem[], discountPct = 0, additionalDiscoun
   const clampedAdditionalDiscount = Math.max(0, Math.min(remainingAfterPct, additionalDiscount || 0))
   const totalDiscountAmount = r2(pctDiscountAmount + clampedAdditionalDiscount)
 
-  const effectiveDiscountRate = grossSubtotal > 0 ? (totalDiscountAmount / grossSubtotal) : 0
+  const pctDiscountRate = d / 100
+  const subtotalAfterPct = r2(Math.max(0, grossSubtotal - pctDiscountAmount))
+  const additionalDiscountRate = (clampedAdditionalDiscount > 0 && subtotalAfterPct > 0)
+    ? (clampedAdditionalDiscount / subtotalAfterPct)
+    : 0
 
   let taxableAmount = 0, cgstTotal = 0, sgstTotal = 0
 
   const calcItems: CalcLineItem[] = items.map(item => {
+    // Only discountPct changes price & tax in per item rows
     const grossAmount = r2(item.quantity * item.unitPrice)
-    const lineDiscount = r2(grossAmount * effectiveDiscountRate)
+    const lineDiscount = r2(grossAmount * pctDiscountRate)
     const grossAfterDiscount = r2(Math.max(0, grossAmount - lineDiscount))
     const gstFactor = 1 + (item.gstRate || 0) / 100
     const taxableValue = r2(grossAfterDiscount / gstFactor)
@@ -69,9 +74,22 @@ export function calcTotals(items: LineItem[], discountPct = 0, additionalDiscoun
     const sgstAmount = r2(totalGst - cgstAmount)
     const totalAmount = grossAfterDiscount
 
-    taxableAmount += taxableValue
-    cgstTotal += cgstAmount
-    sgstTotal += sgstAmount
+    // Recalculate bill-level taxable & tax after deducting additional_discount
+    if (additionalDiscountRate > 0) {
+      const postAddlGross = r2(grossAfterDiscount * (1 - additionalDiscountRate))
+      const postTaxable = r2(postAddlGross / gstFactor)
+      const postGst = r2(postAddlGross - postTaxable)
+      const postCgst = r2(postGst / 2)
+      const postSgst = r2(postGst - postCgst)
+
+      taxableAmount += postTaxable
+      cgstTotal += postCgst
+      sgstTotal += postSgst
+    } else {
+      taxableAmount += taxableValue
+      cgstTotal += cgstAmount
+      sgstTotal += sgstAmount
+    }
 
     return { ...item, grossAmount, taxableValue, cgstRate, cgstAmount, sgstRate, sgstAmount, totalAmount }
   })

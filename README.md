@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-v2.4.0-blue.svg" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-v2.15.0-blue.svg" alt="Version" />
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Web-purple.svg" alt="Platform" />
   <img src="https://img.shields.io/badge/Storage-SQLite%20(WAL%20Mode)-success.svg" alt="SQLite" />
   <img src="https://img.shields.io/badge/GST-Compliant%20Engine-emerald.svg" alt="GST Compliant" />
@@ -31,7 +31,8 @@
 - **Delta vs. Full QR Generation**: When updating Cash or UPI invoices with changed totals, an in-POS toggle generates QR codes for the delta amount (default) or the full amount.
 - **1-Click Cancel Edit**: Dedicated discard button beside the editing banner to quickly exit invoice editing without saving accidental changes.
 - **Independent Pricing & MRP**: Uses active `Price` for billing, discounts, and PnL while `MRP` is displayed informatively below the description.
-- **Dual Discount Engine (`%` and `₹`)**: Apply percentage discounts or fixed currency amounts (rendered as "Additional discount"), protected by automatic loss prevention.
+- **Dual Discount Engine (`%` and `₹`)**: Apply percentage discounts or fixed currency amounts (rendered as "Additional discount"), protected by automatic loss prevention. Flat ₹ discounts deduct from Grand Total and recalculate overall invoice taxes without modifying individual item unit prices.
+- **Hide Tax Breakdown & Conditional Price Hiding**: Side panel checkbox to hide tax breakdown on invoices, with a conditional "Hide price in invoice" checkbox (shown only when tax is hidden) to omit line-item prices and row totals on delivery slips and quotes.
 - **Loss Prevention Safeguards**: Validates bills in real time to prevent discounts from causing the grand total to fall below purchase cost.
 - **Purchase Price & Margin Protection**: Inline purchase price indicator (`Pur. Price` in blue) with alert highlighting if selling price falls below cost.
 - **Stock-Limit Safeguards**: Proactive stock quantity checking with an executive confirmation dialog to either cap or bypass limits.
@@ -56,6 +57,7 @@
 ### 🧾 4. Executive Invoice & Thermal Receipt Layouts
 - **Immutable Seller Snapshot**: Invoices and quotations freeze the active seller's business name, GSTIN, address, bank, and UPI details at creation time, guaranteeing audit immutability.
 - **Zero-Blank-Page A4 GST Tax Invoice**: Clean typography, structured seller/buyer info, itemized HSN table, CGST/SGST split, bank details, authorized signatory, dynamic UPI QR code, and zero extra trailing blank pages.
+- **Dedicated Discount Column & Price/Total Hiding**: Standalone "Disc." column placed before price displaying merged % savings off MRP. When "Hide price in invoice" is toggled, Price and Row Total columns are seamlessly omitted and the Item Description auto-expands across 100% table width while overall summary totals remain intact.
 - **Multi-Payment Audit Trail**: Transparent breakdown of all historical partial payments with exact transaction timestamps, payment modes (Cash / UPI), cumulative total paid, and outstanding balance due.
 - **Context-Aware Dynamic QR**: Generates dynamic UPI QR codes customized for the remaining balance due or installment amount with clear payment instructions.
 - **Native WhatsApp PDF Sharing**: Share generated A4 PDF documents directly with customers via native Windows WhatsApp with custom messages.

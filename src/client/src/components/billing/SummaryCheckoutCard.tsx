@@ -185,6 +185,7 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPric
         terms_and_conditions: finalTerms,
         selected_upi_id: selectedUpi,
         hide_tax_on_invoice: store.hideTaxOnInvoice ? 1 : 0,
+        hide_price_on_invoice: (store.hideTaxOnInvoice && store.hidePriceOnInvoice) ? 1 : 0,
         qr_amount_type: (isEditing && isTotalChanged && deltaAmount > 0) ? (qrAmountType || 'DELTA') : 'FULL',
       }
       const doc = editingDocId
@@ -407,6 +408,17 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPric
           <input type="checkbox" checked={store.hideTaxOnInvoice} onChange={e => store.setHideTaxOnInvoice(e.target.checked)} className="w-3.5 h-3.5 rounded accent-brand-500" />
           <span>Hide Tax breakdown on Invoice</span>
         </label>
+        {store.hideTaxOnInvoice && (
+          <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-300 pb-1 border-b border-white/5">
+            <input
+              type="checkbox"
+              checked={store.hidePriceOnInvoice}
+              onChange={e => store.setHidePriceOnInvoice(e.target.checked)}
+              className="w-3.5 h-3.5 rounded accent-brand-500"
+            />
+            <span>Hide price in invoice</span>
+          </label>
+        )}
         {row('Subtotal',       formatINR(totals.grossSubtotal))}
         {discountPct > 0 && row(`Discount (${discountPct}%)`, `− ${formatINR(totals.discountAmount)}`, 'text-amber-400')}
         {totals.additionalDiscount > 0 && row('Additional discount', `− ${formatINR(totals.additionalDiscount)}`, 'text-amber-400')}

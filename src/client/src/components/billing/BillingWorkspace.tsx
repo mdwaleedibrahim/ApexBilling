@@ -101,6 +101,7 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
       payment_status: s.paymentStatus,
       paid_amount: s.paidAmount || 0,
       hide_tax_on_invoice: s.hideTaxOnInvoice ? 1 : 0,
+      hide_price_on_invoice: (s.hideTaxOnInvoice && s.hidePriceOnInvoice) ? 1 : 0,
       notes: s.notes,
       terms_and_conditions: JSON.stringify(terms),
       customer_snapshot: JSON.stringify(s.customer || {}),

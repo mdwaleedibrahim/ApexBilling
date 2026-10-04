@@ -70,16 +70,20 @@ export function calculateInvoiceTotals(
   // Total discount amount combined
   const totalDiscountAmount = round2(pctDiscountAmount + clampedAdditionalDiscount);
 
-  // Effective discount rate across line items
-  const effectiveDiscountRate = grossSubtotal > 0 ? (totalDiscountAmount / grossSubtotal) : 0;
+  const pctDiscountRate = clampedDiscount / 100;
+  const subtotalAfterPct = round2(Math.max(0, grossSubtotal - pctDiscountAmount));
+  const additionalDiscountRate = (clampedAdditionalDiscount > 0 && subtotalAfterPct > 0)
+    ? (clampedAdditionalDiscount / subtotalAfterPct)
+    : 0;
 
   let taxableAmount = 0;
   let cgstTotal = 0;
   let sgstTotal = 0;
 
   const calculatedItems: CalculatedLineItem[] = items.map((item) => {
+    // Only discountPct changes price & tax in per item rows
     const grossAmount = round2(item.quantity * item.unitPrice);
-    const lineDiscount = round2(grossAmount * effectiveDiscountRate);
+    const lineDiscount = round2(grossAmount * pctDiscountRate);
     const grossAfterDiscount = round2(Math.max(0, grossAmount - lineDiscount));
 
     // Extract taxable base value from tax-inclusive total
@@ -93,9 +97,22 @@ export function calculateInvoiceTotals(
     const sgstAmount = round2(totalGst - cgstAmount);
     const totalAmount = grossAfterDiscount;
 
-    taxableAmount += taxableValue;
-    cgstTotal += cgstAmount;
-    sgstTotal += sgstAmount;
+    // Recalculate bill-level taxable & tax after deducting additional_discount
+    if (additionalDiscountRate > 0) {
+      const postAddlGross = round2(grossAfterDiscount * (1 - additionalDiscountRate));
+      const postTaxable = round2(postAddlGross / gstFactor);
+      const postGst = round2(postAddlGross - postTaxable);
+      const postCgst = round2(postGst / 2);
+      const postSgst = round2(postGst - postCgst);
+
+      taxableAmount += postTaxable;
+      cgstTotal += postCgst;
+      sgstTotal += postSgst;
+    } else {
+      taxableAmount += taxableValue;
+      cgstTotal += cgstAmount;
+      sgstTotal += sgstAmount;
+    }
 
     return {
       ...item,

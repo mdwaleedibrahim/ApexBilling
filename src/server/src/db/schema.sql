@@ -136,6 +136,7 @@ CREATE TABLE IF NOT EXISTS documents (
     notes TEXT,
     terms_and_conditions TEXT,
     hide_tax_on_invoice INTEGER DEFAULT 0,
+    hide_price_on_invoice INTEGER DEFAULT 0,
     paid_amount DECIMAL(12,2) DEFAULT 0.00,
     partial_payment_mode TEXT,
     payment_history TEXT DEFAULT '[]',
