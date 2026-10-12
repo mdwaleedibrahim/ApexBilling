@@ -2,28 +2,43 @@
 
 const BASE = '/api'
 
-async function req<T>(url: string, options?: RequestInit): Promise<T> {
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+/** Fetch with automatic retry on transient network failures (e.g. server restart during dev.ps1) */
+async function req<T>(url: string, options?: RequestInit, retries = 3): Promise<T> {
   const headers: Record<string, string> = {}
   if (options?.body) {
     headers['Content-Type'] = 'application/json'
   }
-  let res: Response
-  try {
-    res = await fetch(BASE + url, {
-      ...options,
-      headers: { ...headers, ...options?.headers },
-    })
-  } catch (netErr: any) {
-    console.error('[ApexBill API Error]', url, netErr)
-    throw new Error(
-      `Unable to reach ApexBill server. Please make sure the application server is running (port 54321).`
-    )
+
+  let lastNetErr: any
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    let res: Response
+    try {
+      res = await fetch(BASE + url, {
+        ...options,
+        headers: { ...headers, ...options?.headers },
+      })
+    } catch (netErr: any) {
+      lastNetErr = netErr
+      console.warn(`[ApexBill] Network error on attempt ${attempt}/${retries} for ${url}:`, netErr?.message || netErr)
+      if (attempt < retries) {
+        await sleep(1500) // wait 1.5s before retry
+        continue
+      }
+      console.error('[ApexBill API Error]', url, netErr)
+      throw new Error(
+        `Unable to reach ApexBill server. Please make sure the application server is running (port 54321).`
+      )
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }))
+      throw new Error(err.message || err.error || `HTTP ${res.status}`)
+    }
+    return res.json()
   }
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.message || err.error || `HTTP ${res.status}`)
-  }
-  return res.json()
+  // Should never reach here but TypeScript needs a return path
+  throw new Error(`Unable to reach ApexBill server after ${retries} attempts.`)
 }
 
 // ── Dashboard ──────────────────────────────────────────────────────────────
