@@ -1,4 +1,4 @@
-# dev.ps1 — Close existing sessions, build frontend & backend, and start local development server
+# dev.ps1 - Close existing sessions, build frontend & backend, and start local development server
 $ErrorActionPreference = "Stop"
 $ROOT_DIR = (Get-Item "$PSScriptRoot\..").FullName
 
@@ -79,7 +79,7 @@ catch {
 
 if ($killedAny) {
     Start-Sleep -Milliseconds 300
-    Write-Host "[ApexBill] Hot-swap complete — starting new server..." -ForegroundColor Green
+    Write-Host "[ApexBill] Hot-swap complete - starting new server..." -ForegroundColor Green
 }
 else {
     Write-Host "[ApexBill] Starting server..." -ForegroundColor Green
