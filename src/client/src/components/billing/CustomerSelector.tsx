@@ -18,7 +18,12 @@ export default function CustomerSelector() {
   const { customer, setCustomer } = useBillingStore()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<any[]>([])
-  const [allCustomers, setAllCustomers] = useState<any[]>([])
+  const [allCustomers, setAllCustomers] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem('apexbill_cached_customers')
+      return cached ? JSON.parse(cached) : []
+    } catch { return [] }
+  })
   const [open, setOpen] = useState(false)
   const [highlighted, setHighlighted] = useState(0)
   const [addMode, setAddMode] = useState(false)
@@ -31,7 +36,10 @@ export default function CustomerSelector() {
   const loadAll = async () => {
     try {
       const list = await api.customers.list()
-      setAllCustomers(list || [])
+      if (Array.isArray(list)) {
+        setAllCustomers(list)
+        try { localStorage.setItem('apexbill_cached_customers', JSON.stringify(list)) } catch {}
+      }
     } catch (e) {
       console.error(e)
     }
@@ -60,11 +68,10 @@ export default function CustomerSelector() {
     }
   }
 
-  const handleFocus = async () => {
-    const list = await api.customers.list()
-    setAllCustomers(list || [])
+  const handleFocus = () => {
+    const list = allCustomers
     if (!query.trim()) {
-      setResults(list || [])
+      setResults(list)
     } else {
       filterCustomers(query)
     }

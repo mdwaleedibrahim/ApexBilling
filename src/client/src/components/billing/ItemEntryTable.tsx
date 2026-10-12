@@ -13,7 +13,12 @@ export default function ItemEntryTable({ sellerProfile, showPricingOverride = nu
   const { items, addItem, updateItem, removeItem, discountPct } = useBillingStore()
   const [search, setSearch] = useState('')
   const [results, setResults] = useState<any[]>([])
-  const [allProducts, setAllProducts] = useState<any[]>([])
+  const [allProducts, setAllProducts] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem('apexbill_cached_inventory')
+      return cached ? JSON.parse(cached) : []
+    } catch { return [] }
+  })
   const [searchOpen, setSearchOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const blurTimerRef = useRef<any>(null)
@@ -31,7 +36,10 @@ export default function ItemEntryTable({ sellerProfile, showPricingOverride = nu
   const loadAll = async () => {
     try {
       const list = await api.inventory.list()
-      setAllProducts(list || [])
+      if (Array.isArray(list)) {
+        setAllProducts(list)
+        try { localStorage.setItem('apexbill_cached_inventory', JSON.stringify(list)) } catch {}
+      }
     } catch (e) {
       console.error(e)
     }
@@ -54,11 +62,10 @@ export default function ItemEntryTable({ sellerProfile, showPricingOverride = nu
     }
   }
 
-  const handleFocus = async () => {
-    const list = await api.inventory.list()
-    setAllProducts(list || [])
+  const handleFocus = () => {
+    const list = allProducts
     if (!search.trim()) {
-      setResults(list || [])
+      setResults(list)
     } else {
       filterProducts(search)
     }

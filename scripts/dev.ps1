@@ -1,5 +1,4 @@
-# dev.ps1 — Build frontend & backend, then hot-swap the server (zero downtime)
-# Order: Build first → kill old server → start new server (minimises checkout errors during restart)
+# dev.ps1 — Close existing sessions, build frontend & backend, and start local development server
 $ErrorActionPreference = "Stop"
 $ROOT_DIR = (Get-Item "$PSScriptRoot\..").FullName
 
@@ -8,7 +7,8 @@ $node = (Get-Command node.exe -ErrorAction SilentlyContinue).Source
 if (-not $node -or -not (Test-Path $node)) {
     if (Test-Path "C:\Program Files\nodejs\node.exe") {
         $node = "C:\Program Files\nodejs\node.exe"
-    } else {
+    }
+    else {
         $existing = Get-ChildItem "$ROOT_DIR\release" -Filter "node.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($existing) { $node = $existing.FullName }
     }
@@ -21,7 +21,7 @@ if (-not $node) {
 
 Write-Host "`n[ApexBill] Using Node runtime: $node" -ForegroundColor Cyan
 
-# 2. Build FIRST (old server stays alive while we build — no downtime during build)
+# 2. Build Frontend & Backend FIRST (previous server stays alive while building)
 Write-Host "`n[1/2] Building Frontend (Client)..." -ForegroundColor Yellow
 Set-Location "$ROOT_DIR\src\client"
 & "$node" "$ROOT_DIR\src\client\node_modules\vite\bin\vite.js" build
@@ -36,14 +36,14 @@ $schemaDestDir = "$ROOT_DIR\src\server\dist\db"
 if (-not (Test-Path $schemaDestDir)) { New-Item -ItemType Directory -Path $schemaDestDir -Force | Out-Null }
 Copy-Item $schemaSrc -Destination "$schemaDestDir\schema.sql" -Force
 
-# Compile native ApexBill.exe launcher if missing or outdated
-if (Test-Path "$ROOT_DIR\scripts\build-launcher.ps1") {
+# Compile native ApexBill.exe launcher only if missing
+if (-not (Test-Path "$ROOT_DIR\ApexBill.exe") -and (Test-Path "$ROOT_DIR\scripts\build-launcher.ps1")) {
     & "$ROOT_DIR\scripts\build-launcher.ps1" -OutputDir "$ROOT_DIR"
 }
 
 Write-Host "`n[ApexBill] Build completed! Hot-swapping server..." -ForegroundColor Green
 
-# 3. NOW kill old server (build is done — downtime is only a few milliseconds before new server starts)
+# 3. Close any existing sessions running on port 54321 (hot-swap: downtime < 400ms)
 $killedAny = $false
 try {
     $connections = Get-NetTCPConnection -LocalPort 54321 -ErrorAction SilentlyContinue
@@ -51,13 +51,14 @@ try {
         $pids = $connections | Select-Object -ExpandProperty OwningProcess -Unique
         foreach ($p in $pids) {
             if ($p -and $p -ne $PID -and $p -gt 4) {
-                Write-Host "[ApexBill] Closing existing server session (PID: $p)..." -ForegroundColor Yellow
+                Write-Host "[ApexBill] Closing previous server session (PID: $p)..." -ForegroundColor Yellow
                 Stop-Process -Id $p -Force -ErrorAction SilentlyContinue
                 $killedAny = $true
             }
         }
     }
-} catch {
+}
+catch {
     # Fallback via netstat
     $netstatOut = netstat -ano | findstr :54321
     if ($netstatOut) {
@@ -67,7 +68,7 @@ try {
             if ($parts.Length -ge 5) {
                 $pidToKill = $parts[4]
                 if ($pidToKill -as [int] -and [int]$pidToKill -gt 4 -and [int]$pidToKill -ne $PID) {
-                    Write-Host "[ApexBill] Closing existing server session (PID: $pidToKill)..." -ForegroundColor Yellow
+                    Write-Host "[ApexBill] Closing previous server session (PID: $pidToKill)..." -ForegroundColor Yellow
                     taskkill /F /PID $pidToKill 2>$null | Out-Null
                     $killedAny = $true
                 }
@@ -77,12 +78,13 @@ try {
 }
 
 if ($killedAny) {
-    Start-Sleep -Milliseconds 400
+    Start-Sleep -Milliseconds 300
     Write-Host "[ApexBill] Hot-swap complete — starting new server..." -ForegroundColor Green
-} else {
-    Write-Host "[ApexBill] No existing session found on port 54321." -ForegroundColor DarkGray
+}
+else {
+    Write-Host "[ApexBill] Starting server..." -ForegroundColor Green
 }
 
-# 4. Start new server immediately
+# 4. Start Server
 Set-Location "$ROOT_DIR\src\server"
 & "$node" --experimental-sqlite dist/index.js

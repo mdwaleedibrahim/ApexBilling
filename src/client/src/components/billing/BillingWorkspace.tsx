@@ -13,9 +13,24 @@ import { WhatsAppIcon, shareInvoiceViaWhatsApp } from '../../utils/whatsappHelpe
 import { calcTotals } from '../../utils/gstEngine'
 
 export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => void } = {}) {
-  const [profiles, setProfiles] = useState<any[]>([])
-  const [storeSettings, setStoreSettings] = useState<any>(null)
-  const [upiAccounts, setUpiAccounts] = useState<any[]>([])
+  const [profiles, setProfiles] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem('apexbill_seller_profiles')
+      return cached ? JSON.parse(cached) : []
+    } catch { return [] }
+  })
+  const [storeSettings, setStoreSettings] = useState<any>(() => {
+    try {
+      const cached = localStorage.getItem('apexbill_store_settings')
+      return cached ? JSON.parse(cached) : null
+    } catch { return null }
+  })
+  const [upiAccounts, setUpiAccounts] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem('apexbill_upi_accounts')
+      return cached ? JSON.parse(cached) : []
+    } catch { return [] }
+  })
   const [successDoc, setSuccessDoc] = useState<any>(null)
   const [showPrint, setShowPrint] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
@@ -31,6 +46,11 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
       setProfiles(profs)
       setStoreSettings(r?.storeSettings || null)
       setUpiAccounts(r?.upiAccounts || [])
+      try {
+        localStorage.setItem('apexbill_seller_profiles', JSON.stringify(profs))
+        localStorage.setItem('apexbill_store_settings', JSON.stringify(r?.storeSettings || null))
+        localStorage.setItem('apexbill_upi_accounts', JSON.stringify(r?.upiAccounts || []))
+      } catch {}
 
       if (!useBillingStore.getState().sellerProfileId && profs.length > 0) {
         const def = profs.find((p: any) => p.is_default) || profs[0]
@@ -38,6 +58,13 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
       }
     }).catch(err => console.error('Failed loading profiles in BillingWorkspace:', err))
   }
+
+  useEffect(() => {
+    if (!useBillingStore.getState().sellerProfileId && profiles.length > 0) {
+      const def = profiles.find((p: any) => p.is_default) || profiles[0]
+      useBillingStore.getState().setSellerProfileId(def.id)
+    }
+  }, [])
 
   useEffect(() => {
     loadProfiles()
