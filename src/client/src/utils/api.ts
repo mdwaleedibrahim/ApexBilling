@@ -14,6 +14,7 @@ async function req<T>(url: string, options?: RequestInit): Promise<T> {
       headers: { ...headers, ...options?.headers },
     })
   } catch (netErr: any) {
+    console.error('[ApexBill API Error]', url, netErr)
     throw new Error(
       `Unable to reach ApexBill server. Please make sure the application server is running (port 54321).`
     )
