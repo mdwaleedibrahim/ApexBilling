@@ -46,15 +46,16 @@ namespace ApexBill.Standalone
                     {
                         try
                         {
-                            // Attempt to stop existing background node processes
-                            ProcessStartInfo killPsi = new ProcessStartInfo("cmd.exe", "/c taskkill /F /IM node.exe")
+                            // Gracefully stop existing background node processes
+                            foreach (Process proc in Process.GetProcessesByName("node"))
                             {
-                                CreateNoWindow = true,
-                                WindowStyle = ProcessWindowStyle.Hidden,
-                                UseShellExecute = false
-                            };
-                            Process p = Process.Start(killPsi);
-                            if (p != null) p.WaitForExit(2000);
+                                try
+                                {
+                                    proc.Kill();
+                                    proc.WaitForExit(1000);
+                                }
+                                catch { }
+                            }
                         }
                         catch { }
                     }

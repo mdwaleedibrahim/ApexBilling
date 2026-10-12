@@ -29,8 +29,33 @@ if (-not (Test-Path $OutputDir)) {
 
 $outputExe = Join-Path $OutputDir "ApexBill.exe"
 $sourceFile = Join-Path $PSScriptRoot "launcher\ApexBillLauncher.cs"
+$manifestPath = Join-Path $PSScriptRoot "launcher\app.manifest"
 
-Write-Host "[ApexBill] Compiling native Windows launcher: $outputExe" -ForegroundColor Cyan
+# Dynamic Version & Assembly Info
+$pkgJsonPath = Join-Path $ROOT_DIR "package.json"
+$appVersion = "2.20.0"
+if (Test-Path $pkgJsonPath) {
+    try {
+        $pkg = Get-Content $pkgJsonPath -Raw | ConvertFrom-Json
+        if ($pkg.version) { $appVersion = $pkg.version }
+    } catch {}
+}
+$assemblyVersion = "$appVersion.0"
+
+$versionCs = Join-Path $env:TEMP "ApexBillLauncherVersion_$([Guid]::NewGuid().ToString('N')).cs"
+$versionCsContent = @"
+using System.Reflection;
+[assembly: AssemblyTitle("ApexBill")]
+[assembly: AssemblyDescription("ApexBill - Modern Desktop Billing & POS System")]
+[assembly: AssemblyCompany("ApexBill")]
+[assembly: AssemblyProduct("ApexBill")]
+[assembly: AssemblyCopyright("Copyright © 2026 ApexBill")]
+[assembly: AssemblyVersion("$assemblyVersion")]
+[assembly: AssemblyFileVersion("$assemblyVersion")]
+"@
+Set-Content -Path $versionCs -Value $versionCsContent -Encoding UTF8
+
+Write-Host "[ApexBill] Compiling native Windows launcher (v$appVersion): $outputExe" -ForegroundColor Cyan
 
 $cscArgs = @(
     "/target:winexe",
@@ -38,18 +63,29 @@ $cscArgs = @(
     "/platform:anycpu",
     "/out:$outputExe",
     "/win32icon:$iconPath",
+    "/win32manifest:$manifestPath",
     "/r:System.dll",
     "/r:System.Windows.Forms.dll",
     "/r:System.Drawing.dll",
-    "$sourceFile"
+    "$sourceFile",
+    "$versionCs"
 )
 
-$process = Start-Process -FilePath $CSC_PATH -ArgumentList $cscArgs -NoNewWindow -Wait -PassThru
+try {
+    $process = Start-Process -FilePath $CSC_PATH -ArgumentList $cscArgs -NoNewWindow -Wait -PassThru
 
-if ($process.ExitCode -eq 0 -and (Test-Path $outputExe)) {
-    $sizeKb = [Math]::Round(((Get-Item $outputExe).Length / 1KB), 1)
-    Write-Host "[SUCCESS] ApexBill.exe built successfully ($sizeKb KB)!" -ForegroundColor Green
-} else {
-    Write-Error "[FAILED] csc.exe failed with exit code $($process.ExitCode)"
-    exit 1
+    if ($process.ExitCode -eq 0 -and (Test-Path $outputExe)) {
+        $sizeKb = [Math]::Round(((Get-Item $outputExe).Length / 1KB), 1)
+        Write-Host "[SUCCESS] ApexBill.exe built successfully ($sizeKb KB)!" -ForegroundColor Green
+        
+        # Authenticode sign the launcher
+        if (Test-Path "$PSScriptRoot\sign-binary.ps1") {
+            & "$PSScriptRoot\sign-binary.ps1" -FilePath $outputExe
+        }
+    } else {
+        Write-Error "[FAILED] csc.exe failed with exit code $($process.ExitCode)"
+        exit 1
+    }
+} finally {
+    Remove-Item $versionCs -Force -ErrorAction SilentlyContinue
 }

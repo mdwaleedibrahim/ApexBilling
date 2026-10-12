@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -529,14 +530,15 @@ namespace ApexBill.Launcher
         {
             try
             {
-                ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = "cmd.exe";
-                psi.Arguments = "/c for /f \"tokens=5\" %a in ('netstat -aon ^| findstr :54321') do taskkill /F /PID %a";
-                psi.UseShellExecute = false;
-                psi.CreateNoWindow = true;
-                psi.WindowStyle = ProcessWindowStyle.Hidden;
-                Process p = Process.Start(psi);
-                p.WaitForExit(3000);
+                foreach (Process proc in Process.GetProcessesByName("node"))
+                {
+                    try
+                    {
+                        proc.Kill();
+                        proc.WaitForExit(1000);
+                    }
+                    catch { }
+                }
             }
             catch { }
         }

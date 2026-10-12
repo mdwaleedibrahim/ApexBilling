@@ -3,6 +3,24 @@
 ========================================================================
 
 ========================================================================
+ApexBill Release v2.21.0 - 2026-10-12 17:49:37
+========================================================================
+Changes & Commits in this Build:
+  * Incremented minor version & compiled release package.
+
+========================================================================
+ApexBill Release v2.20.0 - 2026-10-12 17:27:35
+========================================================================
+Changes & Commits in this Build:
+  * docs: update README and CHANGELOG with v2.19.0 capabilities and recent changes (46892b8)
+  * feat: global startup data preloading across items, customers, seller profiles, slots and doc numbers (42ba8f0)
+  * fix(scripts): replace unicode dash with ascii hyphen in dev.ps1 to fix PowerShell 5.1 parser error (5486742)
+  * fix: instant 0ms cached loading of items, customers and GST profiles, and dev.ps1 zero-downtime hot-swap (38c9a97)
+  * fix: retry fetch 3x on network failure and zero-downtime dev.ps1 server swap (3b6d8cd)
+  * fix: log api error to console on network failure (d30f783)
+  * feat: backdated invoice persistence, quotation number lock, decouple Node.js runtime, and fix fetch connection errors (v2.19.0) (55830a4)
+
+========================================================================
 ApexBill Release v2.19.0 - 2026-10-12 05:43:50
 ========================================================================
 Changes & Commits in this Build:

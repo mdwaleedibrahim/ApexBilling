@@ -88,9 +88,10 @@ if (-not (Test-Path $iconPath)) {
 Copy-Item -Path $iconPath -Destination (Join-Path $BUNDLE_DIR "ApexBill.ico") -Force
 Copy-Item -Path (Join-Path $BUNDLE_DIR "ApexBill.exe") -Destination (Join-Path $ROOT_DIR "ApexBill.exe") -Force
 
-# Launch-ApexBill.vbs — Silent launcher with duplicate-instance detection
+# Launch-ApexBill.vbs — Silent launcher with direct Node.js execution and Smart App Control resilience
 $vbsContent = @'
 Set WshShell = CreateObject("WScript.Shell")
+Set fso = CreateObject("Scripting.FileSystemObject")
 strPath = WshShell.CurrentDirectory
 
 ' Check if ApexBill server is already listening on port 54321
@@ -123,22 +124,61 @@ If bRunning Then
     End If
 End If
 
-WshShell.Run """" & strPath & "\ApexBill.exe""", 0, False
+' Start Node.js backend if not already active
+If Not bRunning Then
+    Dim nodeExe
+    nodeExe = "node.exe"
+    If fso.FileExists("C:\Program Files\nodejs\node.exe") Then
+        nodeExe = "C:\Program Files\nodejs\node.exe"
+    ElseIf fso.FileExists(WshShell.ExpandEnvironmentStrings("%LOCALAPPDATA%\ApexBill\runtime\node.exe")) Then
+        nodeExe = WshShell.ExpandEnvironmentStrings("%LOCALAPPDATA%\ApexBill\runtime\node.exe")
+    End If
+
+    ' Run server silently
+    WshShell.Run """" & nodeExe & """ """ & strPath & "\app\dist\index.js""", 0, False
+    WScript.Sleep 1500
+End If
+
+' Open Edge in application window mode
+On Error Resume Next
+WshShell.Run "msedge.exe --app=http://localhost:54321 --name=ApexBill", 1, False
+If Err.Number <> 0 Then
+    WshShell.Run "http://localhost:54321", 1, False
+End If
 '@
 $vbsContent | Set-Content -Path (Join-Path $BUNDLE_DIR "Launch-ApexBill.vbs") -Encoding ASCII
 
-# ApexBill.cmd — Command Batch Launcher
+# ApexBill.cmd — Command Batch Launcher with Smart App Control resilience
 $cmdLines = @(
   '@echo off',
-  'title ApexBill Desktop Launcher',
+  'title ApexBill Desktop',
   'cd /d "%~dp0"',
   'echo.',
   'echo  =======================================================',
   'echo         ApexBill - Modern Billing POS System',
   'echo  =======================================================',
   'echo.',
-  'echo  Launching ApexBill...',
-  'start "" "%~dp0ApexBill.exe"'
+  'netstat -ano | findstr :54321 | findstr LISTENING >nul 2>&1',
+  'if %ERRORLEVEL% equ 0 goto open_browser',
+  '',
+  'set "NODE_CMD=node.exe"',
+  'where node >nul 2>&1',
+  'if %ERRORLEVEL% neq 0 (',
+  '    if exist "C:\Program Files\nodejs\node.exe" (',
+  '        set "NODE_CMD=C:\Program Files\nodejs\node.exe"',
+  '    ) else if exist "%LOCALAPPDATA%\ApexBill\runtime\node.exe" (',
+  '        set "NODE_CMD=%LOCALAPPDATA%\ApexBill\runtime\node.exe"',
+  '    )',
+  ')',
+  '',
+  'echo  Starting ApexBill Server...',
+  'start "" /b "%NODE_CMD%" "%~dp0app\dist\index.js"',
+  'timeout /t 2 /nobreak >nul',
+  '',
+  ':open_browser',
+  'echo  Launching ApexBill Application Window...',
+  'start "" msedge.exe --app=http://localhost:54321 --name=ApexBill 2>nul',
+  'if %ERRORLEVEL% neq 0 start http://localhost:54321'
 )
 $cmdLines | Set-Content -Path (Join-Path $BUNDLE_DIR "ApexBill.cmd") -Encoding UTF8
 
@@ -184,6 +224,20 @@ if (Test-Path $changelogSrc) {
   Copy-Item -Path $changelogSrc -Destination (Join-Path $BUNDLE_DIR "CHANGELOG.txt") -Force
 }
 
+# Copy Certificate & Trust-Certificate scripts into bundle prior to ZIP compression
+$certExportPath = Join-Path $RELEASE_DIR "ApexBill-CodeSigning.cer"
+if (Test-Path "$ROOT_DIR\scripts\sign-binary.ps1") {
+    & "$ROOT_DIR\scripts\sign-binary.ps1" -FilePath (Join-Path $BUNDLE_DIR "ApexBill.exe") -ExportCertPath $certExportPath
+}
+if (Test-Path $certExportPath) {
+    Copy-Item -Path $certExportPath -Destination (Join-Path $BUNDLE_DIR "ApexBill-CodeSigning.cer") -Force
+}
+$trustBatPath = Join-Path $ROOT_DIR "scripts\Trust-Certificate.bat"
+if (Test-Path $trustBatPath) {
+    Copy-Item -Path $trustBatPath -Destination (Join-Path $BUNDLE_DIR "Trust-Certificate.bat") -Force
+    Copy-Item -Path $trustBatPath -Destination (Join-Path $RELEASE_DIR "Trust-Certificate.bat") -Force
+}
+
 # 6. Compress into Portable ZIP Archive
 Write-Host "Step 5: Creating Compressed ZIP Package..." -ForegroundColor Yellow
 $zipPath = Join-Path $RELEASE_DIR "$APP_NAME.zip"
@@ -202,11 +256,27 @@ if (-not (Test-Path $CSC_PATH)) {
 }
 
 $standaloneSrc = Join-Path $ROOT_DIR "scripts\launcher\ApexBillStandalone.cs"
+$manifestPath = Join-Path $ROOT_DIR "scripts\launcher\app.manifest"
 $standaloneExe = Join-Path $RELEASE_DIR "ApexBill-v$VERSION-Standalone.exe"
 $standaloneAlias = Join-Path $RELEASE_DIR "ApexBill-Standalone.exe"
 
-$versionTxt = Join-Path $env:TEMP "ApexBillVersion.txt"
+$versionTxt = Join-Path $env:TEMP "ApexBillVersion_$([Guid]::NewGuid().ToString('N')).txt"
 Set-Content -Path $versionTxt -Value $VERSION -Encoding ASCII
+
+# Dynamic Version & Assembly Info for Standalone
+$assemblyVersion = "$VERSION.0"
+$versionCs = Join-Path $env:TEMP "ApexBillStandaloneVersion_$([Guid]::NewGuid().ToString('N')).cs"
+$versionCsContent = @"
+using System.Reflection;
+[assembly: AssemblyTitle("ApexBill Standalone")]
+[assembly: AssemblyDescription("ApexBill - Modern Desktop Billing & POS System")]
+[assembly: AssemblyCompany("ApexBill")]
+[assembly: AssemblyProduct("ApexBill Standalone")]
+[assembly: AssemblyCopyright("Copyright © 2026 ApexBill")]
+[assembly: AssemblyVersion("$assemblyVersion")]
+[assembly: AssemblyFileVersion("$assemblyVersion")]
+"@
+Set-Content -Path $versionCs -Value $versionCsContent -Encoding UTF8
 
 if ((Test-Path $CSC_PATH) -and (Test-Path $standaloneSrc)) {
     $cscArgs = @(
@@ -217,32 +287,71 @@ if ((Test-Path $CSC_PATH) -and (Test-Path $standaloneSrc)) {
         "/resource:$versionTxt,BundleVersion.txt",
         "/out:$standaloneExe",
         "/win32icon:$iconPath",
+        "/win32manifest:$manifestPath",
         "/r:System.dll",
         "/r:System.IO.Compression.dll",
         "/r:System.IO.Compression.FileSystem.dll",
         "/r:System.Windows.Forms.dll",
-        "$standaloneSrc"
+        "$standaloneSrc",
+        "$versionCs"
     )
 
-    $proc = Start-Process -FilePath $CSC_PATH -ArgumentList $cscArgs -NoNewWindow -Wait -PassThru
-    Remove-Item $versionTxt -Force -ErrorAction SilentlyContinue
+    try {
+        $proc = Start-Process -FilePath $CSC_PATH -ArgumentList $cscArgs -NoNewWindow -Wait -PassThru
 
-    if ($proc.ExitCode -eq 0 -and (Test-Path $standaloneExe)) {
-        Copy-Item -Path $standaloneExe -Destination $standaloneAlias -Force
-        $exeSizeMb = [Math]::Round(((Get-Item $standaloneExe).Length / 1MB), 1)
-        Write-Host "   Created Standalone Executable: $standaloneExe ($exeSizeMb MB)" -ForegroundColor Green
-    } else {
-        Write-Warning "Failed to compile Standalone Single-File .exe with exit code $($proc.ExitCode)"
+        if ($proc.ExitCode -eq 0 -and (Test-Path $standaloneExe)) {
+            # Authenticode code signing on standalone binary
+            if (Test-Path "$ROOT_DIR\scripts\sign-binary.ps1") {
+                Write-Host "   Applying Authenticode digital signature to Standalone .exe..." -ForegroundColor Cyan
+                & "$ROOT_DIR\scripts\sign-binary.ps1" -FilePath $standaloneExe -ExportCertPath $certExportPath
+            }
+
+            Copy-Item -Path $standaloneExe -Destination $standaloneAlias -Force
+            if (Test-Path "$ROOT_DIR\scripts\sign-binary.ps1") {
+                & "$ROOT_DIR\scripts\sign-binary.ps1" -FilePath $standaloneAlias
+            }
+
+            $exeSizeMb = [Math]::Round(((Get-Item $standaloneExe).Length / 1MB), 1)
+            Write-Host "   Created Standalone Executable: $standaloneExe ($exeSizeMb MB)" -ForegroundColor Green
+        } else {
+            Write-Warning "Failed to compile Standalone Single-File .exe with exit code $($proc.ExitCode)"
+        }
+    } finally {
+        Remove-Item $versionTxt -Force -ErrorAction SilentlyContinue
+        Remove-Item $versionCs -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Sign root dev launcher if present
+if (Test-Path (Join-Path $ROOT_DIR "ApexBill.exe")) {
+    & "$ROOT_DIR\scripts\sign-binary.ps1" -FilePath (Join-Path $ROOT_DIR "ApexBill.exe")
+}
+
+# Step 7: Cryptographic Signature Verification Report
+Write-Host "`nStep 7: Verifying Release Authenticode Signatures..." -ForegroundColor Yellow
+$binariesToVerify = @(
+    (Join-Path $BUNDLE_DIR "ApexBill.exe"),
+    (Join-Path $ROOT_DIR "ApexBill.exe"),
+    $standaloneExe,
+    $standaloneAlias
+)
+foreach ($bin in $binariesToVerify) {
+    if (Test-Path $bin) {
+        $sig = Get-AuthenticodeSignature -FilePath $bin
+        $leafName = Split-Path $bin -Leaf
+        $certStatus = if ($sig.Status -eq "Valid") { "Valid" } elseif ($sig.SignerCertificate) { "Signed ($($sig.Status))" } else { "Unsigned" }
+        $thumb = if ($sig.SignerCertificate) { $sig.SignerCertificate.Thumbprint.Substring(0, 10) + "..." } else { "None" }
+        Write-Host "   [Authenticode] $leafName -> $certStatus | SHA256: $thumb" -ForegroundColor Green
     }
 }
 
 Write-Host "`n========================================================================" -ForegroundColor Cyan
-Write-Host "  ApexBill Release Packaging Complete!" -ForegroundColor Green
+Write-Host "  ApexBill Release Packaging Complete (v$VERSION)!" -ForegroundColor Green
 Write-Host "========================================================================" -ForegroundColor Cyan
-Write-Host "  1. Portable Folder (with ApexBill.exe): $BUNDLE_DIR"
-Write-Host "  2. Standalone ZIP Archive:             $zipPath ($zipSizeMb MB)"
+Write-Host "  1. Portable Folder (with signed ApexBill.exe): $BUNDLE_DIR"
+Write-Host "  2. Standalone ZIP Archive (with cert tools):  $zipPath ($zipSizeMb MB)"
 if (Test-Path $standaloneExe) {
-    Write-Host "  3. Single-File Standalone .exe:        $standaloneExe ($exeSizeMb MB)"
+    Write-Host "  3. Signed Standalone Single-File .exe:         $standaloneExe ($exeSizeMb MB)"
 }
 Write-Host "========================================================================`n" -ForegroundColor Cyan
 

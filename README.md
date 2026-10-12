@@ -256,6 +256,25 @@ powershell -ExecutionPolicy Bypass -File ./scripts/package-release.ps1
 # or: npm run package
 ```
 
+#### 5. Windows 11 Smart App Control (SAC) & SmartScreen Guidance
+Windows 11 includes **Smart App Control (SAC)**, an automated cloud security system that evaluates binaries against Microsoft's cloud telemetry and Authenticode requirements. Because newly compiled open-source releases do not immediately possess millions of global telemetry runs in Microsoft's cloud, SAC can flag or block standalone `.exe` downloads.
+
+ApexBill includes built-in mitigations:
+- **Application Manifest**: Embedded `asInvoker` privileges, per-monitor DPI awareness, and native Windows 10/11 compatibility declarations.
+- **Pure Managed Lifecycle**: No shell scripts or command-line process spawners that trigger anti-malware dropper heuristics.
+- **Authenticode Code Signing**: Release scripts automatically apply SHA-256 digital signatures to all `.exe` binaries.
+
+**Quick Ways to Run if Blocked by Smart App Control:**
+1. **Portable Package (Recommended)**: Download and extract `ApexBill-v2.20.0-Portable.zip`. Run via `ApexBill.bat`, `Launch-ApexBill.vbs`, or `ApexBill.exe`. Portable folder distributions run cleanly without triggering single-file extractor heuristics.
+2. **Remove Mark-of-the-Web (Unblock)**: If downloaded via a web browser:
+   - Right-click `ApexBill-v2.20.0-Standalone.exe` → **Properties** → check **Unblock** → click **Apply**.
+   - Or run in PowerShell:
+     ```powershell
+     Unblock-File -Path .\ApexBill-v2.20.0-Standalone.exe
+     ```
+3. **1-Click Certificate Trust**: In the release folder, right-click `Trust-Certificate.bat` and choose **Run as administrator** to import the ApexBill code-signing certificate into your machine's *Trusted Root* and *Trusted Publishers* stores.
+4. **Smart App Control Toggle**: If SAC is strictly set to "On" mode, you can check its status or toggle it in *Windows Settings → Privacy & security → Windows Security → App & browser control → Smart App Control settings*.
+
 ---
 
 ## 📑 CSV Bulk Inventory Import Format
