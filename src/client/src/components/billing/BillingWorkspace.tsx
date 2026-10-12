@@ -9,28 +9,15 @@ import SellerProfileSelector from './SellerProfileSelector'
 import A4InvoiceTemplate from '../print/A4InvoiceTemplate'
 import { api } from '../../utils/api'
 import { useBillingStore } from '../../store/useBillingStore'
+import { useDataStore } from '../../store/useDataStore'
 import { WhatsAppIcon, shareInvoiceViaWhatsApp } from '../../utils/whatsappHelper'
 import { calcTotals } from '../../utils/gstEngine'
 
 export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => void } = {}) {
-  const [profiles, setProfiles] = useState<any[]>(() => {
-    try {
-      const cached = localStorage.getItem('apexbill_seller_profiles')
-      return cached ? JSON.parse(cached) : []
-    } catch { return [] }
-  })
-  const [storeSettings, setStoreSettings] = useState<any>(() => {
-    try {
-      const cached = localStorage.getItem('apexbill_store_settings')
-      return cached ? JSON.parse(cached) : null
-    } catch { return null }
-  })
-  const [upiAccounts, setUpiAccounts] = useState<any[]>(() => {
-    try {
-      const cached = localStorage.getItem('apexbill_upi_accounts')
-      return cached ? JSON.parse(cached) : []
-    } catch { return [] }
-  })
+  const profiles = useDataStore(s => s.profiles)
+  const storeSettings = useDataStore(s => s.storeSettings)
+  const upiAccounts = useDataStore(s => s.upiAccounts)
+
   const [successDoc, setSuccessDoc] = useState<any>(null)
   const [showPrint, setShowPrint] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
@@ -41,22 +28,7 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
   const [showPricingOverride, setShowPricingOverride] = useState<boolean | null>(null)
 
   const loadProfiles = () => {
-    api.settings.getProfiles().then(r => {
-      const profs = r?.profiles || []
-      setProfiles(profs)
-      setStoreSettings(r?.storeSettings || null)
-      setUpiAccounts(r?.upiAccounts || [])
-      try {
-        localStorage.setItem('apexbill_seller_profiles', JSON.stringify(profs))
-        localStorage.setItem('apexbill_store_settings', JSON.stringify(r?.storeSettings || null))
-        localStorage.setItem('apexbill_upi_accounts', JSON.stringify(r?.upiAccounts || []))
-      } catch {}
-
-      if (!useBillingStore.getState().sellerProfileId && profs.length > 0) {
-        const def = profs.find((p: any) => p.is_default) || profs[0]
-        useBillingStore.getState().setSellerProfileId(def.id)
-      }
-    }).catch(err => console.error('Failed loading profiles in BillingWorkspace:', err))
+    useDataStore.getState().refreshProfiles()
   }
 
   useEffect(() => {
@@ -64,7 +36,7 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
       const def = profiles.find((p: any) => p.is_default) || profiles[0]
       useBillingStore.getState().setSellerProfileId(def.id)
     }
-  }, [])
+  }, [profiles])
 
   useEffect(() => {
     loadProfiles()

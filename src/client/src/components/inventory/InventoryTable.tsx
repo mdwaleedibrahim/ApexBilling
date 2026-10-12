@@ -5,11 +5,12 @@ import { api } from '../../utils/api'
 import { formatINR } from '../../utils/upiHelper'
 import { GST_RATES } from '../../utils/gstEngine'
 import { useDialogStore } from '../../store/useDialogStore'
+import { useDataStore } from '../../store/useDataStore'
 
 const EMPTY = { sku: '', name: '', hsn_sac: '', unit: 'PCS', purchase_price: 0, selling_price: 0, mrp: 0, tax_rate: 18, stock_qty: 0 }
 
 export default function InventoryTable() {
-  const [products, setProducts] = useState<any[]>([])
+  const [products, setProducts] = useState<any[]>(() => useDataStore.getState().products || [])
   const [search, setSearch] = useState('')
   const [editId, setEditId] = useState<string | null>(null)
   const [form, setForm] = useState<any>(EMPTY)
@@ -23,8 +24,8 @@ export default function InventoryTable() {
 
   const load = async () => {
     const q = search.trim()
-    const data = q ? await api.inventory.search(q) : await api.inventory.list()
-    setProducts(data)
+    const data = q ? await api.inventory.search(q) : await useDataStore.getState().refreshProducts()
+    setProducts(data || [])
   }
 
   useEffect(() => { load() }, [search])

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Search, UserPlus, X, Edit, Sparkles, CheckCircle2, RefreshCw } from 'lucide-react'
 import { api } from '../../utils/api'
 import { useBillingStore } from '../../store/useBillingStore'
+import { useDataStore } from '../../store/useDataStore'
 import { INDIAN_STATES } from '../../utils/gstEngine'
 import { normalizePhone } from '../../utils/phoneHelper'
 
@@ -18,12 +19,7 @@ export default function CustomerSelector() {
   const { customer, setCustomer } = useBillingStore()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<any[]>([])
-  const [allCustomers, setAllCustomers] = useState<any[]>(() => {
-    try {
-      const cached = localStorage.getItem('apexbill_cached_customers')
-      return cached ? JSON.parse(cached) : []
-    } catch { return [] }
-  })
+  const allCustomers = useDataStore(s => s.customers)
   const [open, setOpen] = useState(false)
   const [highlighted, setHighlighted] = useState(0)
   const [addMode, setAddMode] = useState(false)
@@ -33,20 +29,8 @@ export default function CustomerSelector() {
   const inputRef = useRef<HTMLInputElement>(null)
   const blurTimerRef = useRef<any>(null)
 
-  const loadAll = async () => {
-    try {
-      const list = await api.customers.list()
-      if (Array.isArray(list)) {
-        setAllCustomers(list)
-        try { localStorage.setItem('apexbill_cached_customers', JSON.stringify(list)) } catch {}
-      }
-    } catch (e) {
-      console.error(e)
-    }
-  }
-
   useEffect(() => {
-    loadAll()
+    useDataStore.getState().refreshCustomers()
     return () => {
       if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
     }

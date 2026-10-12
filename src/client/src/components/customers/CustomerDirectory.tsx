@@ -5,6 +5,7 @@ import { formatINR, formatDate } from '../../utils/upiHelper'
 import { INDIAN_STATES } from '../../utils/gstEngine'
 import { normalizePhone } from '../../utils/phoneHelper'
 import { useDialogStore } from '../../store/useDialogStore'
+import { useDataStore } from '../../store/useDataStore'
 import A4InvoiceTemplate from '../print/A4InvoiceTemplate'
 import { sendPaymentReminderViaWhatsApp } from '../../utils/whatsappHelper'
 
@@ -20,7 +21,7 @@ function deriveStateCode(gstin: string, current: string): string {
 }
 
 export default function CustomerDirectory({ onViewAnalytics }: { onViewAnalytics?: (phone: string) => void } = {}) {
-  const [customers, setCustomers] = useState<any[]>([])
+  const [customers, setCustomers] = useState<any[]>(() => useDataStore.getState().customers || [])
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editPhone, setEditPhone] = useState<string | null>(null)
@@ -36,8 +37,8 @@ export default function CustomerDirectory({ onViewAnalytics }: { onViewAnalytics
 
   const load = async () => {
     const q = search.trim()
-    const data = q ? await api.customers.search(q) : await api.customers.list()
-    setCustomers(data)
+    const data = q ? await api.customers.search(q) : await useDataStore.getState().refreshCustomers()
+    setCustomers(data || [])
   }
 
   useEffect(() => { load() }, [search])

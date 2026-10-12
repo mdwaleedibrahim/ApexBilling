@@ -8,6 +8,7 @@ import {
 import { api } from '../../utils/api'
 import { INDIAN_STATES } from '../../utils/gstEngine'
 import { useDialogStore } from '../../store/useDialogStore'
+import { useDataStore } from '../../store/useDataStore'
 
 type TabType = 'profiles' | 'bank' | 'upi' | 'store' | 'admin'
 
@@ -77,6 +78,7 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
         setBankAccounts(res.bankAccounts || [])
         setUpiAccounts(res.upiAccounts || [])
         setStoreSettings(res.storeSettings || {})
+        useDataStore.getState().setProfilesData(res)
       }
       setSystemInfo(sys)
     } catch (err) {

@@ -2,6 +2,7 @@
 import { useRef, useState, useEffect } from 'react'
 import { Plus, Trash2, Search } from 'lucide-react'
 import { useBillingStore } from '../../store/useBillingStore'
+import { useDataStore } from '../../store/useDataStore'
 import { api } from '../../utils/api'
 import { formatINR } from '../../utils/upiHelper'
 import { GST_RATES } from '../../utils/gstEngine'
@@ -13,12 +14,7 @@ export default function ItemEntryTable({ sellerProfile, showPricingOverride = nu
   const { items, addItem, updateItem, removeItem, discountPct } = useBillingStore()
   const [search, setSearch] = useState('')
   const [results, setResults] = useState<any[]>([])
-  const [allProducts, setAllProducts] = useState<any[]>(() => {
-    try {
-      const cached = localStorage.getItem('apexbill_cached_inventory')
-      return cached ? JSON.parse(cached) : []
-    } catch { return [] }
-  })
+  const allProducts = useDataStore(s => s.products)
   const [searchOpen, setSearchOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const blurTimerRef = useRef<any>(null)
@@ -33,19 +29,9 @@ export default function ItemEntryTable({ sellerProfile, showPricingOverride = nu
     }
   }, [])
 
-  const loadAll = async () => {
-    try {
-      const list = await api.inventory.list()
-      if (Array.isArray(list)) {
-        setAllProducts(list)
-        try { localStorage.setItem('apexbill_cached_inventory', JSON.stringify(list)) } catch {}
-      }
-    } catch (e) {
-      console.error(e)
-    }
-  }
-
-  useEffect(() => { loadAll() }, [])
+  useEffect(() => {
+    useDataStore.getState().refreshProducts()
+  }, [])
 
   const filterProducts = (q: string) => {
     setSearch(q)

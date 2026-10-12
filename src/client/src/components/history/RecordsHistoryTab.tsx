@@ -4,6 +4,7 @@ import { api } from '../../utils/api'
 import { formatINR, formatDate } from '../../utils/upiHelper'
 import { useBillingStore } from '../../store/useBillingStore'
 import { useDialogStore } from '../../store/useDialogStore'
+import { useDataStore } from '../../store/useDataStore'
 import A4InvoiceTemplate from '../print/A4InvoiceTemplate'
 import { WhatsAppIcon, shareInvoiceViaWhatsApp, sendPaymentReminderViaWhatsApp } from '../../utils/whatsappHelper'
 
@@ -21,7 +22,7 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
   const [typeFilter, setTypeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [sellerFilter, setSellerFilter] = useState('')
-  const [sellerProfiles, setSellerProfiles] = useState<any[]>([])
+  const [sellerProfiles, setSellerProfiles] = useState<any[]>(() => useDataStore.getState().profiles || [])
   const [loading, setLoading] = useState(false)
   const [viewDoc, setViewDoc] = useState<any>(null)
   const [sharingDoc, setSharingDoc] = useState<any>(null)

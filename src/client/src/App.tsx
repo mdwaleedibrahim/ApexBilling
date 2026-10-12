@@ -11,6 +11,7 @@ import CustomerDirectory from './components/customers/CustomerDirectory'
 import CustomerAnalyticsTab from './components/analytics/CustomerAnalyticsTab'
 import SellerSettingsModal from './components/settings/SellerSettingsModal'
 import { useDialogStore } from './store/useDialogStore'
+import { useDataStore } from './store/useDataStore'
 import { WhatsAppShareModal } from './utils/whatsappHelper'
 
 function CustomDialog() {
@@ -130,6 +131,11 @@ export default function App() {
 
   // Derived: sidebar is visually open if pinned OR hovered while collapsed
   const sidebarOpen = sidebarPinned || sidebarHovered
+
+  // Preload items, customers, seller profiles & all initial data on app startup
+  useEffect(() => {
+    useDataStore.getState().preloadAll()
+  }, [])
 
   // Global keyboard shortcuts
   useEffect(() => {
