@@ -239,7 +239,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
               {doc.doc_number}
             </p>
             <p style={{ margin: '4px 0 0 0', fontSize: 11, color: '#64748b' }}>
-              Date & Time: <strong style={{ color: '#334155' }}>{formatDateTime(doc.doc_date, doc.created_at)}</strong>
+              Date & Time: <strong style={{ color: '#334155' }}>{formatDateTime(doc.doc_date, doc.doc_time || doc.created_at)}</strong>
             </p>
             {doc.revision_number > 1 && (
               <span style={{ display: 'inline-block', marginTop: 4, fontSize: 10, fontWeight: 700, color: '#d97706', background: '#fef3c7', padding: '1px 6px', borderRadius: 4 }}>

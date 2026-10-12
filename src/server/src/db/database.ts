@@ -74,6 +74,7 @@ export function getDb(): DatabaseSync {
     try { _db.exec('ALTER TABLE documents ADD COLUMN payment_history TEXT DEFAULT \'[]\'') } catch {}
     try { _db.exec('ALTER TABLE documents ADD COLUMN qr_amount_type TEXT DEFAULT \'FULL\'') } catch {}
     try { _db.exec('ALTER TABLE documents ADD COLUMN reminder_count INTEGER DEFAULT 0') } catch {}
+    try { _db.exec('ALTER TABLE documents ADD COLUMN doc_time TEXT') } catch {}
     try { _db.exec('ALTER TABLE products ADD COLUMN mrp DECIMAL(10,2) DEFAULT 0.00') } catch {}
     try { _db.exec('ALTER TABLE document_items ADD COLUMN purchase_price DECIMAL(10,2) DEFAULT 0') } catch {}
     try { _db.exec('ALTER TABLE document_items ADD COLUMN unit TEXT DEFAULT \'PCS\'') } catch {}

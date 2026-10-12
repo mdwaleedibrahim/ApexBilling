@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { CheckCircle, Eye, X } from 'lucide-react'
 import CustomerSelector from './CustomerSelector'
 import ItemEntryTable from './ItemEntryTable'
@@ -19,6 +19,7 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
   const [successDoc, setSuccessDoc] = useState<any>(null)
   const [showPrint, setShowPrint] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
+  const [previewDocNumber, setPreviewDocNumber] = useState<string | null>(null)
   const printTemplateRef = useRef<HTMLDivElement>(null)
   const store = useBillingStore()
   // null = follow Settings; true = force show; false = force hide
@@ -77,6 +78,14 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
     await shareInvoiceViaWhatsApp(printTemplateRef.current, successDoc, combinedProfile)
   }
 
+  /** Fetch the next invoice/quotation number for Preview display */
+  const fetchPreviewNumber = useCallback(async (type: 'INVOICE' | 'QUOTATION') => {
+    try {
+      const res = await api.documents.nextNumber(type)
+      setPreviewDocNumber(res.suggested)
+    } catch { setPreviewDocNumber(null) }
+  }, [])
+
   /** Build a preview-doc from the live cart — mirrors the server's saved doc shape */
   const buildPreviewDoc = () => {
     const s = store
@@ -94,9 +103,18 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
 
     return {
       doc_type: s.docType,
-      doc_number: `PREVIEW-${s.docType === 'QUOTATION' ? 'QT' : 'INV'}`,
+      doc_number: s.editingDocNumber || (s.docType === 'INVOICE' ? s.customDocNumber : undefined) || previewDocNumber || `PREVIEW-${s.docType === 'QUOTATION' ? 'QT' : 'INV'}`,
       doc_date: s.docDate,
-      created_at: new Date().toISOString(),
+      doc_time: s.docTime,
+      created_at: (() => {
+        if (s.docDate && s.docTime) {
+          const [hh, mm] = s.docTime.split(':').map(Number)
+          const [y, m, d] = s.docDate.split('-').map(Number)
+          const dt = new Date(y, m - 1, d, hh || 0, mm || 0, 0)
+          if (!isNaN(dt.getTime())) return dt.toISOString()
+        }
+        return new Date().toISOString()
+      })(),
       payment_mode: s.paymentMode,
       payment_status: s.paymentStatus,
       paid_amount: s.paidAmount || 0,
@@ -184,7 +202,15 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
             sellerProfile={combinedProfile}
             showPricingOverride={showPricingOverride}
             onTogglePricing={(effectiveShow: boolean) => setShowPricingOverride(!effectiveShow)}
-            onPreview={() => setShowPreview(true)}
+            onPreview={async () => {
+              // For editing, we already know the doc number. For new, fetch next number.
+              if (!store.editingDocNumber && !store.customDocNumber) {
+                await fetchPreviewNumber(store.docType)
+              } else {
+                setPreviewDocNumber(store.customDocNumber || null)
+              }
+              setShowPreview(true)
+            }}
           />
         </div>
       </div>

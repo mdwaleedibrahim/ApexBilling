@@ -1,5 +1,5 @@
 // components/billing/SummaryCheckoutCard.tsx — Totals + Checkout panel
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { CreditCard, Banknote, QrCode, Landmark, Clock, X, CheckCircle2 } from 'lucide-react'
 import { useBillingStore } from '../../store/useBillingStore'
 import { formatINR } from '../../utils/upiHelper'
@@ -21,17 +21,74 @@ interface Props {
 export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPricingOverride = null, onTogglePricing, onPreview }: Props) {
   const store = useBillingStore()
   const { totals, discountPct, setDiscountPct, additionalDiscount, setAdditionalDiscount,
-          paymentMode, setPaymentMode, paymentStatus, setPaymentStatus, docType, setDocType,
-          notes, setNotes, items, customer, docDate, setDocDate, editingDocId, editingDocNumber,
-          paidAmount, setPaidAmount, partialPaymentMode, setPartialPaymentMode,
-          convertingFromQuotationId, qrAmountType, setQrAmountType } = store
+    paymentMode, setPaymentMode, paymentStatus, setPaymentStatus, docType, setDocType,
+    notes, setNotes, items, customer, docDate, setDocDate, docTime, setDocTime,
+    customDocNumber, setCustomDocNumber,
+    editingDocId, editingDocNumber,
+    paidAmount, setPaidAmount, partialPaymentMode, setPartialPaymentMode,
+    convertingFromQuotationId, qrAmountType, setQrAmountType } = store
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showUpiModal, setShowUpiModal] = useState(false)
   const [discountMode, setDiscountMode] = useState<'PCT' | 'RUPEE'>('PCT')
   const submittingRef = useRef(false)
 
+  // Back-date invoice number state (INVOICE only)
+  const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })()
+  const isBackDated = !editingDocId && docDate < todayStr
+  const canCustomizeDocNumber = isBackDated && docType === 'INVOICE'
+  const [suggestedDocNumber, setSuggestedDocNumber] = useState<string | null>(null)
+  const [docNumberCheckLoading, setDocNumberCheckLoading] = useState(false)
+  const [docNumberExists, setDocNumberExists] = useState(false)
+
   const upiAccounts = sellerProfile?.upiAccounts || []
+
+  // Use a ref to avoid re-triggering fetch when user types in the number field
+  const customDocNumberRef = useRef(customDocNumber)
+  customDocNumberRef.current = customDocNumber
+
+  // Fetch suggested invoice number when back-dating invoice and not editing
+  const fetchSuggestedNumber = useCallback(async () => {
+    if (!canCustomizeDocNumber) { setSuggestedDocNumber(null); return }
+    setDocNumberCheckLoading(true)
+    try {
+      const res = await api.documents.nextNumber('INVOICE')
+      setSuggestedDocNumber(res.suggested)
+      // Only pre-fill customDocNumber if user hasn't typed anything
+      if (!customDocNumberRef.current) {
+        setCustomDocNumber(res.suggested)
+        setDocNumberExists(false)
+      }
+    } catch { /* ignore */ }
+    finally { setDocNumberCheckLoading(false) }
+  }, [canCustomizeDocNumber, setCustomDocNumber])
+
+  useEffect(() => {
+    if (canCustomizeDocNumber) {
+      fetchSuggestedNumber()
+    } else {
+      setSuggestedDocNumber(null)
+      setCustomDocNumber(null)
+      setDocNumberExists(false)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canCustomizeDocNumber, docDate, docType])
+
+  // Real-time debounced validation: check if typed invoice number already exists
+  useEffect(() => {
+    if (!canCustomizeDocNumber || !customDocNumber || !customDocNumber.trim()) {
+      setDocNumberExists(false)
+      return
+    }
+    const trimmed = customDocNumber.trim()
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api.documents.nextNumber('INVOICE', trimmed)
+        setDocNumberExists(res.exists)
+      } catch { /* ignore */ }
+    }, 600)
+    return () => clearTimeout(timer)
+  }, [customDocNumber, canCustomizeDocNumber])
 
   const totalPurchaseCost = items.reduce((sum, i) => sum + (i.quantity * (i.purchasePrice || 0)), 0)
   const isLoss = totalPurchaseCost > 0 && totals.grandTotal < (totalPurchaseCost - 0.01)
@@ -50,6 +107,15 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPric
   const handleSubmit = async (mode?: string, status?: string) => {
     if (submittingRef.current) return
     if (!items.length) { setError('Add at least one item'); return }
+
+    // Block submission if the custom invoice number is already taken
+    if (isBackDated && docNumberExists) {
+      await useDialogStore.getState().show(
+        `An invoice/quotation with number "${(customDocNumber || '').trim()}" already exists. Please change the invoice number before saving.`,
+        false
+      )
+      return
+    }
 
     const pm = mode || paymentMode
     const ps = status || paymentStatus
@@ -76,6 +142,14 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPric
     if (belowCostItem) {
       await useDialogStore.getState().show(
         `Order price of "${belowCostItem.productName}" is lesser than purchase price. Increase price.`,
+        false
+      )
+      return
+    }
+
+    if (canCustomizeDocNumber && docNumberExists) {
+      await useDialogStore.getState().show(
+        `An invoice with number "${(customDocNumber || suggestedDocNumber || '').trim()}" already exists. Please choose a different number.`,
         false
       )
       return
@@ -164,9 +238,20 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPric
         finalPaidAmount = totals.grandTotal
       }
 
+      let docCreatedAt: string | undefined = undefined
+      if (docDate) {
+        const timeParts = (docTime && docTime.trim() ? docTime.trim() : '12:00').split(':').map(Number)
+        const dateParts = docDate.split('-').map(Number)
+        const dt = new Date(dateParts[0], (dateParts[1] || 1) - 1, dateParts[2] || 1, timeParts[0] || 0, timeParts[1] || 0, 0)
+        if (!isNaN(dt.getTime())) docCreatedAt = dt.toISOString()
+      }
+
       const body = {
         doc_type: docType,
         doc_date: docDate,
+        doc_time: docTime,
+        created_at: docCreatedAt,
+        custom_doc_number: canCustomizeDocNumber && customDocNumber ? customDocNumber.trim() : undefined,
         seller_profile_id: store.sellerProfileId || sellerProfile?.id || null,
         customer_phone: customer?.phone || null,
         customer_snapshot: JSON.stringify(customer || {}),
@@ -254,7 +339,7 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPric
   )
 
   // Effective pricing visibility: override wins over Settings
-  const settingsShowProfit   = sellerProfile?.show_profit_loss_in_pos !== 0 && sellerProfile?.show_profit_loss_in_pos !== false
+  const settingsShowProfit = sellerProfile?.show_profit_loss_in_pos !== 0 && sellerProfile?.show_profit_loss_in_pos !== false
   const effectiveShowPricing = showPricingOverride !== null ? showPricingOverride : settingsShowProfit
   const showProfitLoss = effectiveShowPricing
   const netRevenue = totals.rawGrandTotal
@@ -290,11 +375,10 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPric
           type="button"
           onClick={() => onTogglePricing?.(effectiveShowPricing)}
           title={effectiveShowPricing ? 'Hide purchase price & profit (pricing visible)' : 'Show purchase price & profit (pricing hidden)'}
-          className={`flex items-center justify-center w-8 h-8 rounded-lg text-base font-bold transition-all flex-shrink-0 border ${
-            effectiveShowPricing
+          className={`flex items-center justify-center w-8 h-8 rounded-lg text-base font-bold transition-all flex-shrink-0 border ${effectiveShowPricing
               ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30 shadow-sm shadow-emerald-500/20'
               : 'bg-white/5 text-gray-500 border-white/10 hover:bg-white/10'
-          }`}
+            }`}
           aria-label={effectiveShowPricing ? 'Hide pricing details' : 'Show pricing details'}
         >
           ₹
@@ -302,7 +386,7 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPric
 
         {/* Doc type toggle */}
         <div className="flex flex-1 rounded-xl overflow-hidden border border-white/10">
-          {(['INVOICE','QUOTATION'] as const).map(t => (
+          {(['INVOICE', 'QUOTATION'] as const).map(t => (
             <button key={t} onClick={() => setDocType(t)}
               className={`flex-1 py-2 text-xs font-semibold transition-colors
                 ${docType === t ? 'bg-brand-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}>
@@ -312,11 +396,79 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPric
         </div>
       </div>
 
-      {/* Date */}
+      {/* Date & Time */}
       <div>
-        <label className="label">Date</label>
-        <input type="date" className="input" value={docDate} onChange={e => setDocDate(e.target.value)} />
+        <label className="label">Date &amp; Time</label>
+        <div className="flex gap-2">
+          <input
+            type="date"
+            className="input flex-1"
+            value={docDate}
+            max={todayStr}
+            onChange={e => {
+              setDocDate(e.target.value)
+              // Reset custom doc number when date changes
+              setCustomDocNumber(null)
+              setSuggestedDocNumber(null)
+            }}
+          />
+          <input
+            type="time"
+            className="input w-28"
+            value={docTime}
+            onChange={e => setDocTime(e.target.value)}
+          />
+        </div>
+        {docDate === todayStr && (
+          <p className="text-[11px] text-gray-500 mt-1 px-0.5">
+            🕐 Current time: {docTime} — change time or date as needed
+          </p>
+        )}
+        {isBackDated && (
+          <p className="text-[11px] text-amber-400/80 mt-1 px-0.5 flex items-center gap-1">
+            {canCustomizeDocNumber
+              ? '📅 Back-dated — verify the invoice number below'
+              : '📅 Back-dated quotation'}
+          </p>
+        )}
       </div>
+
+      {/* Back-dated invoice number override (INVOICE only) */}
+      {canCustomizeDocNumber && (
+        <div className="p-3 bg-amber-500/8 border border-amber-500/25 rounded-xl space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="label !mb-0 text-amber-300 font-semibold text-xs flex items-center gap-1.5">
+              🔢 Invoice Number
+            </label>
+            {docNumberCheckLoading && (
+              <span className="text-[11px] text-gray-500 animate-pulse">Fetching…</span>
+            )}
+            {suggestedDocNumber && !docNumberCheckLoading && (
+              <span className="text-[11px] text-gray-400">
+                Next: <span className="font-mono text-brand-300">{suggestedDocNumber}</span>
+              </span>
+            )}
+          </div>
+          <input
+            type="text"
+            className={`input font-mono text-sm tracking-wide transition-colors ${
+              docNumberExists ? 'border-red-500/60 bg-red-500/5 text-red-300 ring-1 ring-red-500/30' : ''
+            }`}
+            placeholder={suggestedDocNumber || 'e.g. INV-2026-0042'}
+            value={customDocNumber ?? suggestedDocNumber ?? ''}
+            onChange={e => setCustomDocNumber(e.target.value)}
+          />
+          {docNumberExists ? (
+            <p className="text-[11px] text-red-400 px-0.5 flex items-center gap-1 font-medium">
+              ⚠️ This number already exists — choose a different one
+            </p>
+          ) : (
+            <p className="text-[11px] text-gray-500 px-0.5">
+              Edit to use a custom invoice number. If it already exists, you'll be notified.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Clubbed Discount Controls (% Discount and Discount ₹) */}
       <div className="space-y-1.5">
@@ -326,18 +478,16 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPric
             <button
               type="button"
               onClick={() => setDiscountMode('PCT')}
-              className={`px-2.5 py-1 rounded font-semibold transition-colors ${
-                discountMode === 'PCT' ? 'bg-brand-600 text-white shadow-sm' : 'text-gray-400 hover:text-white'
-              }`}
+              className={`px-2.5 py-1 rounded font-semibold transition-colors ${discountMode === 'PCT' ? 'bg-brand-600 text-white shadow-sm' : 'text-gray-400 hover:text-white'
+                }`}
             >
               % Discount
             </button>
             <button
               type="button"
               onClick={() => setDiscountMode('RUPEE')}
-              className={`px-2.5 py-1 rounded font-semibold transition-colors ${
-                discountMode === 'RUPEE' ? 'bg-brand-600 text-white shadow-sm' : 'text-gray-400 hover:text-white'
-              }`}
+              className={`px-2.5 py-1 rounded font-semibold transition-colors ${discountMode === 'RUPEE' ? 'bg-brand-600 text-white shadow-sm' : 'text-gray-400 hover:text-white'
+                }`}
             >
               Discount ₹
             </button>
@@ -406,7 +556,7 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPric
       <div className="space-y-2 py-3 border-y border-white/10">
         <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-300 pb-1 border-b border-white/5">
           <input type="checkbox" checked={store.hideTaxOnInvoice} onChange={e => store.setHideTaxOnInvoice(e.target.checked)} className="w-3.5 h-3.5 rounded accent-brand-500" />
-          <span>Hide Tax breakdown on Invoice</span>
+          <span>Hide Tax breakdown in Invoice</span>
         </label>
         {store.hideTaxOnInvoice && (
           <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-300 pb-1 border-b border-white/5">
@@ -419,14 +569,14 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPric
             <span>Hide price in invoice</span>
           </label>
         )}
-        {row('Subtotal',       formatINR(totals.grossSubtotal))}
+        {row('Subtotal', formatINR(totals.grossSubtotal))}
         {discountPct > 0 && row(`Discount (${discountPct}%)`, `− ${formatINR(totals.discountAmount)}`, 'text-amber-400')}
         {totals.additionalDiscount > 0 && row('Additional discount', `− ${formatINR(totals.additionalDiscount)}`, 'text-amber-400')}
         {!store.hideTaxOnInvoice && (
           <>
             {row('Taxable Amount', formatINR(totals.taxableAmount))}
-            {row(`CGST`,           formatINR(totals.cgstTotal))}
-            {row(`SGST`,           formatINR(totals.sgstTotal))}
+            {row(`CGST`, formatINR(totals.cgstTotal))}
+            {row(`SGST`, formatINR(totals.sgstTotal))}
           </>
         )}
         {totals.roundOff !== 0 && row('Round Off', (totals.roundOff >= 0 ? '+' : '') + formatINR(Math.abs(totals.roundOff)))}
@@ -438,9 +588,8 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPric
 
       {/* Bill Profit / Loss Indicator (POS internal only) */}
       {showProfitLoss && items.length > 0 && (
-        <div className={`p-3 rounded-xl text-xs flex items-center justify-between border ${
-          profitAmount >= 0 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-red-500/10 border-red-500/30 text-red-300'
-        }`}>
+        <div className={`p-3 rounded-xl text-xs flex items-center justify-between border ${profitAmount >= 0 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-red-500/10 border-red-500/30 text-red-300'
+          }`}>
           <span>{profitAmount >= 0 ? '📈 Est. Bill Profit' : '📉 Est. Bill Loss'}</span>
           <span className="font-bold text-sm">
             {profitAmount >= 0 ? '+' : ''}{formatINR(profitAmount)} ({profitPct.toFixed(1)}%)
@@ -476,7 +625,7 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPric
                 )}
               </div>
               <div className="grid grid-cols-3 gap-1.5">
-                {(['CASH','UPI','CREDIT'] as const).map(m => {
+                {(['CASH', 'UPI', 'CREDIT'] as const).map(m => {
                   const Icon = MODE_ICONS[m] || Banknote
                   const isCreditDisabled = m === 'CREDIT' && !isRegisteredCustomer
                   return (
@@ -549,22 +698,20 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPric
                 <button
                   type="button"
                   onClick={() => setQrAmountType('DELTA')}
-                  className={`py-2 px-3 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                    (qrAmountType || 'DELTA') === 'DELTA'
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${(qrAmountType || 'DELTA') === 'DELTA'
                       ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30 ring-1 ring-brand-400'
                       : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                  }`}
+                    }`}
                 >
                   ⚡ Delta ({formatINR(deltaAmount)})
                 </button>
                 <button
                   type="button"
                   onClick={() => setQrAmountType('FULL')}
-                  className={`py-2 px-3 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                    qrAmountType === 'FULL'
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${qrAmountType === 'FULL'
                       ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30 ring-1 ring-brand-400'
                       : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                  }`}
+                    }`}
                 >
                   Full Amount ({formatINR(totals.grandTotal)})
                 </button>
@@ -642,22 +789,20 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPric
                       <button
                         type="button"
                         onClick={() => setPartialPaymentMode('CASH')}
-                        className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-all ${
-                          partialPaymentMode === 'CASH'
+                        className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-all ${partialPaymentMode === 'CASH'
                             ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 ring-1 ring-emerald-400'
                             : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                        }`}
+                          }`}
                       >
                         <Banknote size={15} /> Cash
                       </button>
                       <button
                         type="button"
                         onClick={() => setPartialPaymentMode('UPI')}
-                        className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-all ${
-                          partialPaymentMode === 'UPI'
+                        className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-all ${partialPaymentMode === 'UPI'
                             ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30 ring-1 ring-brand-400'
                             : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                        }`}
+                          }`}
                       >
                         <QrCode size={15} /> UPI / QR
                       </button>
@@ -715,22 +860,20 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPric
                       <button
                         type="button"
                         onClick={() => setPartialPaymentMode('CASH')}
-                        className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-all ${
-                          partialPaymentMode === 'CASH'
+                        className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-all ${partialPaymentMode === 'CASH'
                             ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 ring-1 ring-emerald-400'
                             : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                        }`}
+                          }`}
                       >
                         <Banknote size={15} /> Cash
                       </button>
                       <button
                         type="button"
                         onClick={() => setPartialPaymentMode('UPI')}
-                        className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-all ${
-                          partialPaymentMode === 'UPI'
+                        className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-all ${partialPaymentMode === 'UPI'
                             ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30 ring-1 ring-brand-400'
                             : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                        }`}
+                          }`}
                       >
                         <QrCode size={15} /> UPI / QR
                       </button>
@@ -784,16 +927,15 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPric
         type="button"
         onClick={onPreview}
         disabled={items.length === 0}
-        className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border transition-all ${
-          items.length === 0
+        className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border transition-all ${items.length === 0
             ? 'border-white/10 text-gray-600 bg-white/5 cursor-not-allowed opacity-50'
             : 'border-brand-500/40 text-brand-300 bg-brand-500/10 hover:bg-brand-500/20 hover:border-brand-400 hover:text-brand-200 shadow-sm shadow-brand-500/10'
-        }`}
+          }`}
         title={items.length === 0 ? 'Add items to preview' : `Preview ${docType === 'QUOTATION' ? 'Quotation' : 'Invoice'}`}
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
-          <circle cx="12" cy="12" r="3"/>
+          <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+          <circle cx="12" cy="12" r="3" />
         </svg>
         Preview {docType === 'QUOTATION' ? 'Quotation' : 'Invoice'}
       </button>
@@ -807,105 +949,105 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPric
               Add items to bill to checkout
             </button>
           ) : /* Case 2: Editing settled invoice and total is unchanged */
-          (isOriginallyPaid && !isTotalIncreased) ? (
-            <button
-              onClick={() => handleSubmit(store.originalPaymentMode || 'CASH', 'PAID')}
-              disabled={loading}
-              className="btn-primary w-full justify-center py-3 text-base font-semibold"
-            >
-              {loading ? 'Saving…' : 'Update Invoice'}
-            </button>
-          ) : /* Case 3: Editing settled invoice with increased total */
-          (isOriginallyPaid && isTotalIncreased) ? (
-            paymentMode === 'CREDIT' ? (
+            (isOriginallyPaid && !isTotalIncreased) ? (
               <button
-                onClick={() => handleSubmit('CREDIT', paymentStatus)}
+                onClick={() => handleSubmit(store.originalPaymentMode || 'CASH', 'PAID')}
                 disabled={loading}
-                className="btn-primary w-full justify-center py-3 text-base font-semibold bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 border-0 shadow-lg shadow-amber-600/30"
+                className="btn-primary w-full justify-center py-3 text-base font-semibold"
               >
-                <Clock size={18} />{' '}
-                {loading
-                  ? 'Saving…'
-                  : paymentStatus === 'PARTIAL'
-                  ? `Update Invoice (Paid ${formatINR(paidAmount || 0)} via ${partialPaymentMode})`
-                  : paymentStatus === 'PAID'
-                  ? `Update & Settle ${formatINR(deltaAmount)} via ${partialPaymentMode}`
-                  : `Update Invoice (Extra ${formatINR(deltaAmount)} on Credit)`}
+                {loading ? 'Saving…' : 'Update Invoice'}
               </button>
-            ) : (() => {
-              const isFullSelected = qrAmountType === 'FULL'
-              const effectiveCollectAmount = isFullSelected ? totals.grandTotal : deltaAmount
-              return (
-                <>
+            ) : /* Case 3: Editing settled invoice with increased total */
+              (isOriginallyPaid && isTotalIncreased) ? (
+                paymentMode === 'CREDIT' ? (
                   <button
-                    onClick={() => handleSubmit(paymentMode === 'UPI' ? 'UPI' : 'CASH', 'PAID')}
+                    onClick={() => handleSubmit('CREDIT', paymentStatus)}
                     disabled={loading}
-                    className="btn-primary w-full justify-center py-3 text-base font-semibold"
+                    className="btn-primary w-full justify-center py-3 text-base font-semibold bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 border-0 shadow-lg shadow-amber-600/30"
                   >
-                    {paymentMode === 'UPI' ? <QrCode size={18} /> : <Banknote size={18} />}
-                    {' '}{loading ? 'Saving…' : `Update & Collect ${formatINR(effectiveCollectAmount)} via ${paymentMode} (${paymentMode === 'UPI' ? 'F8' : 'F7'})`}
+                    <Clock size={18} />{' '}
+                    {loading
+                      ? 'Saving…'
+                      : paymentStatus === 'PARTIAL'
+                        ? `Update Invoice (Paid ${formatINR(paidAmount || 0)} via ${partialPaymentMode})`
+                        : paymentStatus === 'PAID'
+                          ? `Update & Settle ${formatINR(deltaAmount)} via ${partialPaymentMode}`
+                          : `Update Invoice (Extra ${formatINR(deltaAmount)} on Credit)`}
                   </button>
-                  {paymentMode === 'CASH' && (
-                    <button onClick={handleUpiCheckout} disabled={loading} className="btn-secondary w-full justify-center py-2.5">
-                      <QrCode size={16} /> UPI / QR Checkout ({formatINR(effectiveCollectAmount)}) (F8)
+                ) : (() => {
+                  const isFullSelected = qrAmountType === 'FULL'
+                  const effectiveCollectAmount = isFullSelected ? totals.grandTotal : deltaAmount
+                  return (
+                    <>
+                      <button
+                        onClick={() => handleSubmit(paymentMode === 'UPI' ? 'UPI' : 'CASH', 'PAID')}
+                        disabled={loading}
+                        className="btn-primary w-full justify-center py-3 text-base font-semibold"
+                      >
+                        {paymentMode === 'UPI' ? <QrCode size={18} /> : <Banknote size={18} />}
+                        {' '}{loading ? 'Saving…' : `Update & Collect ${formatINR(effectiveCollectAmount)} via ${paymentMode} (${paymentMode === 'UPI' ? 'F8' : 'F7'})`}
+                      </button>
+                      {paymentMode === 'CASH' && (
+                        <button onClick={handleUpiCheckout} disabled={loading} className="btn-secondary w-full justify-center py-2.5">
+                          <QrCode size={16} /> UPI / QR Checkout ({formatINR(effectiveCollectAmount)}) (F8)
+                        </button>
+                      )}
+                      {paymentMode === 'UPI' && (
+                        <button onClick={() => handleSubmit('CASH', 'PAID')} disabled={loading} className="btn-secondary w-full justify-center py-2.5">
+                          <Banknote size={16} /> Pay {isFullSelected ? 'Full' : 'Extra'} via Cash ({formatINR(effectiveCollectAmount)}) (F7)
+                        </button>
+                      )}
+                    </>
+                  )
+                })()
+              ) : /* Case 4: Standard invoice (New with total > 0, or editing un-settled invoice) */
+                paymentMode === 'CREDIT' ? (
+                  <>
+                    {/* Credit Invoice Save Action (Requirement 3: Quick cash & UPI F7/F8 hidden on Credit mode) */}
+                    <button
+                      onClick={() => handleSubmit('CREDIT', paymentStatus)}
+                      disabled={loading}
+                      className="btn-primary w-full justify-center py-3 text-base font-semibold bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 border-0 shadow-lg shadow-amber-600/30"
+                    >
+                      <Clock size={18} />{' '}
+                      {loading
+                        ? 'Saving…'
+                        : editingDocId
+                          ? (paymentStatus === 'PARTIAL'
+                            ? `Update Invoice (Paid ${formatINR(paidAmount || 0)} via ${partialPaymentMode})`
+                            : paymentStatus === 'PAID'
+                              ? `Update Credit Invoice (Paid via ${partialPaymentMode})`
+                              : 'Update Credit Invoice (Unpaid)')
+                          : paymentStatus === 'PARTIAL'
+                            ? `Save Invoice (Paid ${formatINR(paidAmount || 0)} via ${partialPaymentMode})`
+                            : paymentStatus === 'PAID'
+                              ? `Save Credit Invoice (Paid via ${partialPaymentMode})`
+                              : 'Save Credit Invoice (Unpaid)'}
                     </button>
-                  )}
-                  {paymentMode === 'UPI' && (
-                    <button onClick={() => handleSubmit('CASH', 'PAID')} disabled={loading} className="btn-secondary w-full justify-center py-2.5">
-                      <Banknote size={16} /> Pay {isFullSelected ? 'Full' : 'Extra'} via Cash ({formatINR(effectiveCollectAmount)}) (F7)
+                  </>
+                ) : (
+                  <>
+                    {/* F7: Cash Checkout */}
+                    <button onClick={() => handleSubmit('CASH', 'PAID')} disabled={loading}
+                      className="btn-primary w-full justify-center py-3 text-base font-semibold">
+                      <Banknote size={18} /> {loading ? 'Saving…' : (editingDocId ? 'Update Invoice' : '⚡ Cash Checkout (F7)')}
                     </button>
-                  )}
-                </>
-              )
-            })()
-          ) : /* Case 4: Standard invoice (New with total > 0, or editing un-settled invoice) */
-          paymentMode === 'CREDIT' ? (
-            <>
-              {/* Credit Invoice Save Action (Requirement 3: Quick cash & UPI F7/F8 hidden on Credit mode) */}
-              <button
-                onClick={() => handleSubmit('CREDIT', paymentStatus)}
-                disabled={loading}
-                className="btn-primary w-full justify-center py-3 text-base font-semibold bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 border-0 shadow-lg shadow-amber-600/30"
-              >
-                <Clock size={18} />{' '}
-                {loading
-                  ? 'Saving…'
-                  : editingDocId
-                  ? (paymentStatus === 'PARTIAL'
-                      ? `Update Invoice (Paid ${formatINR(paidAmount || 0)} via ${partialPaymentMode})`
-                      : paymentStatus === 'PAID'
-                      ? `Update Credit Invoice (Paid via ${partialPaymentMode})`
-                      : 'Update Credit Invoice (Unpaid)')
-                  : paymentStatus === 'PARTIAL'
-                  ? `Save Invoice (Paid ${formatINR(paidAmount || 0)} via ${partialPaymentMode})`
-                  : paymentStatus === 'PAID'
-                  ? `Save Credit Invoice (Paid via ${partialPaymentMode})`
-                  : 'Save Credit Invoice (Unpaid)'}
-              </button>
-            </>
-          ) : (
-            <>
-              {/* F7: Cash Checkout */}
-              <button onClick={() => handleSubmit('CASH', 'PAID')} disabled={loading}
-                className="btn-primary w-full justify-center py-3 text-base font-semibold">
-                <Banknote size={18} /> {loading ? 'Saving…' : (editingDocId ? 'Update Invoice' : '⚡ Cash Checkout (F7)')}
-              </button>
-              {/* F8: UPI Checkout */}
-              {!editingDocId && (
-                <button onClick={handleUpiCheckout} disabled={loading}
-                  className="btn-secondary w-full justify-center py-2.5">
-                  <QrCode size={16} /> UPI / QR Checkout (F8)
-                </button>
-              )}
-              {/* F4: Switch to Quotation */}
-              {!editingDocId && (
-                <button onClick={() => setDocType('QUOTATION')} disabled={loading}
-                  className="btn-ghost w-full justify-center py-2 text-xs">
-                  💾 Switch to Quotation Mode (F4)
-                </button>
-              )}
-            </>
-          )
+                    {/* F8: UPI Checkout */}
+                    {!editingDocId && (
+                      <button onClick={handleUpiCheckout} disabled={loading}
+                        className="btn-secondary w-full justify-center py-2.5">
+                        <QrCode size={16} /> UPI / QR Checkout (F8)
+                      </button>
+                    )}
+                    {/* F4: Switch to Quotation */}
+                    {!editingDocId && (
+                      <button onClick={() => setDocType('QUOTATION')} disabled={loading}
+                        className="btn-ghost w-full justify-center py-2 text-xs">
+                        💾 Switch to Quotation Mode (F4)
+                      </button>
+                    )}
+                  </>
+                )
         ) : (
           <>
             {/* Quotation Action: Save Quotation */}

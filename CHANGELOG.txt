@@ -3,6 +3,31 @@
 ========================================================================
 
 ========================================================================
+ApexBill Release v2.19.0 - 2026-10-12 05:43:50
+========================================================================
+Changes & Commits in this Build:
+  * Incremented minor version & compiled release package.
+
+========================================================================
+ApexBill Release v2.18.0 - 2026-10-12 05:15:34
+========================================================================
+Changes & Commits in this Build:
+  * Incremented minor version & compiled release package.
+
+========================================================================
+ApexBill Release v2.17.0 - 2026-10-12 05:14:57
+========================================================================
+Changes & Commits in this Build:
+  * Incremented minor version & compiled release package.
+
+========================================================================
+ApexBill Release v2.16.0 - 2026-10-04 09:19:26
+========================================================================
+Changes & Commits in this Build:
+  * Fix invoice total column display when hidePrice (5009790)
+  * feat: hide price and row total on invoice when tax is hidden, add discount column before price, and fix tax recalculation on flat discounts (d3d0fbe)
+
+========================================================================
 ApexBill Release v2.15.0 - 2026-10-04 14:15:00
 ========================================================================
 Changes & Commits in this Build:

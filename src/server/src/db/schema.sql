@@ -117,6 +117,7 @@ CREATE TABLE IF NOT EXISTS documents (
     parent_doc_id TEXT REFERENCES documents(id),
     revision_number INTEGER DEFAULT 1,
     doc_date DATE NOT NULL,
+    doc_time TEXT,
     seller_profile_id TEXT REFERENCES seller_profiles(id) ON DELETE SET NULL,
     seller_snapshot TEXT, -- Frozen JSON snapshot of seller profile at billing time
     customer_phone TEXT REFERENCES customers(phone) ON UPDATE CASCADE ON DELETE SET NULL,

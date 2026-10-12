@@ -38,24 +38,56 @@ export function formatINR(amount: number): string {
 /** Format date to DD/MM/YYYY */
 export function formatDate(dateStr: string): string {
   if (!dateStr) return ''
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr)
+  if (match) {
+    const [, y, m, d] = match
+    const dateObj = new Date(Number(y), Number(m) - 1, Number(d))
+    return dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  }
   const d = new Date(dateStr)
   if (isNaN(d.getTime())) return dateStr
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 /** Format date and time to DD/MM/YYYY hh:mm AM/PM in IST */
-export function formatDateTime(dateStr: string, createdAtStr?: string): string {
-  if (!dateStr && !createdAtStr) return ''
-  const str = createdAtStr || dateStr
-  // SQLite stores created_at as UTC without 'Z'; append it so JS parses correctly as UTC
-  const normalized = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(str) && !str.endsWith('Z')
-    ? str.replace(' ', 'T') + 'Z'
-    : str
-  const d = new Date(normalized)
-  if (isNaN(d.getTime())) return formatDate(dateStr)
-  const dateFormatted = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })
-  const timeFormatted = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })
-  return `${dateFormatted}, ${timeFormatted}`
+export function formatDateTime(dateStr: string, timeOrCreatedAt?: string): string {
+  if (!dateStr && !timeOrCreatedAt) return ''
+
+  // 1. Date portion: ALWAYS respect dateStr when provided (preserves back-dating)
+  let formattedDate = ''
+  if (dateStr) {
+    formattedDate = formatDate(dateStr)
+  }
+
+  // 2. Time portion
+  let formattedTime = ''
+  if (timeOrCreatedAt) {
+    const trimmed = timeOrCreatedAt.trim()
+    const timeMatch = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(trimmed)
+    if (timeMatch) {
+      let hours = parseInt(timeMatch[1], 10)
+      const minutes = timeMatch[2]
+      const ampm = hours >= 12 ? 'PM' : 'AM'
+      hours = hours % 12 || 12
+      formattedTime = `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`
+    } else {
+      const normalized = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(trimmed) && !trimmed.endsWith('Z')
+        ? trimmed.replace(' ', 'T') + 'Z'
+        : trimmed
+      const d = new Date(normalized)
+      if (!isNaN(d.getTime())) {
+        if (!formattedDate) {
+          formattedDate = d.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        }
+        formattedTime = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase()
+      }
+    }
+  }
+
+  if (formattedDate && formattedTime) {
+    return `${formattedDate}, ${formattedTime}`
+  }
+  return formattedDate || formattedTime
 }
 
 /** Today's date as YYYY-MM-DD in local (system) time */

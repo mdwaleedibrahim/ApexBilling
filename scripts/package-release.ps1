@@ -52,17 +52,10 @@ if (Test-Path $BUNDLE_DIR) {
     try { Remove-Item -Path $BUNDLE_DIR -Recurse -Force -ErrorAction SilentlyContinue } catch {}
 }
 New-Item -ItemType Directory -Path $BUNDLE_DIR -Force | Out-Null
-New-Item -ItemType Directory -Path (Join-Path $BUNDLE_DIR "runtime") -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $BUNDLE_DIR "app") -Force | Out-Null
 
-# 4. Bundle Standalone Node.js Runtime
-Write-Host "Step 3: Bundling Standalone Node.js Runtime..." -ForegroundColor Yellow
-if ($nodeExePath -and (Test-Path $nodeExePath)) {
-    Copy-Item -Path $nodeExePath -Destination (Join-Path $BUNDLE_DIR "runtime\node.exe") -Force
-    Write-Host "   Bundled standalone runtime: $nodeExePath" -ForegroundColor Green
-} else {
-    Write-Error "Could not find node.exe on system!"
-}
+# 4. Decoupled Node.js Runtime (Not bundled in release)
+Write-Host 'Step 3: Decoupled release: Node.js runtime is not bundled (will be detected or downloaded on first run)...' -ForegroundColor Green
 
 # 4. Copy Compiled App Files
 Write-Host "Step 3: Copying Application Assets..." -ForegroundColor Yellow
@@ -80,7 +73,7 @@ Copy-Item -Path (Join-Path $ROOT_DIR "src\server\src\db\schema.sql") -Destinatio
 Copy-Item -Path (Join-Path $ROOT_DIR "src\server\node_modules") -Destination (Join-Path $BUNDLE_DIR "app\node_modules") -Recurse -Force
 
 # 5. Create One-Click Windows Launchers (Native .exe, .vbs, .bat)
-Write-Host "Step 4: Building Native Windows .exe Launcher & Scripts..." -ForegroundColor Yellow
+Write-Host "Step 4: Building Native Windows .exe Launcher and Scripts..." -ForegroundColor Yellow
 
 $iconPath = Join-Path $ROOT_DIR "scripts\ApexBill.ico"
 if (-not (Test-Path $iconPath)) {
@@ -130,13 +123,7 @@ If bRunning Then
     End If
 End If
 
-WshShell.Run """" & strPath & "\runtime\node.exe"" --experimental-sqlite """ & strPath & "\app\dist\index.js""", 0, False
-WScript.Sleep 1500
-On Error Resume Next
-WshShell.Run "msedge.exe --app=http://localhost:54321 --name=ApexBill", 1, False
-If Err.Number <> 0 Then
-    WshShell.Run "http://localhost:54321", 1, False
-End If
+WshShell.Run """" & strPath & "\ApexBill.exe""", 0, False
 '@
 $vbsContent | Set-Content -Path (Join-Path $BUNDLE_DIR "Launch-ApexBill.vbs") -Encoding ASCII
 
@@ -150,15 +137,8 @@ $cmdLines = @(
   'echo         ApexBill - Modern Billing POS System',
   'echo  =======================================================',
   'echo.',
-  'echo  [1/2] Starting ApexBill Server...',
-  'start "" /B "%~dp0runtime\node.exe" --experimental-sqlite "%~dp0app\dist\index.js"',
-  'echo  [2/2] Launching Application Window...',
-  'timeout /t 2 /nobreak >nul',
-  'start "" msedge.exe --app=http://localhost:54321 || start http://localhost:54321',
-  'echo.',
-  'echo  ApexBill is running at http://localhost:54321',
-  'echo  Do not close this window while using the software.',
-  'echo.'
+  'echo  Launching ApexBill...',
+  'start "" "%~dp0ApexBill.exe"'
 )
 $cmdLines | Set-Content -Path (Join-Path $BUNDLE_DIR "ApexBill.cmd") -Encoding UTF8
 
@@ -178,9 +158,11 @@ $readmeLines = @(
   '   (Alternative launchers: "Launch-ApexBill.vbs" or "ApexBill.bat")',
   '2. ApexBill will automatically start and open in a standalone desktop window.',
   '',
-  'ZERO DEPENDENCIES REQUIRED:',
-  '- Includes standalone Node.js runtime and SQLite engine.',
-  '- No installation or admin permissions required.',
+  'DECOUPLED LIGHTWEIGHT RUNTIME:',
+  '- Node.js runtime is decoupled from this release package.',
+  '- Automatically uses existing Node.js on computer if installed.',
+  '- If Node.js is not installed, downloads and installs it in the background on first run.',
+  '- Remembers the installation path so subsequent launches start instantly.',
   '- Invoice data, stock items, and customer records are safely stored in:',
   '  %APPDATA%\ApexBill\billing_app.db',
   '',

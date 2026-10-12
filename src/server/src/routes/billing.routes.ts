@@ -18,6 +18,12 @@ function localDateIso(): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Returns current time as HH:mm using the local system clock */
+function localTimeIso(): string {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 function generateDocNumber(db: any, type: 'INVOICE' | 'QUOTATION', prefix = 'INV', qprefix = 'QUO'): string {
   const p = type === 'INVOICE' ? prefix : qprefix;
   const year = new Date().getFullYear();
@@ -176,6 +182,21 @@ function recalcCustomerBalance(db: any, phone: string | null | undefined): void 
 export async function billingRoutes(app: FastifyInstance) {
   // ── Documents ──────────────────────────────────────────────────────────────
 
+  // GET /api/documents/doc-number — returns the next suggested doc number and checks if a given number exists
+  app.get<{ Querystring: { type?: string; number?: string } }>(
+    '/api/documents/doc-number', (req, reply) => {
+      const db = getDb();
+      const type = (req.query.type === 'QUOTATION' ? 'QUOTATION' : 'INVOICE') as 'INVOICE' | 'QUOTATION';
+      const suggested = generateDocNumber(db, type);
+      const checkNumber = req.query.number;
+      let exists = false;
+      if (checkNumber) {
+        exists = !!db.prepare(`SELECT 1 FROM documents WHERE doc_number = ?`).get(checkNumber);
+      }
+      return reply.send({ suggested, exists });
+    }
+  );
+
   // GET /api/documents - list all with filters
   app.get<{ Querystring: { type?: string; status?: string; search?: string; customer_phone?: string; seller_profile_id?: string; limit?: string } }>(
     '/api/documents', (req, reply) => {
@@ -238,10 +259,10 @@ export async function billingRoutes(app: FastifyInstance) {
   // POST /api/documents - create invoice or quotation
   app.post<{ Body: any }>('/api/documents', (req, reply) => {
     const db = getDb();
-    const { doc_type = 'INVOICE', doc_date, customer_phone, customer_snapshot, seller_profile_id, items: rawItems,
+    const { doc_type = 'INVOICE', doc_date, doc_time, created_at, customer_phone, customer_snapshot, seller_profile_id, items: rawItems,
       discount_pct = 0, additional_discount = 0, payment_mode = 'CASH', payment_status = 'PAID', selected_upi_id, notes,
       terms_and_conditions, hide_tax_on_invoice = 0, hide_price_on_invoice = 0, paid_amount = 0, partial_payment_mode,
-      converting_quotation_id, qr_amount_type = 'FULL' } = (req.body || {}) as any;
+      converting_quotation_id, qr_amount_type = 'FULL', custom_doc_number } = (req.body || {}) as any;
 
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
 
@@ -300,7 +321,18 @@ export async function billingRoutes(app: FastifyInstance) {
     }) : null;
 
     const id = randomUUID();
-    const doc_number = generateDocNumber(db, doc_type);
+    // If a custom doc number is provided for an invoice, validate it is unique; otherwise auto-generate
+    let doc_number: string;
+    if (doc_type === 'INVOICE' && custom_doc_number && typeof custom_doc_number === 'string' && custom_doc_number.trim()) {
+      const numCandidate = custom_doc_number.trim();
+      const conflict = db.prepare(`SELECT 1 FROM documents WHERE doc_number = ?`).get(numCandidate);
+      if (conflict) {
+        return reply.status(409).send({ error: `An invoice with number "${numCandidate}" already exists. Please choose a different number.` });
+      }
+      doc_number = numCandidate;
+    } else {
+      doc_number = generateDocNumber(db, doc_type);
+    }
     const snapshot = typeof customer_snapshot === 'string' ? customer_snapshot : JSON.stringify(customer_snapshot || {});
     const termsStr = terms_and_conditions !== undefined
       ? (typeof terms_and_conditions === 'string' ? terms_and_conditions : JSON.stringify(terms_and_conditions))
@@ -318,8 +350,26 @@ export async function billingRoutes(app: FastifyInstance) {
       }
     }
 
+    const finalDate = doc_date || localDateIso();
+    const finalTime = (doc_time && String(doc_time).trim()) ? String(doc_time).trim() : localTimeIso();
+    let finalCreatedAt: string | null = null;
+    if (created_at) {
+      const d = new Date(created_at);
+      if (!isNaN(d.getTime())) {
+        finalCreatedAt = d.toISOString().replace('T', ' ').slice(0, 19);
+      }
+    }
+    if (!finalCreatedAt && doc_date) {
+      const timeParts = finalTime.split(':').map(Number);
+      const dateParts = finalDate.split('-').map(Number);
+      const dt = new Date(dateParts[0], (dateParts[1] || 1) - 1, dateParts[2] || 1, timeParts[0] || 0, timeParts[1] || 0, timeParts[2] || 0);
+      if (!isNaN(dt.getTime())) {
+        finalCreatedAt = dt.toISOString().replace('T', ' ').slice(0, 19);
+      }
+    }
+
     const initialHistory = finalPaidAmount > 0 ? [{
-      date: doc_date || localDateIso(),
+      date: finalDate,
       amount: finalPaidAmount,
       mode: partial_payment_mode || payment_mode || 'CASH'
     }] : [];
@@ -338,12 +388,12 @@ export async function billingRoutes(app: FastifyInstance) {
       }
 
       db.prepare(`
-        INSERT INTO documents (id, doc_type, doc_number, doc_date, seller_profile_id, seller_snapshot, customer_phone, customer_snapshot,
+        INSERT INTO documents (id, doc_type, doc_number, doc_date, doc_time, created_at, seller_profile_id, seller_snapshot, customer_phone, customer_snapshot,
           gross_subtotal, discount_pct, discount_amount, additional_discount, taxable_amount, cgst_total, sgst_total,
           round_off, grand_total, payment_mode, payment_status, selected_upi_id, notes, terms_and_conditions,
           hide_tax_on_invoice, hide_price_on_invoice, paid_amount, partial_payment_mode, payment_history, qr_amount_type)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-      `).run(id, doc_type, doc_number, doc_date || localDateIso(),
+        VALUES (?,?,?,?,?,COALESCE(?, CURRENT_TIMESTAMP),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      `).run(id, doc_type, doc_number, finalDate, finalTime, finalCreatedAt,
         finalSellerProfileId, finalSellerSnapshot,
         finalPhone, snapshot, totals.grossSubtotal, totals.discountPct, totals.discountAmount, totals.additionalDiscount,
         totals.taxableAmount, totals.cgstTotal, totals.sgstTotal, totals.roundOff, totals.grandTotal,
@@ -366,10 +416,27 @@ export async function billingRoutes(app: FastifyInstance) {
           const prod: any = db.prepare(`SELECT sku FROM products WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1`).get(item.productName);
           if (prod?.sku) itemSku = prod.sku;
         }
-        insertItem.run(randomUUID(), id, item.productId || null, itemSku || null, item.productName, item.hsnSac || null,
-          item.unit || 'PCS', item.quantity, item.unitPrice, item.mrp || 0, item.grossAmount, item.taxableValue,
-          item.gstRate, item.cgstRate, item.cgstAmount, item.sgstRate, item.sgstAmount, item.totalAmount,
-          item.purchasePrice || 0);
+        insertItem.run(
+          randomUUID(),
+          id,
+          item.productId || null,
+          itemSku || null,
+          item.productName || 'Unnamed Item',
+          item.hsnSac || null,
+          item.unit || 'PCS',
+          Number(item.quantity) || 0,
+          Number(item.unitPrice) || 0,
+          Number(item.mrp) || 0,
+          Number(item.grossAmount) || 0,
+          Number(item.taxableValue) || 0,
+          Number(item.gstRate) || 0,
+          Number(item.cgstRate) || 0,
+          Number(item.cgstAmount) || 0,
+          Number(item.sgstRate) || 0,
+          Number(item.sgstAmount) || 0,
+          Number(item.totalAmount) || 0,
+          Number(item.purchasePrice) || 0
+        );
       }
 
       // If converted from quotation, remove the quotation from records!
@@ -399,8 +466,22 @@ export async function billingRoutes(app: FastifyInstance) {
 
     const { items: rawItems, discount_pct = 0, additional_discount, payment_mode, payment_status, notes,
       terms_and_conditions, customer_phone, customer_snapshot, seller_profile_id, hide_tax_on_invoice, hide_price_on_invoice,
-      paid_amount, partial_payment_mode, qr_amount_type } = (req.body || {}) as any;
+      paid_amount, partial_payment_mode, qr_amount_type, doc_date, doc_time, created_at } = (req.body || {}) as any;
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
+
+    const updateDocDate = doc_date || existing.doc_date;
+    const updateDocTime = (doc_time !== undefined && String(doc_time).trim()) ? String(doc_time).trim() : (existing.doc_time || localTimeIso());
+    let updateCreatedAt: string | null = null;
+    if (created_at) {
+      const d = new Date(created_at);
+      if (!isNaN(d.getTime())) updateCreatedAt = d.toISOString().replace('T', ' ').slice(0, 19);
+    }
+    if (!updateCreatedAt && doc_date) {
+      const timeParts = updateDocTime.split(':').map(Number);
+      const dateParts = updateDocDate.split('-').map(Number);
+      const dt = new Date(dateParts[0], (dateParts[1] || 1) - 1, dateParts[2] || 1, timeParts[0] || 0, timeParts[1] || 0, timeParts[2] || 0);
+      if (!isNaN(dt.getTime())) updateCreatedAt = dt.toISOString().replace('T', ' ').slice(0, 19);
+    }
 
     let finalSellerProfileId = existing.seller_profile_id;
     let finalSellerSnapshot = existing.seller_snapshot;
@@ -517,12 +598,12 @@ export async function billingRoutes(app: FastifyInstance) {
       const finalHidePrice = finalHideTax ? (hide_price_on_invoice !== undefined ? (hide_price_on_invoice ? 1 : 0) : (existing.hide_price_on_invoice || 0)) : 0;
 
       db.prepare(`
-        UPDATE documents SET seller_profile_id=?, seller_snapshot=?, customer_phone=?, customer_snapshot=?, gross_subtotal=?, discount_pct=?,
+        UPDATE documents SET doc_date=?, doc_time=?, created_at=COALESCE(?, created_at), seller_profile_id=?, seller_snapshot=?, customer_phone=?, customer_snapshot=?, gross_subtotal=?, discount_pct=?,
           discount_amount=?, additional_discount=?, taxable_amount=?, cgst_total=?, sgst_total=?, round_off=?, grand_total=?,
           payment_mode=?, payment_status=?, notes=?, terms_and_conditions=?, hide_tax_on_invoice=?, hide_price_on_invoice=?,
           paid_amount=?, partial_payment_mode=?, payment_history=?, qr_amount_type=?, revision_number=revision_number+1, updated_at=CURRENT_TIMESTAMP
         WHERE id=?
-      `).run(finalSellerProfileId, finalSellerSnapshot, finalPhone,
+      `).run(updateDocDate, updateDocTime, updateCreatedAt, finalSellerProfileId, finalSellerSnapshot, finalPhone,
         typeof customer_snapshot === 'string' ? customer_snapshot : JSON.stringify(customer_snapshot || JSON.parse(existing.customer_snapshot)),
         totals.grossSubtotal, totals.discountPct, totals.discountAmount, totals.additionalDiscount, totals.taxableAmount,
         totals.cgstTotal, totals.sgstTotal, totals.roundOff, totals.grandTotal,
@@ -547,10 +628,27 @@ export async function billingRoutes(app: FastifyInstance) {
           const prod: any = db.prepare(`SELECT sku FROM products WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1`).get(item.productName);
           if (prod?.sku) itemSku = prod.sku;
         }
-        insertItem.run(randomUUID(), req.params.id, item.productId || null, itemSku || null, item.productName,
-          item.hsnSac || null, item.unit || 'PCS', item.quantity, item.unitPrice, item.mrp || 0, item.grossAmount, item.taxableValue,
-          item.gstRate, item.cgstRate, item.cgstAmount, item.sgstRate, item.sgstAmount, item.totalAmount,
-          item.purchasePrice || 0);
+        insertItem.run(
+          randomUUID(),
+          req.params.id,
+          item.productId || null,
+          itemSku || null,
+          item.productName || 'Unnamed Item',
+          item.hsnSac || null,
+          item.unit || 'PCS',
+          Number(item.quantity) || 0,
+          Number(item.unitPrice) || 0,
+          Number(item.mrp) || 0,
+          Number(item.grossAmount) || 0,
+          Number(item.taxableValue) || 0,
+          Number(item.gstRate) || 0,
+          Number(item.cgstRate) || 0,
+          Number(item.cgstAmount) || 0,
+          Number(item.sgstRate) || 0,
+          Number(item.sgstAmount) || 0,
+          Number(item.totalAmount) || 0,
+          Number(item.purchasePrice) || 0
+        );
       }
     });
 

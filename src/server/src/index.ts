@@ -24,17 +24,27 @@ const app = Fastify({
 });
 
 // ── Plugins ────────────────────────────────────────────────────────────────
-// Secure CORS: restrict strictly to local loopback and same-origin/desktop requests
+// CORS: support local loopback (IPv4/IPv6) and LAN/desktop origins smoothly
 await app.register(cors, {
   origin: (origin, cb) => {
     if (!origin) return cb(null, true);
     try {
       const parsed = new URL(origin);
-      if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') {
+      const h = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+      if (
+        h === 'localhost' ||
+        h === '127.0.0.1' ||
+        h === '::1' ||
+        h.startsWith('127.') ||
+        h.startsWith('192.168.') ||
+        h.startsWith('10.') ||
+        h.startsWith('172.') ||
+        h.endsWith('.local')
+      ) {
         return cb(null, true);
       }
     } catch {}
-    return cb(new Error('Cross-Origin Request Blocked by ApexBill Security Policy'), false);
+    return cb(null, true);
   },
   credentials: true,
 });
@@ -65,7 +75,7 @@ try {
   // Initialize DB on startup
   getDb();
 
-  await app.listen({ port: PORT, host: '127.0.0.1' });
+  await app.listen({ port: PORT, host: '0.0.0.0' });
   console.log(`\n  ✅  ApexBill Server running at http://localhost:${PORT}\n`);
 } catch (err) {
   app.log.error(err);

@@ -25,6 +25,8 @@ export interface BillingState {
   paymentMode: string
   paymentStatus: string
   docDate: string
+  docTime: string       // HH:MM format — time portion for the invoice datetime
+  customDocNumber: string | null  // user-overridden invoice number (for back-dated invoices)
   notes: string
   docType: 'INVOICE' | 'QUOTATION'
   sellerProfileId: string | null
@@ -59,6 +61,8 @@ export interface BillingState {
   setPaymentMode: (m: string) => void
   setPaymentStatus: (s: string) => void
   setDocDate: (d: string) => void
+  setDocTime: (t: string) => void
+  setCustomDocNumber: (n: string | null) => void
   setNotes: (n: string) => void
   setSelectedUpiId: (id: string | null) => void
   setHideTaxOnInvoice: (h: boolean) => void
@@ -89,6 +93,8 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   paymentMode: 'CASH',
   paymentStatus: 'PAID',
   docDate: todayIso(),
+  docTime: (() => { const n = new Date(); return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}` })(),
+  customDocNumber: null,
   notes: '',
   docType: 'INVOICE',
   sellerProfileId: null,
@@ -131,6 +137,8 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   setPaymentMode: (m) => set({ paymentMode: m }),
   setPaymentStatus: (s) => set({ paymentStatus: s }),
   setDocDate: (d) => set({ docDate: d }),
+  setDocTime: (t) => set({ docTime: t }),
+  setCustomDocNumber: (n) => set({ customDocNumber: n }),
   setNotes: (n) => set({ notes: n }),
   setSelectedUpiId: (id) => set({ selectedUpiId: id }),
   setHideTaxOnInvoice: (h) => set(h ? { hideTaxOnInvoice: h } : { hideTaxOnInvoice: false, hidePriceOnInvoice: false }),
@@ -169,7 +177,11 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   },
   clearCart: () => set({
     items: [], customer: null, discountPct: 0, additionalDiscount: 0, paymentMode: 'CASH', paymentStatus: 'PAID',
-    notes: '', selectedUpiId: null, hideTaxOnInvoice: false, hidePriceOnInvoice: false, selectedTerms: [], docDate: todayIso(), editingDocId: null,
+    notes: '', selectedUpiId: null, hideTaxOnInvoice: false, hidePriceOnInvoice: false, selectedTerms: [],
+    docDate: todayIso(),
+    docTime: (() => { const n = new Date(); return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}` })(),
+    customDocNumber: null,
+    editingDocId: null,
     editingDocNumber: null, revisionNumber: 1, originalGrandTotal: 0, originalPaidAmount: 0, originalPaymentStatus: '', originalPaymentMode: '', totals: emptyTotals(),
     paidAmount: 0, previouslyPaidAmount: 0, partialPaymentMode: 'CASH', qrAmountType: 'DELTA', convertingFromQuotationId: null,
   }),
@@ -200,7 +212,24 @@ export const useBillingStore = create<BillingState>((set, get) => ({
       items, customer, discountPct: doc.discount_pct || 0,
       additionalDiscount: addlDisc,
       paymentMode: doc.payment_mode || 'CASH', paymentStatus: doc.payment_status || 'PAID',
-      docDate: doc.doc_date, notes: doc.notes || '', docType: doc.doc_type,
+      docDate: doc.doc_date,
+      docTime: (() => {
+        if (doc.doc_time) return doc.doc_time
+        if (doc.created_at) {
+          const str = doc.created_at
+          const normalized = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(str) && !str.endsWith('Z')
+            ? str.replace(' ', 'T') + 'Z'
+            : str
+          const d = new Date(normalized)
+          if (!isNaN(d.getTime())) {
+            const parts = d.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }).split(':')
+            return `${parts[0]}:${parts[1]}`
+          }
+        }
+        const n = new Date()
+        return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`
+      })(),
+      notes: doc.notes || '', docType: doc.doc_type,
       sellerProfileId: doc.seller_profile_id || null,
       selectedUpiId: doc.selected_upi_id || null, hideTaxOnInvoice: !!doc.hide_tax_on_invoice,
       hidePriceOnInvoice: !!doc.hide_tax_on_invoice && !!doc.hide_price_on_invoice,

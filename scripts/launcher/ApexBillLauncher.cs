@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -15,11 +16,28 @@ namespace ApexBill.Launcher
         private const string HEALTH_URL = "http://127.0.0.1:54321/api/health";
         private const string APP_TITLE = "ApexBill";
 
+        private static readonly string NodeConfigPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            @"ApexBill\node_path.txt"
+        );
+
+        private static readonly string LocalRuntimeDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            @"ApexBill\runtime"
+        );
+
         [STAThread]
         static void Main(string[] args)
         {
             try
             {
+                // Ensure TLS 1.2 is enabled for modern HTTPS downloads
+                try
+                {
+                    ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072 | SecurityProtocolType.Tls;
+                }
+                catch { }
+
                 // Process CLI flags
                 if (args.Length > 0)
                 {
@@ -55,17 +73,12 @@ namespace ApexBill.Launcher
                     return;
                 }
 
-                // 2. Locate node.exe runtime
+                // 2. Locate or install node.exe runtime
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
                 string nodeExe = ResolveNodeExe(baseDir);
                 if (string.IsNullOrEmpty(nodeExe) || !File.Exists(nodeExe))
                 {
-                    MessageBox.Show(
-                        "Node.js runtime was not found.\n\nPlease ensure runtime\\node.exe exists or Node.js is installed on this PC.",
-                        APP_TITLE + " - Missing Runtime",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Error
-                    );
+                    // ResolveNodeExe displays user-friendly dialogs if missing or offline
                     return;
                 }
 
@@ -99,7 +112,6 @@ namespace ApexBill.Launcher
                 bool ready = WaitForServerReady(10000);
                 if (!ready)
                 {
-                    // If still not ready, give a brief safety wait
                     Thread.Sleep(1000);
                 }
 
@@ -157,10 +169,7 @@ namespace ApexBill.Launcher
                             }
                         }
                     }
-                    catch
-                    {
-                        // Port might be open before HTTP handler is attached
-                    }
+                    catch { }
                 }
                 Thread.Sleep(interval);
                 elapsed += interval;
@@ -227,7 +236,6 @@ namespace ApexBill.Launcher
                 if (File.Exists(p)) return p;
             }
 
-            // Check PATH
             return FindInPath("msedge.exe");
         }
 
@@ -266,25 +274,229 @@ namespace ApexBill.Launcher
 
         private static string ResolveNodeExe(string baseDir)
         {
-            // 1. Check portable runtime folder
+            // 1. Check remembered installation path
+            if (File.Exists(NodeConfigPath))
+            {
+                try
+                {
+                    string saved = File.ReadAllText(NodeConfigPath).Trim();
+                    if (!string.IsNullOrEmpty(saved) && File.Exists(saved))
+                    {
+                        return saved;
+                    }
+                }
+                catch { }
+            }
+
+            // 2. Check local AppData runtime folder
+            string localRuntime = Path.Combine(LocalRuntimeDir, "node.exe");
+            if (File.Exists(localRuntime))
+            {
+                SaveRememberedNodePath(localRuntime);
+                return localRuntime;
+            }
+
+            // 3. Check portable runtime folder in current or parent directory
             string portableNode = Path.Combine(baseDir, @"runtime\node.exe");
-            if (File.Exists(portableNode)) return portableNode;
+            if (File.Exists(portableNode))
+            {
+                SaveRememberedNodePath(portableNode);
+                return portableNode;
+            }
 
-            // 2. Check parent directory portable runtime
             string parentNode = Path.Combine(baseDir, @"..\runtime\node.exe");
-            if (File.Exists(parentNode)) return Path.GetFullPath(parentNode);
+            if (File.Exists(parentNode))
+            {
+                string fullParent = Path.GetFullPath(parentNode);
+                SaveRememberedNodePath(fullParent);
+                return fullParent;
+            }
 
-            // 3. Check Standard Node.js Program Files
-            string programFilesNode = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), @"nodejs\node.exe");
-            if (File.Exists(programFilesNode)) return programFilesNode;
+            // 4. Check standard Program Files & local programs installations
+            string pfNode = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), @"nodejs\node.exe");
+            if (File.Exists(pfNode))
+            {
+                SaveRememberedNodePath(pfNode);
+                return pfNode;
+            }
 
-            // 4. Search in PATH
-            return FindInPath("node.exe");
+            string pfX86Node = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), @"nodejs\node.exe");
+            if (File.Exists(pfX86Node))
+            {
+                SaveRememberedNodePath(pfX86Node);
+                return pfX86Node;
+            }
+
+            string userProgramsNode = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Programs\nodejs\node.exe");
+            if (File.Exists(userProgramsNode))
+            {
+                SaveRememberedNodePath(userProgramsNode);
+                return userProgramsNode;
+            }
+
+            // 5. Search in system PATH
+            string pathNode = FindInPath("node.exe");
+            if (!string.IsNullOrEmpty(pathNode) && File.Exists(pathNode))
+            {
+                SaveRememberedNodePath(pathNode);
+                return pathNode;
+            }
+
+            // 6. Node.js is not installed: download & install in background with popup and 30-second timeout
+            return DownloadAndInstallNode();
+        }
+
+        private static void SaveRememberedNodePath(string path)
+        {
+            try
+            {
+                string dir = Path.GetDirectoryName(NodeConfigPath);
+                if (!Directory.Exists(dir))
+                {
+                    Directory.CreateDirectory(dir);
+                }
+                File.WriteAllText(NodeConfigPath, path);
+            }
+            catch { }
+        }
+
+        private static string DownloadAndInstallNode()
+        {
+            string downloadUrl = Environment.Is64BitOperatingSystem
+                ? "https://nodejs.org/dist/v22.14.0/win-x64/node.exe"
+                : "https://nodejs.org/dist/v22.14.0/win-x86/node.exe";
+
+            string targetExe = Path.Combine(LocalRuntimeDir, "node.exe");
+            string tempExe = targetExe + ".download";
+
+            // 1. Verify internet connectivity and download initiation within 30 seconds
+            bool internetAvailable = false;
+            try
+            {
+                HttpWebRequest pingReq = (HttpWebRequest)WebRequest.Create(downloadUrl);
+                pingReq.Method = "HEAD";
+                pingReq.Timeout = 30000; // 30 seconds
+                pingReq.ReadWriteTimeout = 30000;
+                using (HttpWebResponse pingRes = (HttpWebResponse)pingReq.GetResponse())
+                {
+                    if (pingRes.StatusCode == HttpStatusCode.OK)
+                    {
+                        internetAvailable = true;
+                    }
+                }
+            }
+            catch
+            {
+                internetAvailable = false;
+            }
+
+            if (!internetAvailable)
+            {
+                MessageBox.Show(
+                    "Internet not available. Connect to internet to download the required nodejs.",
+                    APP_TITLE + " - Internet Required",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning
+                );
+                return null;
+            }
+
+            // 2. Show background download popup and download node.exe
+            try
+            {
+                if (!Directory.Exists(LocalRuntimeDir))
+                {
+                    Directory.CreateDirectory(LocalRuntimeDir);
+                }
+                if (File.Exists(tempExe)) File.Delete(tempExe);
+            }
+            catch { }
+
+            bool downloadSuccess = false;
+            string downloadError = null;
+            NodeInstallProgressForm progressForm = new NodeInstallProgressForm();
+
+            Thread dlThread = new Thread(() =>
+            {
+                try
+                {
+                    using (WebClient wc = new WebClient())
+                    {
+                        wc.DownloadProgressChanged += (sender, e) =>
+                        {
+                            string info = string.Format("{0:F1} MB / {1:F1} MB ({2}%)",
+                                e.BytesReceived / 1048576.0,
+                                e.TotalBytesToReceive / 1048576.0,
+                                e.ProgressPercentage);
+                            progressForm.UpdateProgress(e.ProgressPercentage, info);
+                        };
+
+                        wc.DownloadFileCompleted += (sender, e) =>
+                        {
+                            if (e.Error != null)
+                            {
+                                downloadError = e.Error.Message;
+                            }
+                            else if (!e.Cancelled)
+                            {
+                                downloadSuccess = true;
+                            }
+                            try { progressForm.BeginInvoke(new Action(() => progressForm.Close())); } catch { }
+                        };
+
+                        wc.DownloadFileAsync(new Uri(downloadUrl), tempExe);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    downloadError = ex.Message;
+                    try { progressForm.BeginInvoke(new Action(() => progressForm.Close())); } catch { }
+                }
+            });
+
+            dlThread.IsBackground = true;
+            dlThread.Start();
+
+            progressForm.ShowDialog();
+
+            if (downloadSuccess && File.Exists(tempExe))
+            {
+                try
+                {
+                    if (File.Exists(targetExe)) File.Delete(targetExe);
+                    File.Move(tempExe, targetExe);
+                    SaveRememberedNodePath(targetExe);
+                    return targetExe;
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(
+                        "Failed to finalize Node.js installation:\n" + ex.Message,
+                        APP_TITLE + " Error",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
+                    return null;
+                }
+            }
+            else
+            {
+                try { if (File.Exists(tempExe)) File.Delete(tempExe); } catch { }
+                if (!string.IsNullOrEmpty(downloadError))
+                {
+                    MessageBox.Show(
+                        "Failed to download Node.js runtime:\n" + downloadError + "\n\nPlease check your internet connection and try again.",
+                        APP_TITLE + " - Download Failed",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
+                }
+                return null;
+            }
         }
 
         private static void ResolveServerScript(string baseDir, out string scriptPath, out string workingDir)
         {
-            // 1. Portable package layout: baseDir\app\dist\index.js
             string p1 = Path.Combine(baseDir, @"app\dist\index.js");
             if (File.Exists(p1))
             {
@@ -293,7 +505,6 @@ namespace ApexBill.Launcher
                 return;
             }
 
-            // 2. Local root / src layout: baseDir\src\server\dist\index.js
             string p2 = Path.Combine(baseDir, @"src\server\dist\index.js");
             if (File.Exists(p2))
             {
@@ -302,7 +513,6 @@ namespace ApexBill.Launcher
                 return;
             }
 
-            // 3. Server dist layout: baseDir\dist\index.js
             string p3 = Path.Combine(baseDir, @"dist\index.js");
             if (File.Exists(p3))
             {
@@ -329,6 +539,73 @@ namespace ApexBill.Launcher
                 p.WaitForExit(3000);
             }
             catch { }
+        }
+    }
+
+    public class NodeInstallProgressForm : Form
+    {
+        private ProgressBar progressBar;
+        private Label lblDetails;
+
+        public NodeInstallProgressForm()
+        {
+            this.Text = "ApexBill";
+            this.Size = new Size(430, 160);
+            this.StartPosition = FormStartPosition.CenterScreen;
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+            this.ControlBox = false;
+            this.TopMost = true;
+            this.ShowInTaskbar = true;
+
+            Label lblTitle = new Label();
+            lblTitle.Text = "Node.js is being installed in the background...";
+            lblTitle.Font = new Font("Segoe UI", 10, FontStyle.Bold);
+            lblTitle.Location = new Point(22, 18);
+            lblTitle.Size = new Size(380, 22);
+            this.Controls.Add(lblTitle);
+
+            Label lblSub = new Label();
+            lblSub.Text = "This is a one-time setup. Please wait while files are downloaded.";
+            lblSub.Font = new Font("Segoe UI", 9);
+            lblSub.Location = new Point(22, 42);
+            lblSub.Size = new Size(380, 20);
+            this.Controls.Add(lblSub);
+
+            progressBar = new ProgressBar();
+            progressBar.Location = new Point(22, 70);
+            progressBar.Size = new Size(370, 20);
+            progressBar.Minimum = 0;
+            progressBar.Maximum = 100;
+            progressBar.Value = 0;
+            this.Controls.Add(progressBar);
+
+            lblDetails = new Label();
+            lblDetails.Text = "Connecting...";
+            lblDetails.Font = new Font("Segoe UI", 8);
+            lblDetails.ForeColor = Color.DarkGray;
+            lblDetails.Location = new Point(22, 96);
+            lblDetails.Size = new Size(370, 18);
+            this.Controls.Add(lblDetails);
+        }
+
+        public void UpdateProgress(int percent, string details)
+        {
+            if (this.IsDisposed) return;
+            if (this.InvokeRequired)
+            {
+                try { this.BeginInvoke(new Action(() => UpdateProgress(percent, details))); } catch { }
+                return;
+            }
+            if (percent >= 0 && percent <= 100)
+            {
+                progressBar.Value = percent;
+            }
+            if (!string.IsNullOrEmpty(details))
+            {
+                lblDetails.Text = details;
+            }
         }
     }
 }

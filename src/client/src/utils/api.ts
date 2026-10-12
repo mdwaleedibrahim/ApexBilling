@@ -7,13 +7,20 @@ async function req<T>(url: string, options?: RequestInit): Promise<T> {
   if (options?.body) {
     headers['Content-Type'] = 'application/json'
   }
-  const res = await fetch(BASE + url, {
-    ...options,
-    headers: { ...headers, ...options?.headers },
-  })
+  let res: Response
+  try {
+    res = await fetch(BASE + url, {
+      ...options,
+      headers: { ...headers, ...options?.headers },
+    })
+  } catch (netErr: any) {
+    throw new Error(
+      `Unable to reach ApexBill server. Please make sure the application server is running (port 54321).`
+    )
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error || `HTTP ${res.status}`)
+    throw new Error(err.message || err.error || `HTTP ${res.status}`)
   }
   return res.json()
 }
@@ -44,6 +51,11 @@ export const api = {
 
   // ── Documents ─────────────────────────────────────────────────────────────
   documents: {
+    nextNumber: (type: 'INVOICE' | 'QUOTATION', checkNumber?: string) => {
+      const q = new URLSearchParams({ type })
+      if (checkNumber) q.set('number', checkNumber)
+      return req<{ suggested: string; exists: boolean }>(`/documents/doc-number?${q.toString()}`)
+    },
     list: (params?: { type?: string; status?: string; search?: string; customer_phone?: string; seller_profile_id?: string }) => {
       const cleanParams: Record<string, string> = {}
       if (params?.type) cleanParams.type = params.type
