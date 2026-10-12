@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-v2.15.0-blue.svg" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-v2.19.0-blue.svg" alt="Version" />
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Web-purple.svg" alt="Platform" />
   <img src="https://img.shields.io/badge/Storage-SQLite%20(WAL%20Mode)-success.svg" alt="SQLite" />
   <img src="https://img.shields.io/badge/GST-Compliant%20Engine-emerald.svg" alt="GST Compliant" />
@@ -36,6 +36,8 @@
 - **Loss Prevention Safeguards**: Validates bills in real time to prevent discounts from causing the grand total to fall below purchase cost.
 - **Purchase Price & Margin Protection**: Inline purchase price indicator (`Pur. Price` in blue) with alert highlighting if selling price falls below cost.
 - **Stock-Limit Safeguards**: Proactive stock quantity checking with an executive confirmation dialog to either cap or bypass limits.
+- **Backdated Invoices & Custom Invoice Numbering**: Enter custom invoice numbers for historical transactions with exact document date and time (`doc_time`) control, seamlessly persisting custom invoice numbers without sequence clashes.
+- **Quotation Number Integrity**: Quotation numbers are strictly locked to automated sequence generation, preventing manual overrides while preserving full quotation-to-invoice conversion workflows.
 - **Live Estimated Bill Profit**: See live taxable margin and gross profit for every bill before finalizing.
 - **Quick Product Modal (`Alt+N`)**: Add brand-new inventory items directly from the checkout table without leaving the POS screen.
 
@@ -95,6 +97,8 @@
 - **Saved Bank Accounts Manager**: Centralized bank account management (Bank Name, Account Number, IFSC, Branch, Account Holder) selectable across profiles.
 - **Global Store & POS Settings**: Configure store-wide invoice and quotation terms & conditions, scan-to-pay toggles, POS price display, and stock validation rules.
 - **Universal In-App Styled Dialog System**: Replaced intrusive browser-native popups (`confirm()`, `alert()`) with beautiful dark glassmorphism modal dialogs featuring keyboard bindings (`Enter` to confirm, `Esc` to cancel).
+- **Global Zero-Latency Startup Preloader**: Centralized asynchronous preloader (`useDataStore`) initializes foundational datasets (seller profiles, inventory, customers, hold slots, and numbering sequences) concurrently at app boot with dual-layer caching (reactive Zustand store + `localStorage`), eliminating cold-start delays across all tabs.
+- **Zero-Downtime Hot-Swap Dev Orchestration**: Optimized `dev.ps1` builds client and server in the background while the existing server handles requests, swapping the server process in < 300ms upon completion.
 - **1-Click JSON Backup & Restore**: Export full database snapshots for offsite archival and restore seamlessly.
 
 ---
@@ -172,15 +176,16 @@ Manage business details, banking info, multi-UPI QR accounts, POS display toggle
 ApexBill provides native Windows executables compiled with custom brand icons and Edge App Mode windowing:
 
 #### 1. Single-File Standalone Executable (`ApexBill-Standalone.exe`)
-- Download **`ApexBill-v2.9.0-Standalone.exe`** (or `ApexBill-Standalone.exe`).
-- **Double-click to run**: Self-extracts the embedded runtime and app bundle on first launch to `%LOCALAPPDATA%\ApexBill\bundle`, creates a Desktop shortcut automatically, and launches immediately.
+- Download **`ApexBill-v2.19.0-Standalone.exe`** (or `ApexBill-Standalone.exe`).
+- **Double-click to run**: Self-extracts the app bundle on first launch to `%LOCALAPPDATA%\ApexBill\bundle`, creates a Desktop shortcut automatically, and launches immediately.
 - **Single file**: Ideal for distributing to clients or staff who want zero setup and no zip extraction.
 
 #### 2. Portable Distribution Folder (`ApexBill.exe`)
-- Download and extract **`ApexBill-v2.9.0-Portable.zip`**.
+- Download and extract **`ApexBill-v2.19.0-Portable.zip`**.
 - Double-click **`ApexBill.exe`**:
   - **Native Window Experience**: Launches Edge in chromeless App Mode (`--app=http://localhost:54321`), with fallback to Chrome or your default browser.
   - **Zero Console Window Flash**: Pure Windows GUI executable (`/target:winexe`) that spawns the Fastify backend silently in the background.
+  - **Decoupled Runtime & Smart Auto-Provisioning**: Release packages are decoupled from heavy embedded Node runtimes. The launcher automatically detects local Node.js or downloads and configures Node.js LTS in the background with visual progress, auto-remembering the runtime path.
   - **Instance Awareness**: If port `54321` is already active, bringing up `ApexBill.exe` focuses the existing app without spawning duplicate backend processes.
   - **Control Flags**: Supports CLI commands from PowerShell / CMD:
     - `ApexBill.exe --status` : Check if background backend process and port 54321 are active.
@@ -188,7 +193,7 @@ ApexBill provides native Windows executables compiled with custom brand icons an
     - `ApexBill.exe --stop`   : Stop the running backend service cleanly.
 - Legacy scripts (**`Launch-ApexBill.vbs`** and **`ApexBill.bat`**) remain fully supported and included for backward compatibility.
 
-> **Zero External Dependencies**: Embedded Node.js runtime and SQLite engine are included. No pre-installed Node, Python, database server, or administrative privileges required.
+> **Zero Configuration**: SQLite database engine is fully embedded. Node.js is automatically provisioned if not already present on the machine.
 
 ---
 
@@ -320,7 +325,7 @@ ApexBill/
 │   │   │   │   ├── analytics/  # Customer Analytics, item purchase aggregations
 │   │   │   │   ├── settings/   # Business profile, multi-UPI, data backup
 │   │   │   │   └── print/      # A4 GST Tax Invoice & 80mm ESC/POS templates
-│   │   │   ├── store/          # Zustand stores (billing, slots, dialogs)
+│   │   │   ├── store/          # Zustand stores (billing, data preloader, slots, dialogs)
 │   │   │   └── utils/          # GST engine, UPI helper, PDF & WhatsApp helpers
 │   │   └── package.json
 │   └── server/                 # Fastify backend server
