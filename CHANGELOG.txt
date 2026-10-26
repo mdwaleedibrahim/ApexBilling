@@ -3,6 +3,16 @@
 ========================================================================
 
 ========================================================================
+ApexBill Release v2.22.0 - 2026-10-27 00:25:46
+========================================================================
+Changes & Commits in this Build:
+  * feat: add Hide Discount checkbox and update tax and price checkbox labels (49e245c)
+  * feat: add hide_discount column migration and persistence in documents table & billing API
+  * feat: hide discount column in both invoices and quotations with automatic table width balancing
+  * feat: rename side panel checkboxes to "Hide Tax breakdown" and "Hide price"
+  * release: compile and package ApexBill-v2.22.0-Standalone.exe and portable distribution
+
+========================================================================
 ApexBill Release v2.21.0 - 2026-10-12 17:49:37
 ========================================================================
 Changes & Commits in this Build:
