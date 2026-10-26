@@ -261,7 +261,7 @@ export async function billingRoutes(app: FastifyInstance) {
     const db = getDb();
     const { doc_type = 'INVOICE', doc_date, doc_time, created_at, customer_phone, customer_snapshot, seller_profile_id, items: rawItems,
       discount_pct = 0, additional_discount = 0, payment_mode = 'CASH', payment_status = 'PAID', selected_upi_id, notes,
-      terms_and_conditions, hide_tax_on_invoice = 0, hide_price_on_invoice = 0, paid_amount = 0, partial_payment_mode,
+      terms_and_conditions, hide_tax_on_invoice = 0, hide_price_on_invoice = 0, hide_discount = 0, paid_amount = 0, partial_payment_mode,
       converting_quotation_id, qr_amount_type = 'FULL', custom_doc_number } = (req.body || {}) as any;
 
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
@@ -391,14 +391,14 @@ export async function billingRoutes(app: FastifyInstance) {
         INSERT INTO documents (id, doc_type, doc_number, doc_date, doc_time, created_at, seller_profile_id, seller_snapshot, customer_phone, customer_snapshot,
           gross_subtotal, discount_pct, discount_amount, additional_discount, taxable_amount, cgst_total, sgst_total,
           round_off, grand_total, payment_mode, payment_status, selected_upi_id, notes, terms_and_conditions,
-          hide_tax_on_invoice, hide_price_on_invoice, paid_amount, partial_payment_mode, payment_history, qr_amount_type)
-        VALUES (?,?,?,?,?,COALESCE(?, CURRENT_TIMESTAMP),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          hide_tax_on_invoice, hide_price_on_invoice, hide_discount, paid_amount, partial_payment_mode, payment_history, qr_amount_type)
+        VALUES (?,?,?,?,?,COALESCE(?, CURRENT_TIMESTAMP),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `).run(id, doc_type, doc_number, finalDate, finalTime, finalCreatedAt,
         finalSellerProfileId, finalSellerSnapshot,
         finalPhone, snapshot, totals.grossSubtotal, totals.discountPct, totals.discountAmount, totals.additionalDiscount,
         totals.taxableAmount, totals.cgstTotal, totals.sgstTotal, totals.roundOff, totals.grandTotal,
         payment_mode, finalStatus, selected_upi_id || null, notes || null, termsStr,
-        hide_tax_on_invoice ? 1 : 0, (hide_tax_on_invoice && hide_price_on_invoice) ? 1 : 0, finalPaidAmount, partial_payment_mode || (finalStatus === 'PARTIAL' ? 'CASH' : null),
+        hide_tax_on_invoice ? 1 : 0, (hide_tax_on_invoice && hide_price_on_invoice) ? 1 : 0, hide_discount ? 1 : 0, finalPaidAmount, partial_payment_mode || (finalStatus === 'PARTIAL' ? 'CASH' : null),
         JSON.stringify(initialHistory), qr_amount_type || 'FULL');
 
       const insertItem = db.prepare(`
@@ -465,7 +465,7 @@ export async function billingRoutes(app: FastifyInstance) {
     if (existing.payment_status === 'CANCELLED') return reply.status(400).send({ error: 'Cannot edit cancelled document' });
 
     const { items: rawItems, discount_pct = 0, additional_discount, payment_mode, payment_status, notes,
-      terms_and_conditions, customer_phone, customer_snapshot, seller_profile_id, hide_tax_on_invoice, hide_price_on_invoice,
+      terms_and_conditions, customer_phone, customer_snapshot, seller_profile_id, hide_tax_on_invoice, hide_price_on_invoice, hide_discount,
       paid_amount, partial_payment_mode, qr_amount_type, doc_date, doc_time, created_at } = (req.body || {}) as any;
     if (!rawItems?.length) return reply.status(400).send({ error: 'items required' });
 
@@ -596,11 +596,12 @@ export async function billingRoutes(app: FastifyInstance) {
 
       const finalHideTax = hide_tax_on_invoice !== undefined ? (hide_tax_on_invoice ? 1 : 0) : (existing.hide_tax_on_invoice || 0);
       const finalHidePrice = finalHideTax ? (hide_price_on_invoice !== undefined ? (hide_price_on_invoice ? 1 : 0) : (existing.hide_price_on_invoice || 0)) : 0;
+      const finalHideDiscount = hide_discount !== undefined ? (hide_discount ? 1 : 0) : (existing.hide_discount || 0);
 
       db.prepare(`
         UPDATE documents SET doc_date=?, doc_time=?, created_at=COALESCE(?, created_at), seller_profile_id=?, seller_snapshot=?, customer_phone=?, customer_snapshot=?, gross_subtotal=?, discount_pct=?,
           discount_amount=?, additional_discount=?, taxable_amount=?, cgst_total=?, sgst_total=?, round_off=?, grand_total=?,
-          payment_mode=?, payment_status=?, notes=?, terms_and_conditions=?, hide_tax_on_invoice=?, hide_price_on_invoice=?,
+          payment_mode=?, payment_status=?, notes=?, terms_and_conditions=?, hide_tax_on_invoice=?, hide_price_on_invoice=?, hide_discount=?,
           paid_amount=?, partial_payment_mode=?, payment_history=?, qr_amount_type=?, revision_number=revision_number+1, updated_at=CURRENT_TIMESTAMP
         WHERE id=?
       `).run(updateDocDate, updateDocTime, updateCreatedAt, finalSellerProfileId, finalSellerSnapshot, finalPhone,
@@ -608,7 +609,7 @@ export async function billingRoutes(app: FastifyInstance) {
         totals.grossSubtotal, totals.discountPct, totals.discountAmount, totals.additionalDiscount, totals.taxableAmount,
         totals.cgstTotal, totals.sgstTotal, totals.roundOff, totals.grandTotal,
         payment_mode || existing.payment_mode, finalStatus,
-        notes ?? existing.notes, termsStr, finalHideTax, finalHidePrice,
+        notes ?? existing.notes, termsStr, finalHideTax, finalHidePrice, finalHideDiscount,
         finalPaidAmount, partial_payment_mode !== undefined ? partial_payment_mode : existing.partial_payment_mode,
         JSON.stringify(history), qr_amount_type || 'DELTA', req.params.id);
 
@@ -774,16 +775,16 @@ export async function billingRoutes(app: FastifyInstance) {
             id, doc_type, doc_number, parent_doc_id, revision_number, doc_date,
             seller_profile_id, seller_snapshot, customer_phone, customer_snapshot, gross_subtotal, discount_pct, discount_amount,
             taxable_amount, cgst_total, sgst_total, round_off, grand_total,
-            payment_mode, payment_status, selected_upi_id, notes, terms_and_conditions, hide_tax_on_invoice, hide_price_on_invoice,
+            payment_mode, payment_status, selected_upi_id, notes, terms_and_conditions, hide_tax_on_invoice, hide_price_on_invoice, hide_discount,
             paid_amount, partial_payment_mode
-          ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         `).run(
           invoiceId, 'INVOICE', invoiceNum, null, 1, new Date().toISOString().split('T')[0],
           quo.seller_profile_id || null, quo.seller_snapshot || null,
           finalPhone, quo.customer_snapshot, quo.gross_subtotal, quo.discount_pct, quo.discount_amount,
           quo.taxable_amount, quo.cgst_total, quo.sgst_total, quo.round_off, quo.grand_total,
           payment_mode, payment_status, quo.selected_upi_id, quo.notes, quo.terms_and_conditions || null, quo.hide_tax_on_invoice || 0,
-          (quo.hide_tax_on_invoice && quo.hide_price_on_invoice) ? 1 : 0,
+          (quo.hide_tax_on_invoice && quo.hide_price_on_invoice) ? 1 : 0, quo.hide_discount || 0,
           paid_amount, partial_payment_mode
         );
 

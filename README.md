@@ -32,7 +32,7 @@
 - **1-Click Cancel Edit**: Dedicated discard button beside the editing banner to quickly exit invoice editing without saving accidental changes.
 - **Independent Pricing & MRP**: Uses active `Price` for billing, discounts, and PnL while `MRP` is displayed informatively below the description.
 - **Dual Discount Engine (`%` and `₹`)**: Apply percentage discounts or fixed currency amounts (rendered as "Additional discount"), protected by automatic loss prevention. Flat ₹ discounts deduct from Grand Total and recalculate overall invoice taxes without modifying individual item unit prices.
-- **Hide Tax Breakdown & Conditional Price Hiding**: Side panel checkbox to hide tax breakdown on invoices, with a conditional "Hide price in invoice" checkbox (shown only when tax is hidden) to omit line-item prices and row totals on delivery slips and quotes.
+- **Hide Tax Breakdown, Conditional Price Hiding & Hide Discount**: Side panel checkboxes to hide tax breakdown on invoices, conditionally hide price, or hide the discount column on both invoices and quotations.
 - **Loss Prevention Safeguards**: Validates bills in real time to prevent discounts from causing the grand total to fall below purchase cost.
 - **Purchase Price & Margin Protection**: Inline purchase price indicator (`Pur. Price` in blue) with alert highlighting if selling price falls below cost.
 - **Stock-Limit Safeguards**: Proactive stock quantity checking with an executive confirmation dialog to either cap or bypass limits.
@@ -59,7 +59,7 @@
 ### 🧾 4. Executive Invoice & Thermal Receipt Layouts
 - **Immutable Seller Snapshot**: Invoices and quotations freeze the active seller's business name, GSTIN, address, bank, and UPI details at creation time, guaranteeing audit immutability.
 - **Zero-Blank-Page A4 GST Tax Invoice**: Clean typography, structured seller/buyer info, itemized HSN table, CGST/SGST split, bank details, authorized signatory, dynamic UPI QR code, and zero extra trailing blank pages.
-- **Dedicated Discount Column & Price/Total Hiding**: Standalone "Disc." column placed before price displaying merged % savings off MRP. When "Hide price in invoice" is toggled, Price and Row Total columns are seamlessly omitted and the Item Description auto-expands across 100% table width while overall summary totals remain intact.
+- **Dedicated Discount Column & Price/Total Hiding**: Standalone "Disc." column placed before price displaying merged % savings off MRP. When "Hide price" is toggled, Price and Row Total columns are seamlessly omitted and the Item Description auto-expands across 100% table width while overall summary totals remain intact.
 - **Multi-Payment Audit Trail**: Transparent breakdown of all historical partial payments with exact transaction timestamps, payment modes (Cash / UPI), cumulative total paid, and outstanding balance due.
 - **Context-Aware Dynamic QR**: Generates dynamic UPI QR codes customized for the remaining balance due or installment amount with clear payment instructions.
 - **Native WhatsApp PDF Sharing**: Share generated A4 PDF documents directly with customers via native Windows WhatsApp with custom messages.

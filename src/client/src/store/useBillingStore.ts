@@ -33,6 +33,7 @@ export interface BillingState {
   selectedUpiId: string | null
   hideTaxOnInvoice: boolean
   hidePriceOnInvoice: boolean
+  hideDiscount: boolean
   selectedTerms: string[]
   paidAmount: number
   previouslyPaidAmount: number  // amount already paid before this edit session (Credit invoices)
@@ -67,6 +68,7 @@ export interface BillingState {
   setSelectedUpiId: (id: string | null) => void
   setHideTaxOnInvoice: (h: boolean) => void
   setHidePriceOnInvoice: (h: boolean) => void
+  setHideDiscount: (h: boolean) => void
   setSelectedTerms: (terms: string[]) => void
   setPaidAmount: (amt: number) => void
   setPartialPaymentMode: (mode: 'CASH' | 'UPI') => void
@@ -101,6 +103,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   selectedUpiId: null,
   hideTaxOnInvoice: false,
   hidePriceOnInvoice: false,
+  hideDiscount: false,
   selectedTerms: [],
   paidAmount: 0,
   previouslyPaidAmount: 0,
@@ -143,6 +146,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   setSelectedUpiId: (id) => set({ selectedUpiId: id }),
   setHideTaxOnInvoice: (h) => set(h ? { hideTaxOnInvoice: h } : { hideTaxOnInvoice: false, hidePriceOnInvoice: false }),
   setHidePriceOnInvoice: (h) => set(state => ({ hidePriceOnInvoice: state.hideTaxOnInvoice ? h : false })),
+  setHideDiscount: (h) => set({ hideDiscount: h }),
   setSelectedTerms: (terms) => set({ selectedTerms: terms }),
   setPaidAmount: (amt) => set({ paidAmount: amt }),
   setPartialPaymentMode: (mode) => set({ partialPaymentMode: mode }),
@@ -177,7 +181,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
   },
   clearCart: () => set({
     items: [], customer: null, discountPct: 0, additionalDiscount: 0, paymentMode: 'CASH', paymentStatus: 'PAID',
-    notes: '', selectedUpiId: null, hideTaxOnInvoice: false, hidePriceOnInvoice: false, selectedTerms: [],
+    notes: '', selectedUpiId: null, hideTaxOnInvoice: false, hidePriceOnInvoice: false, hideDiscount: false, selectedTerms: [],
     docDate: todayIso(),
     docTime: (() => { const n = new Date(); return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}` })(),
     customDocNumber: null,
@@ -233,6 +237,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
       sellerProfileId: doc.seller_profile_id || null,
       selectedUpiId: doc.selected_upi_id || null, hideTaxOnInvoice: !!doc.hide_tax_on_invoice,
       hidePriceOnInvoice: !!doc.hide_tax_on_invoice && !!doc.hide_price_on_invoice,
+      hideDiscount: !!doc.hide_discount,
       selectedTerms: Array.isArray(terms) ? terms : [],
       paidAmount: initPaidAmount,
       previouslyPaidAmount: isCreditEdit ? alreadyPaid : 0,
@@ -266,6 +271,7 @@ export const useBillingStore = create<BillingState>((set, get) => ({
       selectedUpiId: doc.selected_upi_id || null,
       hideTaxOnInvoice: !!doc.hide_tax_on_invoice,
       hidePriceOnInvoice: !!doc.hide_tax_on_invoice && !!doc.hide_price_on_invoice,
+      hideDiscount: !!doc.hide_discount,
       selectedTerms: [],
       paidAmount: 0,
       partialPaymentMode: 'CASH',

@@ -67,6 +67,7 @@ export function getDb(): DatabaseSync {
     try { _db.exec('ALTER TABLE seller_profile ADD COLUMN show_hsn_column INTEGER DEFAULT 1') } catch {}
     try { _db.exec('ALTER TABLE documents ADD COLUMN hide_tax_on_invoice INTEGER DEFAULT 0') } catch {}
     try { _db.exec('ALTER TABLE documents ADD COLUMN hide_price_on_invoice INTEGER DEFAULT 0') } catch {}
+    try { _db.exec('ALTER TABLE documents ADD COLUMN hide_discount INTEGER DEFAULT 0') } catch {}
     try { _db.exec('ALTER TABLE documents ADD COLUMN terms_and_conditions TEXT') } catch {}
     try { _db.exec('ALTER TABLE documents ADD COLUMN paid_amount DECIMAL(12,2) DEFAULT 0.00') } catch {}
     try { _db.exec('ALTER TABLE documents ADD COLUMN partial_payment_mode TEXT') } catch {}

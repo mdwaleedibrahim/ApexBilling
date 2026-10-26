@@ -77,6 +77,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
     : null
   const hideTax = !!doc.hide_tax_on_invoice
   const hidePrice = hideTax && !!doc.hide_price_on_invoice
+  const hideDiscount = !!doc.hide_discount
 
   const formatPaymentDate = (dStr: string) => {
     if (!dStr) return ''
@@ -369,7 +370,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
         // Word wrap within column by default. Only enter description in full line if wrapping exceeds 3 lines (>75 chars with tax, >105 without tax, >120 without price/tax, or >=3 newlines)
         const shouldSpanFullLine = (name: string) => {
           if (!name) return false
-          const maxChars = hideTax ? (hidePrice ? 120 : 105) : 75
+          const maxChars = (hideTax ? (hidePrice ? 120 : 105) : 75) + (hideDiscount ? 15 : 0)
           const newlineCount = (name.match(/\n/g) || []).length
           return name.trim().length > maxChars || newlineCount >= 3
         }
@@ -379,32 +380,32 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
             ? [
               { id: 'num', label: '#', align: 'center', width: '3.5%' },
               { id: 'sku', label: 'SKU ID', align: 'left', width: showHsn ? '11%' : '13%' },
-              { id: 'desc', label: 'Item Description', align: 'left', width: showHsn ? '58.5%' : '65%' },
+              { id: 'desc', label: 'Item Description', align: 'left', width: showHsn ? (hideDiscount ? '64.5%' : '58.5%') : (hideDiscount ? '71.5%' : '65%') },
               ...(showHsn ? [{ id: 'hsn', label: 'HSN', align: 'left', width: '9%' }] : []),
               { id: 'qty', label: 'Qty', align: 'center', width: showHsn ? '6%' : '6%' },
               { id: 'unit', label: 'Unit', align: 'center', width: showHsn ? '6%' : '6%' },
-              { id: 'discount', label: 'Disc.', align: 'center', width: showHsn ? '6%' : '6.5%' },
-                { id: 'total', label: 'Total', align: 'right', width: showHsn ? '13%' : '14.5%' },
+              ...(!hideDiscount ? [{ id: 'discount', label: 'Disc.', align: 'center', width: showHsn ? '6%' : '6.5%' }] : []),
+              { id: 'total', label: 'Total', align: 'right', width: showHsn ? '13%' : '14.5%' },
             ]
             : [
               { id: 'num', label: '#', align: 'center', width: '3.5%' },
               { id: 'sku', label: 'SKU ID', align: 'left', width: showHsn ? '10%' : '11%' },
-              { id: 'desc', label: 'Item Description', align: 'left', width: showHsn ? '35.5%' : '40%' },
+              { id: 'desc', label: 'Item Description', align: 'left', width: showHsn ? (hideDiscount ? '43.5%' : '35.5%') : (hideDiscount ? '48.5%' : '40%') },
               ...(showHsn ? [{ id: 'hsn', label: 'HSN', align: 'left', width: '8%' }] : []),
               { id: 'qty', label: 'Qty', align: 'center', width: showHsn ? '6%' : '7%' },
               { id: 'unit', label: 'Unit', align: 'center', width: showHsn ? '6%' : '7%' },
-              { id: 'discount', label: 'Disc.', align: 'center', width: showHsn ? '8%' : '8.5%' },
+              ...(!hideDiscount ? [{ id: 'discount', label: 'Disc.', align: 'center', width: showHsn ? '8%' : '8.5%' }] : []),
               { id: 'price', label: 'Price', align: 'right', width: showHsn ? '10%' : '11%' },
               { id: 'total', label: 'Total', align: 'right', width: showHsn ? '13%' : '14.5%' },
             ])
           : [
             { id: 'num', label: '#', align: 'center', width: '3%' },
             { id: 'sku', label: 'SKU ID', align: 'left', width: showHsn ? '8%' : '9%' },
-            { id: 'desc', label: 'Item Description', align: 'left', width: showHsn ? '23%' : '27.5%' },
+            { id: 'desc', label: 'Item Description', align: 'left', width: showHsn ? (hideDiscount ? '30%' : '23%') : (hideDiscount ? '34.5%' : '27.5%') },
             ...(showHsn ? [{ id: 'hsn', label: 'HSN', align: 'left', width: '6.5%' }] : []),
             { id: 'qty', label: 'Qty', align: 'center', width: '5%' },
             { id: 'unit', label: 'Unit', align: 'center', width: '5%' },
-            { id: 'discount', label: 'Disc.', align: 'center', width: '7%' },
+            ...(!hideDiscount ? [{ id: 'discount', label: 'Disc.', align: 'center', width: '7%' }] : []),
             { id: 'price', label: 'Price', align: 'right', width: showHsn ? '9.5%' : '10%' },
             { id: 'taxable', label: 'Taxable', align: 'right', width: showHsn ? '9%' : '9.5%' },
             { id: 'cgst', label: 'CGST', align: 'right', width: '7%' },
@@ -509,17 +510,19 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                               <td style={{ padding: '3px 4px 7px 4px', textAlign: 'center', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
                                 {item.unit || 'PCS'}
                               </td>
-                              <td style={{ padding: '3px 6px 7px 6px', textAlign: 'center', fontSize: 11, whiteSpace: 'nowrap' }}>
-                                {mrp > displayedPrice && mrp > 0 ? (
-                                  <span style={{ color: '#dc2626', fontWeight: 700, fontSize: 10.5 }}>
-                                    {Math.round(((mrp - displayedPrice) / mrp) * 100)}%
-                                  </span>
-                                ) : displayedDiscountPct > 0 ? (
-                                  <span style={{ color: '#dc2626', fontWeight: 700, fontSize: 10.5 }}>{displayedDiscountPct}%</span>
-                                ) : (
-                                  <span style={{ color: '#94a3b8' }}>—</span>
-                                )}
-                              </td>
+                              {!hideDiscount && (
+                                <td style={{ padding: '3px 6px 7px 6px', textAlign: 'center', fontSize: 11, whiteSpace: 'nowrap' }}>
+                                  {mrp > displayedPrice && mrp > 0 ? (
+                                    <span style={{ color: '#dc2626', fontWeight: 700, fontSize: 10.5 }}>
+                                      {Math.round(((mrp - displayedPrice) / mrp) * 100)}%
+                                    </span>
+                                  ) : displayedDiscountPct > 0 ? (
+                                    <span style={{ color: '#dc2626', fontWeight: 700, fontSize: 10.5 }}>{displayedDiscountPct}%</span>
+                                  ) : (
+                                    <span style={{ color: '#94a3b8' }}>—</span>
+                                  )}
+                                </td>
+                              )}
                               {!hidePrice && (
                                 <td style={{ padding: '3px 8px 7px 8px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>
                                   {formatINR(displayedPrice)}
@@ -542,11 +545,9 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                                   <span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: 9.5 }}>{formatINR(lineSgstAmount)}</span>
                                 </td>
                               )}
-                              {!hidePrice && (
-                                <td style={{ padding: '3px 8px 7px 8px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>
-                                  {formatINR(lineTotal)}
-                                </td>
-                              )}
+                              <td style={{ padding: '3px 8px 7px 8px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>
+                                {formatINR(lineTotal)}
+                              </td>
                             </tr>
                           )
                         })()}
@@ -607,17 +608,19 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
 
                         return (
                           <>
-                            <td style={{ padding: '7px 6px', textAlign: 'center', fontSize: 11, whiteSpace: 'nowrap' }}>
-                              {mrp > displayedPrice && mrp > 0 ? (
-                                <span style={{ color: '#dc2626', fontWeight: 700, fontSize: 10.5 }}>
-                                  {Math.round(((mrp - displayedPrice) / mrp) * 100)}%
-                                </span>
-                              ) : displayedDiscountPct > 0 ? (
-                                <span style={{ color: '#dc2626', fontWeight: 700, fontSize: 10.5 }}>{displayedDiscountPct}%</span>
-                              ) : (
-                                <span style={{ color: '#94a3b8' }}>—</span>
-                              )}
-                            </td>
+                            {!hideDiscount && (
+                              <td style={{ padding: '7px 6px', textAlign: 'center', fontSize: 11, whiteSpace: 'nowrap' }}>
+                                {mrp > displayedPrice && mrp > 0 ? (
+                                  <span style={{ color: '#dc2626', fontWeight: 700, fontSize: 10.5 }}>
+                                    {Math.round(((mrp - displayedPrice) / mrp) * 100)}%
+                                  </span>
+                                ) : displayedDiscountPct > 0 ? (
+                                  <span style={{ color: '#dc2626', fontWeight: 700, fontSize: 10.5 }}>{displayedDiscountPct}%</span>
+                                ) : (
+                                  <span style={{ color: '#94a3b8' }}>—</span>
+                                )}
+                              </td>
+                            )}
                             {!hidePrice && (
                               <td style={{ padding: '7px 8px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>
                                 {formatINR(displayedPrice)}
