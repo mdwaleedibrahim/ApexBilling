@@ -7,6 +7,7 @@ import { useDialogStore } from '../../store/useDialogStore'
 import { useDataStore } from '../../store/useDataStore'
 import A4InvoiceTemplate from '../print/A4InvoiceTemplate'
 import InvoicePreviewModal from '../print/InvoicePreviewModal'
+import { checkFitsInA5, setPrintPageSize } from '../../utils/printHelper'
 import { WhatsAppIcon, shareInvoiceViaWhatsApp, sendPaymentReminderViaWhatsApp } from '../../utils/whatsappHelper'
 
 interface Props { onEdit: (doc: any) => void }
@@ -101,6 +102,7 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
 
   const handlePrint = async (doc: any) => {
     const full = (doc.items && doc.items.length) ? doc : await api.documents.get(doc.id)
+    setPrintPageSize(checkFitsInA5(full) ? 'A5' : 'A4')
     setViewDoc(full)
     setTimeout(() => window.print(), 300)
   }
@@ -390,7 +392,7 @@ export default function RecordsHistoryTab({ onEdit }: Props) {
 
       {/* Hidden target for generating PDF when sharing directly from table row */}
       {sharingDoc && (
-        <div style={{ position: 'fixed', left: '-9999px', top: 0, width: '210mm', opacity: 0, pointerEvents: 'none' }}>
+        <div style={{ position: 'fixed', left: '-9999px', top: 0, width: checkFitsInA5(sharingDoc) ? '148mm' : '210mm', opacity: 0, pointerEvents: 'none' }}>
           <div ref={hiddenPdfRef}>
             <A4InvoiceTemplate doc={sharingDoc} profile={profile} qrMode={sharingQrMode} />
           </div>

@@ -11,6 +11,7 @@ import { useBillingStore } from '../../store/useBillingStore'
 import { useDialogStore } from '../../store/useDialogStore'
 import A4InvoiceTemplate from '../print/A4InvoiceTemplate'
 import InvoicePreviewModal from '../print/InvoicePreviewModal'
+import { checkFitsInA5, setPrintPageSize } from '../../utils/printHelper'
 import { WhatsAppIcon, shareInvoiceViaWhatsApp } from '../../utils/whatsappHelper'
 
 interface Props {
@@ -170,6 +171,7 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
 
   const handlePrint = async (doc: any) => {
     const full = (doc.items && doc.items.length) ? doc : await api.documents.get(doc.id)
+    setPrintPageSize(checkFitsInA5(full) ? 'A5' : 'A4')
     setViewDoc(full)
     setTimeout(() => window.print(), 300)
   }
@@ -817,7 +819,7 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
       )}
 
       {/* ── Hidden target for generating PDF when sharing directly from table row ── */}
-      <div style={{ position: 'fixed', left: '-9999px', top: '-9999px', width: '800px', opacity: 0, pointerEvents: 'none' }}>
+      <div style={{ position: 'fixed', left: '-9999px', top: '-9999px', width: sharingDoc && checkFitsInA5(sharingDoc) ? '148mm' : '210mm', opacity: 0, pointerEvents: 'none' }}>
         <div ref={hiddenPdfRef}>
           {sharingDoc && <A4InvoiceTemplate doc={sharingDoc} profile={profile} />}
         </div>

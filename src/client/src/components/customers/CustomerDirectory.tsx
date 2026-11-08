@@ -7,6 +7,7 @@ import { normalizePhone } from '../../utils/phoneHelper'
 import { useDialogStore } from '../../store/useDialogStore'
 import { useDataStore } from '../../store/useDataStore'
 import A4InvoiceTemplate from '../print/A4InvoiceTemplate'
+import { checkFitsInA5 } from '../../utils/printHelper'
 import { sendPaymentReminderViaWhatsApp } from '../../utils/whatsappHelper'
 
 const EMPTY = { phone: '', name: '', email: '', gstin: '', billing_address: '', state_code: '36' }
@@ -418,7 +419,7 @@ export default function CustomerDirectory({ onViewAnalytics }: { onViewAnalytics
 
       {/* Hidden target for generating PDF when sending reminder from customer directory */}
       {reminderDoc && (
-        <div style={{ position: 'fixed', left: '-9999px', top: 0, width: '210mm', opacity: 0, pointerEvents: 'none' }}>
+        <div style={{ position: 'fixed', left: '-9999px', top: 0, width: checkFitsInA5(reminderDoc) ? '148mm' : '210mm', opacity: 0, pointerEvents: 'none' }}>
           <div ref={hiddenPdfRef}>
             <A4InvoiceTemplate doc={reminderDoc} profile={profile} qrMode="balance" />
           </div>

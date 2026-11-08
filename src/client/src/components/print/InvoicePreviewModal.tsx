@@ -1,8 +1,9 @@
 // components/print/InvoicePreviewModal.tsx
-// Reusable A4 invoice preview modal with compact toolbar + font-scale control
-import { useState } from 'react'
-import { X } from 'lucide-react'
+// Reusable A4/A5 invoice preview modal with compact toolbar + font-scale control & auto page size
+import { useEffect, useState } from 'react'
+import { FileText, X } from 'lucide-react'
 import A4InvoiceTemplate from './A4InvoiceTemplate'
+import { checkFitsInA5, setPrintPageSize } from '../../utils/printHelper'
 
 // Scale range from 0.5 to 1.5 with 0.05 increments
 const SCALES = [
@@ -33,13 +34,33 @@ interface Props {
   onClose: () => void
   qrMode?: 'default' | 'balance'
   templateRef?: React.RefObject<HTMLDivElement>
+  defaultPageSize?: 'auto' | 'A4' | 'A5'
 }
 
 export default function InvoicePreviewModal({
   doc, profile, title, titleIcon, titleBadge,
   actions, onClose, qrMode = 'default', templateRef,
+  defaultPageSize = 'auto',
 }: Props) {
   const [fontScale, setFontScale] = useState<number>(readScale)
+  const [pageSizeOverride, setPageSizeOverride] = useState<'auto' | 'A4' | 'A5'>(defaultPageSize)
+
+  const autoSize = checkFitsInA5(doc, fontScale) ? 'A5' : 'A4'
+  const effectivePageSize = pageSizeOverride === 'auto' ? autoSize : pageSizeOverride
+
+  useEffect(() => {
+    setPrintPageSize(effectivePageSize)
+  }, [effectivePageSize])
+
+  const handleCyclePageSize = () => {
+    if (pageSizeOverride === 'auto') {
+      setPageSizeOverride(autoSize === 'A5' ? 'A4' : 'A5')
+    } else if (pageSizeOverride === 'A4') {
+      setPageSizeOverride('A5')
+    } else {
+      setPageSizeOverride('auto')
+    }
+  }
 
   const handleScale = (s: number) => {
     setFontScale(s)
@@ -140,6 +161,22 @@ export default function InvoicePreviewModal({
             >
               AA+
             </button>
+
+            {/* Paper Size Indicator / Override Toggle (A5 vs A4) */}
+            <button
+              type="button"
+              onClick={handleCyclePageSize}
+              title={`Print Paper Size: ${effectivePageSize} (${pageSizeOverride === 'auto' ? 'Auto-detected fit' : 'Manually forced'}). Click to cycle (Auto -> A5 -> A4).`}
+              className="px-2 py-1 rounded-md text-[11px] font-semibold tracking-tight bg-white/10 hover:bg-white/20 text-gray-200 border border-white/10 flex items-center gap-1.5 transition-colors cursor-pointer ml-1"
+            >
+              <FileText size={12} className={effectivePageSize === 'A5' ? 'text-emerald-400' : 'text-indigo-400'} />
+              <span>{effectivePageSize}</span>
+              {pageSizeOverride === 'auto' ? (
+                <span className="text-[9px] px-1 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-normal leading-none">auto</span>
+              ) : (
+                <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/20 text-amber-300 font-normal leading-none">fixed</span>
+              )}
+            </button>
           </div>
 
           {/* Right: action buttons + close */}
@@ -155,13 +192,14 @@ export default function InvoicePreviewModal({
           </div>
         </div>
 
-        {/* ── A4 Invoice Body ── */}
+        {/* ── Invoice Body (A4 / A5) ── */}
         <div ref={templateRef}>
           <A4InvoiceTemplate
             doc={doc}
             profile={profile}
             qrMode={qrMode}
             fontScale={fontScale}
+            pageSize={effectivePageSize}
           />
         </div>
       </div>

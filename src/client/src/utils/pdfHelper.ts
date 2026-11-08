@@ -27,8 +27,9 @@ function cleanupBlankTrailingPage(worker: any) {
 }
 
 export async function generateInvoicePdfBlob(element: HTMLElement, filename: string): Promise<Blob> {
+  const isA5 = element.classList.contains('print-a5') || !!element.querySelector('.print-a5')
   const opt = {
-    margin: [10, 0, 10, 0],
+    margin: isA5 ? [6, 0, 6, 0] : [10, 0, 10, 0],
     filename: filename,
     image: { type: 'jpeg', quality: 0.98 },
     html2canvas: {
@@ -44,9 +45,13 @@ export async function generateInvoicePdfBlob(element: HTMLElement, filename: str
           body > div[style*="visibility:hidden"] img {
             display: inline !important;
           }
-          .print-container {
+          .print-container,
+          .print-container.print-a5,
+          .print-container.print-a4 {
             padding-top: 0 !important;
             padding-bottom: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
           }
           .items-table-wrapper {
             overflow: visible !important;
@@ -60,7 +65,7 @@ export async function generateInvoicePdfBlob(element: HTMLElement, filename: str
         clonedDoc.head?.appendChild(style)
       }
     },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    jsPDF: { unit: 'mm', format: isA5 ? 'a5' : 'a4', orientation: 'portrait' },
     pagebreak: { mode: ['css', 'legacy'] }
   }
 
@@ -72,8 +77,9 @@ export async function generateInvoicePdfBlob(element: HTMLElement, filename: str
 }
 
 export async function downloadInvoicePdf(element: HTMLElement, filename: string): Promise<void> {
+  const isA5 = element.classList.contains('print-a5') || !!element.querySelector('.print-a5')
   const opt = {
-    margin: [10, 0, 10, 0],
+    margin: isA5 ? [6, 0, 6, 0] : [10, 0, 10, 0],
     filename: filename,
     image: { type: 'jpeg', quality: 0.98 },
     html2canvas: {
@@ -89,9 +95,13 @@ export async function downloadInvoicePdf(element: HTMLElement, filename: string)
           body > div[style*="visibility:hidden"] img {
             display: inline !important;
           }
-          .print-container {
+          .print-container,
+          .print-container.print-a5,
+          .print-container.print-a4 {
             padding-top: 0 !important;
             padding-bottom: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
           }
           .items-table-wrapper {
             overflow: visible !important;
@@ -105,7 +115,7 @@ export async function downloadInvoicePdf(element: HTMLElement, filename: string)
         clonedDoc.head?.appendChild(style)
       }
     },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    jsPDF: { unit: 'mm', format: isA5 ? 'a5' : 'a4', orientation: 'portrait' },
     pagebreak: { mode: ['css', 'legacy'] }
   }
 

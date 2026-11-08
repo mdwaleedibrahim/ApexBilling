@@ -97,8 +97,6 @@
 /* Print styles — Multi-page A4 splitting, suppress browser URLs & app chrome */
 @media print {
   @page {
-    margin: 8mm 10mm 12mm 10mm;
-    size: A4 portrait;
     @top-left { content: none !important; }
     @top-right { content: none !important; }
     @top-center { content: none !important; }
@@ -173,7 +171,9 @@
     border: none !important;
   }
 
-  .print-container {
+  .print-container,
+  .print-container.print-a5,
+  .print-container.print-a4 {
     padding: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
@@ -181,6 +181,7 @@
     height: auto !important;
     max-height: none !important;
     overflow: visible !important;
+    margin: 0 !important;
   }
 
   .items-table-wrapper {

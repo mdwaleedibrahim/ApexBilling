@@ -1,9 +1,24 @@
-// components/print/A4InvoiceTemplate.tsx — Compact, minimalist, editorial GST A4 print & view layout
+// components/print/A4InvoiceTemplate.tsx — Compact, minimalist, editorial GST A4/A5 print & view layout
 import { Fragment } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { buildUpiLink, formatINR, formatDate, formatDateTime, amountInWords } from '../../utils/upiHelper'
+import { checkFitsInA5 } from '../../utils/printHelper'
 
-export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default', fontScale = 1 }: { doc: any; profile?: any; qrMode?: 'default' | 'balance'; fontScale?: number }) {
+export { checkFitsInA5 }
+
+export default function A4InvoiceTemplate({
+  doc,
+  profile,
+  qrMode = 'default',
+  fontScale = 1,
+  pageSize = 'auto',
+}: {
+  doc: any
+  profile?: any
+  qrMode?: 'default' | 'balance'
+  fontScale?: number
+  pageSize?: 'auto' | 'A4' | 'A5'
+}) {
   if (!doc) return null
   const sellerSnap = (() => {
     try {
@@ -183,37 +198,38 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default', fo
     ? doc.sgst_total
     : summaryTax.sgst
 
+  const isA5 = pageSize === 'A5' || (pageSize === 'auto' && checkFitsInA5(doc, fontScale))
   const showQr = (((seller?.enable_scan_to_pay ?? profile?.enable_scan_to_pay) !== 0 && (seller?.enable_scan_to_pay ?? profile?.enable_scan_to_pay) !== false) || (qrMode === 'balance' && balanceDue > 0)) && !isQuotation && upiLink
 
   return (
     <div
-      className="print-container bg-white text-gray-900 relative"
+      className={`print-container ${isA5 ? 'print-a5' : 'print-a4'} bg-white text-gray-900 relative`}
       style={{
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
         color: '#0f172a',
         boxSizing: 'border-box',
         width: '100%',
-        maxWidth: '210mm',
+        maxWidth: '100%',
         margin: '0 auto',
-        padding: '18px 24px',
-        fontSize: `${fontScale}em`,
+        padding: isA5 ? '12px 16px' : '18px 24px',
+        fontSize: `${fontScale * (isA5 ? 0.92 : 1)}em`,
         lineHeight: 1.35,
       }}
     >
       {/* Watermarks */}
       {isPaid && (
-        <div style={{ position: 'absolute', top: '38%', left: '22%', opacity: 0.05, transform: 'rotate(-25deg)', fontSize: 110, fontWeight: 900, color: '#059669', pointerEvents: 'none', zIndex: 0, letterSpacing: '0.08em' }}>PAID</div>
+        <div style={{ position: 'absolute', top: '38%', left: '22%', opacity: 0.05, transform: 'rotate(-25deg)', fontSize: isA5 ? 75 : 110, fontWeight: 900, color: '#059669', pointerEvents: 'none', zIndex: 0, letterSpacing: '0.08em' }}>PAID</div>
       )}
       {isOverdue && (
-        <div style={{ position: 'absolute', top: '38%', left: '16%', opacity: 0.05, transform: 'rotate(-25deg)', fontSize: 110, fontWeight: 900, color: '#dc2626', pointerEvents: 'none', zIndex: 0, letterSpacing: '0.08em' }}>OVERDUE</div>
+        <div style={{ position: 'absolute', top: '38%', left: '16%', opacity: 0.05, transform: 'rotate(-25deg)', fontSize: isA5 ? 75 : 110, fontWeight: 900, color: '#dc2626', pointerEvents: 'none', zIndex: 0, letterSpacing: '0.08em' }}>OVERDUE</div>
       )}
 
       {/* ── 1. Compact Editorial Header ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, paddingBottom: 10, borderBottom: `1.5px solid ${accentColor}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: isA5 ? 8 : 12, paddingBottom: isA5 ? 6 : 10, borderBottom: `1.5px solid ${accentColor}` }}>
         {/* Left: Seller identity */}
         <div style={{ maxWidth: '64%' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-            <h1 style={{ fontSize: '1.25em', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+            <h1 style={{ fontSize: isA5 ? '1.15em' : '1.25em', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
               {seller.business_name}
             </h1>
             {seller.trade_name && (
@@ -242,7 +258,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default', fo
         </div>
 
         {/* Right: Document Identification */}
-        <div style={{ textAlign: 'right', minWidth: 170 }}>
+        <div style={{ textAlign: 'right', minWidth: isA5 ? 135 : 170 }}>
           <div style={{ fontSize: '0.8125em', fontWeight: 800, color: accentColor, letterSpacing: '0.06em', textTransform: 'uppercase', lineHeight: 1.15 }}>
             {isQuotation ? 'Estimate / Quotation' : 'Tax Invoice'}
           </div>
@@ -262,19 +278,19 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default', fo
       </div>
 
       {/* ── 2. Compact Bill To & Payment Summary (dynamically sized panels aligned left & right) ── */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 10, tableLayout: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: isA5 ? 6 : 10, tableLayout: 'auto' }}>
         <tbody>
           <tr>
             {/* Customer Panel: Left aligned, hugs content dynamically */}
             <td style={{ verticalAlign: 'top', padding: 0, textAlign: 'left' }}>
               <div style={{
                 display: 'inline-block',
-                padding: '6px 12px',
+                padding: isA5 ? '4px 8px' : '6px 12px',
                 border: '1px solid #e2e8f0',
                 borderRadius: 6,
                 background: '#f8fafc',
                 textAlign: 'left',
-                minWidth: 160,
+                minWidth: isA5 ? 130 : 160,
                 maxWidth: isQuotation ? '100%' : '56%',
                 boxSizing: 'border-box'
               }}>
@@ -307,12 +323,12 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default', fo
               <td style={{ verticalAlign: 'top', padding: 0, textAlign: 'right' }}>
                 <div style={{
                   display: 'inline-block',
-                  padding: '6px 12px',
+                  padding: isA5 ? '4px 8px' : '6px 12px',
                   border: '1px solid #e2e8f0',
                   borderRadius: 6,
                   background: '#f8fafc',
                   textAlign: 'left',
-                  minWidth: 160,
+                  minWidth: isA5 ? 130 : 160,
                   maxWidth: '44%',
                   boxSizing: 'border-box'
                 }}>
@@ -320,7 +336,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default', fo
                     Payment Information
                   </div>
                   {isPartial ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'auto auto', gap: '3px 18px', fontSize: '0.65625em', marginTop: 2 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'auto auto', gap: isA5 ? '2px 12px' : '3px 18px', fontSize: '0.65625em', marginTop: 2 }}>
                       <div>
                         <span style={{ color: '#64748b', display: 'block', fontSize: '0.59375em' }}>Mode</span>
                         <strong style={{ color: '#0f172a', whiteSpace: 'nowrap' }}>
@@ -343,7 +359,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default', fo
                       </div>
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 24, marginTop: 2 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: isA5 ? 14 : 24, marginTop: 2 }}>
                       <div>
                         <span style={{ color: '#64748b', display: 'block', fontSize: '0.59375em' }}>Mode</span>
                         <strong style={{ fontSize: '0.75em', color: '#0f172a', whiteSpace: 'nowrap' }}>{doc.payment_mode || 'CASH'}</strong>
@@ -433,7 +449,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default', fo
         const totalCols = tableColumns.length
 
         return (
-          <div className="items-table-wrapper" style={{ borderRadius: 6, border: '1px solid #cbd5e1', marginBottom: 12, width: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
+          <div className="items-table-wrapper" style={{ borderRadius: 6, border: '1px solid #cbd5e1', marginBottom: isA5 ? 8 : 12, width: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
             <table className="items-table" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #cbd5e1' }}>
@@ -442,8 +458,8 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default', fo
                       key={col.id}
                       style={{
                         width: col.id === 'desc' ? '100%' : 'auto',
-                        padding: '6px 7px',
-                        fontSize: '0.6em',
+                        padding: isA5 ? '4px 5px' : '6px 7px',
+                        fontSize: isA5 ? '0.56em' : '0.6em',
                         fontWeight: 700,
                         letterSpacing: '0.04em',
                         textTransform: 'uppercase',
@@ -672,12 +688,12 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default', fo
       })()}
 
       {/* ── 4. Unified Totals & Remittance Grid ── */}
-      <div className="avoid-break" style={{ display: 'grid', gridTemplateColumns: '1fr 265px', gap: 14, alignItems: 'start', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+      <div className="avoid-break" style={{ display: 'grid', gridTemplateColumns: isA5 ? '1fr 215px' : '1fr 265px', gap: isA5 ? 8 : 14, alignItems: 'start', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
 
         {/* Left Column: Words, Bank Details, QR & Notes */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: isA5 ? 6 : 8 }}>
           {/* Amount in words */}
-          <div style={{ padding: '6px 10px', borderRadius: 6, background: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: `3px solid ${accentColor}` }}>
+          <div style={{ padding: isA5 ? '4px 8px' : '6px 10px', borderRadius: 6, background: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: `3px solid ${accentColor}` }}>
             <span style={{ fontSize: '0.59375em', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Amount in Words</span>
             <p style={{ margin: '1px 0 0 0', fontSize: '0.6875em', fontWeight: 600, color: '#1e293b', lineHeight: 1.3 }}>{amountInWords(doc.grand_total)}</p>
             {totalSavings >= 0.5 && (
@@ -690,8 +706,8 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default', fo
 
           {/* Unified Remittance Block: Bank Details & UPI QR Code side-by-side */}
           {Boolean(seller.bank_name || showQr) && (
-            <div style={{ padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 6, background: '#ffffff' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+            <div style={{ padding: isA5 ? '5px 8px' : '8px 10px', border: '1px solid #e2e8f0', borderRadius: 6, background: '#ffffff' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: isA5 ? 6 : 10 }}>
                 {seller.bank_name && (
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '0.59375em', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>
@@ -721,7 +737,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default', fo
                       {qrMode === 'balance' && balanceDue > 0 ? 'Scan for balance' : 'Scan to pay'}
                     </span>
                     <div style={{ padding: 3, background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 4, display: 'inline-block' }}>
-                      <QRCodeSVG value={upiLink!} size={68} />
+                      <QRCodeSVG value={upiLink!} size={isA5 ? 54 : 68} />
                     </div>
                     <span style={{ fontSize: '0.5em', color: '#94a3b8', marginTop: 2 }}>UPI · GPay · PhonePe</span>
                   </div>
@@ -732,7 +748,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default', fo
 
           {/* Terms & Conditions Section */}
           {termsList.length > 0 && (
-            <div style={{ padding: '6px 10px', borderRadius: 6, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '0.59375em', color: '#475569' }}>
+            <div style={{ padding: isA5 ? '4px 8px' : '6px 10px', borderRadius: 6, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: isA5 ? '0.56em' : '0.59375em', color: '#475569' }}>
               <div style={{ fontWeight: 700, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2, fontSize: '0.5625em' }}>
                 Terms & Conditions
               </div>
@@ -746,7 +762,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default', fo
 
           {/* Remarks & Notes */}
           {doc.notes && (
-            <div style={{ padding: '5px 8px', borderRadius: 6, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '0.625em', color: '#475569' }}>
+            <div style={{ padding: isA5 ? '4px 6px' : '5px 8px', borderRadius: 6, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '0.625em', color: '#475569' }}>
               <strong style={{ color: '#334155' }}>Note:</strong> {doc.notes}
             </div>
           )}
@@ -769,8 +785,8 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default', fo
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
-                padding: '4px 9px',
-                fontSize: '0.65625em',
+                padding: isA5 ? '3px 7px' : '4px 9px',
+                fontSize: isA5 ? '0.625em' : '0.65625em',
                 borderBottom: '1px solid #f1f5f9',
                 background: idx % 2 === 0 ? '#ffffff' : '#fafafa',
                 fontVariantNumeric: 'tabular-nums',
@@ -786,27 +802,27 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default', fo
           ))}
 
           {/* Grand Total Row */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 9px', background: '#0f172a', color: 'white' }}>
-            <span style={{ fontSize: '0.75em', fontWeight: 700, letterSpacing: '0.02em', textTransform: 'uppercase' }}>Grand Total</span>
-            <span style={{ fontSize: '0.95em', fontWeight: 800, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums' }}>{formatINR(doc.grand_total)}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isA5 ? '4px 7px' : '6px 9px', background: '#0f172a', color: 'white' }}>
+            <span style={{ fontSize: isA5 ? '0.7em' : '0.75em', fontWeight: 700, letterSpacing: '0.02em', textTransform: 'uppercase' }}>Grand Total</span>
+            <span style={{ fontSize: isA5 ? '0.88em' : '0.95em', fontWeight: 800, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums' }}>{formatINR(doc.grand_total)}</span>
           </div>
 
           {/* Credit Payment Ledger */}
           {isCredit && (
             <div style={{ borderTop: '1px solid #e2e8f0', background: '#ffffff' }}>
               {paymentHistory.map((p, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 9px', fontSize: '0.625em', borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#ffffff' : '#fcfcfd', fontVariantNumeric: 'tabular-nums' }}>
+                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: isA5 ? '3px 7px' : '4px 9px', fontSize: '0.625em', borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#ffffff' : '#fcfcfd', fontVariantNumeric: 'tabular-nums' }}>
                   <span style={{ color: '#475569', fontWeight: 500 }}>
                     Paid: {formatPaymentDate(p.date)}{p.mode ? ` (${p.mode})` : ''}
                   </span>
                   <span style={{ fontWeight: 600, color: '#0f172a' }}>{formatINR(p.amount)}</span>
                 </div>
               ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 9px', fontSize: '0.65625em', borderBottom: '1px solid #e2e8f0', background: '#f0fdf4', fontVariantNumeric: 'tabular-nums' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: isA5 ? '3px 7px' : '4px 9px', fontSize: '0.65625em', borderBottom: '1px solid #e2e8f0', background: '#f0fdf4', fontVariantNumeric: 'tabular-nums' }}>
                 <span style={{ color: '#16a34a', fontWeight: 700 }}>Total Paid</span>
                 <span style={{ fontWeight: 700, color: '#16a34a' }}>{formatINR(doc.paid_amount || 0)}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 9px', fontSize: '0.65625em', background: balanceDue > 0 ? '#fef2f2' : '#f8fafc', fontVariantNumeric: 'tabular-nums' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: isA5 ? '3px 7px' : '4px 9px', fontSize: '0.65625em', background: balanceDue > 0 ? '#fef2f2' : '#f8fafc', fontVariantNumeric: 'tabular-nums' }}>
                 <span style={{ color: balanceDue > 0 ? '#dc2626' : '#64748b', fontWeight: 700 }}>Balance Due</span>
                 <span style={{ fontWeight: 700, color: balanceDue > 0 ? '#dc2626' : '#64748b' }}>{formatINR(balanceDue)}</span>
               </div>
@@ -816,7 +832,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default', fo
       </div>
 
       {/* ── 5. Minimalist Printable Footer ── */}
-      <div className="avoid-break" style={{ marginTop: 10, paddingTop: 6, borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.5625em', color: '#94a3b8', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+      <div className="avoid-break" style={{ marginTop: isA5 ? 6 : 10, paddingTop: isA5 ? 4 : 6, borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: isA5 ? '0.52em' : '0.56em', color: '#94a3b8', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
         <span>{isQuotation ? `Quotation Ref: ${doc.doc_number}` : `Tax Invoice Ref: ${doc.doc_number}`}</span>
         <span style={{ color: '#64748b' }}>{isQuotation ? 'Looking forward to doing business!' : 'Thank you for your business!'}</span>
         <span>Generated by ApexBill</span>
