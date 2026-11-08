@@ -190,7 +190,12 @@
 
   table {
     width: 100% !important;
-    table-layout: fixed !important;
+  }
+
+  .items-table-wrapper table,
+  .items-table {
+    width: 100% !important;
+    table-layout: auto !important;
   }
 
   thead {

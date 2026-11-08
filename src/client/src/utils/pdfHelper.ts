@@ -52,6 +52,10 @@ export async function generateInvoicePdfBlob(element: HTMLElement, filename: str
             overflow: visible !important;
             border-radius: 0 !important;
           }
+          .items-table-wrapper table {
+            table-layout: auto !important;
+            width: 100% !important;
+          }
         `
         clonedDoc.head?.appendChild(style)
       }
@@ -92,6 +96,10 @@ export async function downloadInvoicePdf(element: HTMLElement, filename: string)
           .items-table-wrapper {
             overflow: visible !important;
             border-radius: 0 !important;
+          }
+          .items-table-wrapper table {
+            table-layout: auto !important;
+            width: 100% !important;
           }
         `
         clonedDoc.head?.appendChild(style)

@@ -434,14 +434,14 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default', fo
 
         return (
           <div className="items-table-wrapper" style={{ borderRadius: 6, border: '1px solid #cbd5e1', marginBottom: 12, width: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
+            <table className="items-table" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #cbd5e1' }}>
                   {tableColumns.map((col) => (
                     <th
                       key={col.id}
                       style={{
-                        width: col.id === 'desc' ? 'auto' : '1%',
+                        width: col.id === 'desc' ? '100%' : 'auto',
                         padding: '6px 7px',
                         fontSize: '0.6em',
                         fontWeight: 700,

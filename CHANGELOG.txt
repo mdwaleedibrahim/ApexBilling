@@ -3,6 +3,14 @@
 ========================================================================
 
 ========================================================================
+ApexBill Release v2.23.0 - 2026-11-08 08:54:58
+========================================================================
+Changes & Commits in this Build:
+  * feat: redesign A4 invoice with dynamic columns, content-fitted panels, and Nalgonda jurisdiction terms (d197bfc)
+  * feat: add compact invoice preview modal with dynamic font scaling and AA-/AA+ controls (5582b1e)
+  * docs: update CHANGELOG for v2.22.0 release (659657a)
+
+========================================================================
 ApexBill Release v2.22.0 - 2026-10-27 00:25:46
 ========================================================================
 Changes & Commits in this Build:
