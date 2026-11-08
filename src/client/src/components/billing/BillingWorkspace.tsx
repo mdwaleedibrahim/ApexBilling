@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { CheckCircle, Eye, X } from 'lucide-react'
+import { CheckCircle, Eye, X, Printer } from 'lucide-react'
 import CustomerSelector from './CustomerSelector'
 import ItemEntryTable from './ItemEntryTable'
 import SummaryCheckoutCard from './SummaryCheckoutCard'
@@ -7,6 +7,7 @@ import TermsAndConditionsCard from './TermsAndConditionsCard'
 import MemorySlotBar from './MemorySlotBar'
 import SellerProfileSelector from './SellerProfileSelector'
 import A4InvoiceTemplate from '../print/A4InvoiceTemplate'
+import InvoicePreviewModal from '../print/InvoicePreviewModal'
 import { api } from '../../utils/api'
 import { useBillingStore } from '../../store/useBillingStore'
 import { useDataStore } from '../../store/useDataStore'
@@ -217,64 +218,50 @@ export default function BillingWorkspace({ onEdit }: { onEdit?: (doc: any) => vo
 
       {/* Pre-checkout Preview Modal */}
       {showPreview && (
-        <div className="modal-backdrop" onClick={() => setShowPreview(false)}>
-          <div
-            className="w-full max-w-3xl max-h-[95vh] overflow-y-auto bg-white rounded-2xl shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="no-print flex items-center justify-between p-4 border-b bg-gray-50 rounded-t-2xl">
-              <div className="flex items-center gap-2">
-                <Eye size={20} className="text-brand-400" />
-                <span className="font-semibold text-gray-800">Preview</span>
-                <span className="text-xs text-amber-600 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full font-medium ml-1">
-                  Draft — not saved
-                </span>
-              </div>
-              <button
-                onClick={() => setShowPreview(false)}
-                className="p-1.5 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-200 transition-colors"
-                title="Close preview"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <A4InvoiceTemplate doc={buildPreviewDoc()} profile={combinedProfile} />
-          </div>
-        </div>
+        <InvoicePreviewModal
+          doc={buildPreviewDoc()}
+          profile={combinedProfile}
+          title="Preview"
+          titleIcon={<Eye size={14} className="text-brand-400" />}
+          titleBadge={
+            <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
+              Draft · not saved
+            </span>
+          }
+          onClose={() => setShowPreview(false)}
+        />
       )}
 
-      {/* Post-save Print Preview Modal */}
+      {/* Post-save Print Modal */}
       {showPrint && successDoc && (
-        <div className="modal-backdrop">
-          <div className="w-full max-w-3xl max-h-[95vh] overflow-y-auto bg-white rounded-2xl shadow-2xl">
-            <div className="no-print flex items-center justify-between p-4 border-b">
-              <div className="flex items-center gap-2 text-emerald-600">
-                <CheckCircle size={20} />
-                <span className="font-semibold">{successDoc.doc_type === 'QUOTATION' ? 'Quotation' : 'Invoice'} saved!</span>
-                <span className="text-gray-500 text-sm ml-1">{successDoc.doc_number}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleWhatsAppShare}
-                  className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-500 flex items-center gap-1.5 shadow-md shadow-emerald-600/20"
-                  title="Share generated PDF via WhatsApp"
-                >
-                  <WhatsAppIcon size={16} className="text-white" /> WhatsApp
-                </button>
-                <button onClick={() => window.print()} className="px-4 py-2 bg-brand-600 text-white rounded-xl text-sm font-medium hover:bg-brand-500">
-                  🖨️ Print
-                </button>
-                <button onClick={() => { setShowPrint(false); setSuccessDoc(null) }}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200">
-                  Close
-                </button>
-              </div>
-            </div>
-            <div ref={printTemplateRef}>
-              <A4InvoiceTemplate doc={successDoc} profile={combinedProfile} />
-            </div>
-          </div>
-        </div>
+        <InvoicePreviewModal
+          doc={successDoc}
+          profile={combinedProfile}
+          title={`${successDoc.doc_type === 'QUOTATION' ? 'Quotation' : 'Invoice'} Saved`}
+          titleIcon={<CheckCircle size={14} className="text-emerald-400" />}
+          titleBadge={
+            <span className="text-[10px] text-gray-400 font-mono">{successDoc.doc_number}</span>
+          }
+          actions={
+            <>
+              <button
+                onClick={handleWhatsAppShare}
+                className="btn-primary text-xs py-1.5 bg-emerald-600 hover:bg-emerald-500 border-0 flex items-center gap-1.5 shadow-sm shadow-emerald-900/40"
+                title="Share via WhatsApp"
+              >
+                <WhatsAppIcon size={13} className="text-white" /> WhatsApp
+              </button>
+              <button
+                onClick={() => window.print()}
+                className="btn-primary text-xs py-1.5 flex items-center gap-1.5"
+              >
+                <Printer size={13} /> Print
+              </button>
+            </>
+          }
+          onClose={() => { setShowPrint(false); setSuccessDoc(null) }}
+          templateRef={printTemplateRef}
+        />
       )}
     </div>
   )

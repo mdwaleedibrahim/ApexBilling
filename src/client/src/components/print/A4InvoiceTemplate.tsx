@@ -3,7 +3,7 @@ import { Fragment } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { buildUpiLink, formatINR, formatDate, formatDateTime, amountInWords } from '../../utils/upiHelper'
 
-export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: { doc: any; profile?: any; qrMode?: 'default' | 'balance' }) {
+export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default', fontScale = 1 }: { doc: any; profile?: any; qrMode?: 'default' | 'balance'; fontScale?: number }) {
   if (!doc) return null
   const sellerSnap = (() => {
     try {
@@ -183,7 +183,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
     : summaryTax.sgst
 
   return (
-    <div className="print-container bg-white text-gray-900 p-8 relative" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif", color: '#0f172a', boxSizing: 'border-box', width: '100%', maxWidth: '210mm', margin: '0 auto' }}>
+    <div className="print-container bg-white text-gray-900 p-8 relative" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif", color: '#0f172a', boxSizing: 'border-box', width: '100%', maxWidth: '210mm', margin: '0 auto', fontSize: `${fontScale}em` }}>
 
       {/* Watermarks */}
       {isPaid && (
@@ -196,14 +196,14 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
       {/* Header Banner */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, paddingBottom: 20, borderBottom: `2px solid ${accentColor}` }}>
         <div style={{ maxWidth: '60%' }}>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: accentColor, margin: '0 0 4px 0', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+          <h1 style={{ fontSize: '1.5em', fontWeight: 800, color: accentColor, margin: '0 0 4px 0', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
             {seller.business_name}
           </h1>
           {seller.trade_name && (
             <div style={{ marginTop: 4, marginBottom: 6 }}>
               <span style={{
                 display: 'inline-block',
-                fontSize: 11,
+                fontSize: '0.6875em',
                 fontWeight: 700,
                 color: accentColor,
                 backgroundColor: '#ffffff',
@@ -216,13 +216,13 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
               </span>
             </div>
           )}
-          <p style={{ margin: '3px 0 0 0', color: '#475569', fontSize: 12, lineHeight: 1.4 }}>
+          <p style={{ margin: '3px 0 0 0', color: '#475569', fontSize: '0.75em', lineHeight: 1.4 }}>
             {seller.address_line1}{seller.address_line2 ? ', ' + seller.address_line2 : ''}
           </p>
-          <p style={{ margin: '2px 0', color: '#475569', fontSize: 12 }}>
+          <p style={{ margin: '2px 0', color: '#475569', fontSize: '0.75em' }}>
             {seller.city} — {seller.pincode}
           </p>
-          <div style={{ marginTop: 6, display: 'flex', gap: 12, fontSize: 11, color: '#334155', fontWeight: 500 }}>
+          <div style={{ marginTop: 6, display: 'flex', gap: 12, fontSize: '0.6875em', color: '#334155', fontWeight: 500 }}>
             <span>GSTIN: <strong style={{ color: '#0f172a' }}>{seller.gstin}</strong></span>
             {seller.phone && <span>· Ph: <strong style={{ color: '#0f172a' }}>{seller.phone}</strong></span>}
           </div>
@@ -231,19 +231,19 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
         {/* Document Metadata Card */}
         <div style={{ textAlign: 'right', minWidth: 200, border: `2px solid ${accentColor}`, borderRadius: 10, overflow: 'hidden' }}>
           <div style={{ background: headerBg, color: 'white', padding: '8px 16px', textAlign: 'center', borderBottom: `2px solid ${accentColor}` }}>
-            <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            <span style={{ fontSize: '0.875em', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
               {isQuotation ? 'ESTIMATE / QUOTATION' : 'TAX INVOICE'}
             </span>
           </div>
           <div style={{ padding: '10px 14px', background: '#f8fafc' }}>
-            <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: accentColor, fontFamily: 'monospace' }}>
+            <p style={{ margin: 0, fontSize: '0.875em', fontWeight: 800, color: accentColor, fontFamily: 'monospace' }}>
               {doc.doc_number}
             </p>
-            <p style={{ margin: '4px 0 0 0', fontSize: 11, color: '#64748b' }}>
+            <p style={{ margin: '4px 0 0 0', fontSize: '0.6875em', color: '#64748b' }}>
               Date & Time: <strong style={{ color: '#334155' }}>{formatDateTime(doc.doc_date, doc.doc_time || doc.created_at)}</strong>
             </p>
             {doc.revision_number > 1 && (
-              <span style={{ display: 'inline-block', marginTop: 4, fontSize: 10, fontWeight: 700, color: '#d97706', background: '#fef3c7', padding: '1px 6px', borderRadius: 4 }}>
+              <span style={{ display: 'inline-block', marginTop: 4, fontSize: '0.625em', fontWeight: 700, color: '#d97706', background: '#fef3c7', padding: '1px 6px', borderRadius: 4 }}>
                 Revision v{doc.revision_number}
               </span>
             )}
@@ -258,17 +258,17 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
             {/* Customer Box */}
             <td style={{ width: isQuotation ? '100%' : '50%', verticalAlign: 'top', padding: 0 }}>
               <div style={{ padding: '12px 16px', border: '1px solid #e2e8f0', borderLeft: `4px solid ${accentColor}`, borderRadius: 10, background: '#f8fafc' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                <div style={{ fontSize: '0.6875em', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
                   {isQuotation ? 'Quotation Issued To:' : 'Billed To (Customer):'}
                 </div>
-                <p style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '0 0 2px 0' }}>
+                <p style={{ fontSize: '0.875em', fontWeight: 700, color: '#0f172a', margin: '0 0 2px 0' }}>
                   {snap.name || (snap.phone && !snap.phone.startsWith('NO_PHONE_') ? `Customer (${snap.phone})` : 'Walk-in Customer')}
                 </p>
                 {snap.phone && !snap.phone.startsWith('NO_PHONE_') && (
-                  <p style={{ margin: '2px 0', fontSize: 11, color: '#475569' }}>Phone: <strong>{snap.phone}</strong></p>
+                  <p style={{ margin: '2px 0', fontSize: '0.6875em', color: '#475569' }}>Phone: <strong>{snap.phone}</strong></p>
                 )}
-                {snap.billing_address && <p style={{ margin: '2px 0', fontSize: 11, color: '#475569' }}>{snap.billing_address}</p>}
-                {snap.gstin && <p style={{ margin: '2px 0', fontSize: 11, color: '#475569' }}>GSTIN: <strong>{snap.gstin}</strong></p>}
+                {snap.billing_address && <p style={{ margin: '2px 0', fontSize: '0.6875em', color: '#475569' }}>{snap.billing_address}</p>}
+                {snap.gstin && <p style={{ margin: '2px 0', fontSize: '0.6875em', color: '#475569' }}>GSTIN: <strong>{snap.gstin}</strong></p>}
               </div>
             </td>
 
@@ -276,7 +276,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
             {!isQuotation && (
               <td style={{ width: '50%', verticalAlign: 'top', padding: 0 }}>
                 <div style={{ padding: '12px 16px', border: '1px solid #e2e8f0', borderLeft: `4px solid ${accentColor}`, borderRadius: 10, background: '#f8fafc' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                  <div style={{ fontSize: '0.6875em', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
                     Payment Information:
                   </div>
                   {isPartial ? (
@@ -284,16 +284,16 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                       <tbody>
                         <tr>
                           <td style={{ width: '50%', verticalAlign: 'top', paddingBottom: 6 }}>
-                            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 4 }}>Payment Mode</div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', padding: '2px 0', lineHeight: 1.2 }}>
+                            <div style={{ fontSize: '0.625em', color: '#64748b', marginBottom: 4 }}>Payment Mode</div>
+                            <div style={{ fontSize: '0.75em', fontWeight: 700, color: '#0f172a', padding: '2px 0', lineHeight: 1.2 }}>
                               {doc.payment_mode === 'CREDIT' ? `CREDIT (${doc.partial_payment_mode || 'Cash'})` : (doc.payment_mode || 'CASH')}
                             </div>
                           </td>
                           <td style={{ width: '50%', verticalAlign: 'top', paddingBottom: 6 }}>
-                            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 4 }}>Status</div>
+                            <div style={{ fontSize: '0.625em', color: '#64748b', marginBottom: 4 }}>Status</div>
                             <div style={{
                               display: 'inline-block',
-                              fontSize: 10,
+                              fontSize: '0.625em',
                               fontWeight: 700,
                               lineHeight: 1.2,
                               padding: '2px 8px',
@@ -308,12 +308,12 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                         </tr>
                         <tr>
                           <td style={{ width: '50%', verticalAlign: 'top' }}>
-                            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 4 }}>Amount Paid</div>
-                            <strong style={{ fontSize: 12, color: '#16a34a' }}>{formatINR(doc.paid_amount || 0)}</strong>
+                            <div style={{ fontSize: '0.625em', color: '#64748b', marginBottom: 4 }}>Amount Paid</div>
+                            <strong style={{ fontSize: '0.75em', color: '#16a34a' }}>{formatINR(doc.paid_amount || 0)}</strong>
                           </td>
                           <td style={{ width: '50%', verticalAlign: 'top' }}>
-                            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 4 }}>Balance Due</div>
-                            <strong style={{ fontSize: 12, color: '#dc2626' }}>{formatINR(balanceDue)}</strong>
+                            <div style={{ fontSize: '0.625em', color: '#64748b', marginBottom: 4 }}>Balance Due</div>
+                            <strong style={{ fontSize: '0.75em', color: '#dc2626' }}>{formatINR(balanceDue)}</strong>
                           </td>
                         </tr>
                       </tbody>
@@ -323,16 +323,16 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                       <tbody>
                         <tr>
                           <td style={{ width: '50%', verticalAlign: 'top' }}>
-                            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 4 }}>Payment Mode</div>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', padding: '2px 0', lineHeight: 1.2 }}>
+                            <div style={{ fontSize: '0.625em', color: '#64748b', marginBottom: 4 }}>Payment Mode</div>
+                            <div style={{ fontSize: '0.8125em', fontWeight: 700, color: '#0f172a', padding: '2px 0', lineHeight: 1.2 }}>
                               {doc.payment_mode || 'CASH'}
                             </div>
                           </td>
                           <td style={{ width: '50%', verticalAlign: 'top' }}>
-                            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 4 }}>Status</div>
+                            <div style={{ fontSize: '0.625em', color: '#64748b', marginBottom: 4 }}>Status</div>
                             <div style={{
                               display: 'inline-block',
-                              fontSize: 11,
+                              fontSize: '0.6875em',
                               fontWeight: 700,
                               lineHeight: 1.2,
                               padding: '2px 8px',
@@ -431,7 +431,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                       style={{
                         width: col.width,
                         padding: '8px 8px',
-                        fontSize: 10,
+                        fontSize: '0.625em',
                         fontWeight: 700,
                         letterSpacing: '0.03em',
                         textTransform: 'uppercase',
@@ -459,7 +459,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                             colSpan={totalCols}
                             style={{
                               padding: '7px 8px 3px 8px',
-                              fontSize: 11.5,
+                              fontSize: '0.71875em',
                               fontWeight: 600,
                               color: '#0f172a',
                               lineHeight: 1.4,
@@ -468,10 +468,10 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                               whiteSpace: 'normal',
                             }}
                           >
-                            <span style={{ fontWeight: 700, color: '#64748b', marginRight: 6, fontSize: 11 }}>#{i + 1}</span>
+                            <span style={{ fontWeight: 700, color: '#64748b', marginRight: 6, fontSize: '0.6875em' }}>#{i + 1}</span>
                             <span style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', whiteSpace: 'normal' }}>{item.product_name}</span>
                             {!!item.mrp && (
-                              <div style={{ fontSize: 9.5, color: '#64748b', fontWeight: 500, marginTop: 2 }}>
+                              <div style={{ fontSize: '0.59375em', color: '#64748b', fontWeight: 500, marginTop: 2 }}>
                                 MRP {item.mrp}
                               </div>
                             )}
@@ -494,58 +494,58 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
 
                           return (
                             <tr style={{ background: rowBg, borderBottom: '1px solid #e2e8f0', breakInside: 'avoid' }}>
-                              <td style={{ padding: '3px 4px 7px 4px', textAlign: 'center', fontSize: 10, color: '#94a3b8' }}>↳</td>
-                              <td style={{ padding: '3px 6px 7px 6px', fontSize: 10, fontFamily: 'monospace', color: '#334155', fontWeight: 600, wordBreak: 'break-all' }}>
+                              <td style={{ padding: '3px 4px 7px 4px', textAlign: 'center', fontSize: '0.625em', color: '#94a3b8' }}>↳</td>
+                              <td style={{ padding: '3px 6px 7px 6px', fontSize: '0.625em', fontFamily: 'monospace', color: '#334155', fontWeight: 600, wordBreak: 'break-all' }}>
                                 {item.sku || '—'}
                               </td>
                               <td style={{ padding: '3px 8px 7px 8px' }}></td>
                               {showHsn && (
-                                <td style={{ padding: '3px 6px 7px 6px', fontSize: 10, color: '#475569', whiteSpace: 'nowrap' }}>
+                                <td style={{ padding: '3px 6px 7px 6px', fontSize: '0.625em', color: '#475569', whiteSpace: 'nowrap' }}>
                                   {item.hsn_sac || '—'}
                                 </td>
                               )}
-                              <td style={{ padding: '3px 4px 7px 4px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>
+                              <td style={{ padding: '3px 4px 7px 4px', textAlign: 'center', fontSize: '0.6875em', fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>
                                 {item.quantity}
                               </td>
-                              <td style={{ padding: '3px 4px 7px 4px', textAlign: 'center', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
+                              <td style={{ padding: '3px 4px 7px 4px', textAlign: 'center', fontSize: '0.625em', color: '#64748b', whiteSpace: 'nowrap' }}>
                                 {item.unit || 'PCS'}
                               </td>
                               {!hideDiscount && (
-                                <td style={{ padding: '3px 6px 7px 6px', textAlign: 'center', fontSize: 11, whiteSpace: 'nowrap' }}>
+                                <td style={{ padding: '3px 6px 7px 6px', textAlign: 'center', fontSize: '0.6875em', whiteSpace: 'nowrap' }}>
                                   {mrp > displayedPrice && mrp > 0 ? (
-                                    <span style={{ color: '#dc2626', fontWeight: 700, fontSize: 10.5 }}>
+                                    <span style={{ color: '#dc2626', fontWeight: 700, fontSize: '0.65625em' }}>
                                       {Math.round(((mrp - displayedPrice) / mrp) * 100)}%
                                     </span>
                                   ) : displayedDiscountPct > 0 ? (
-                                    <span style={{ color: '#dc2626', fontWeight: 700, fontSize: 10.5 }}>{displayedDiscountPct}%</span>
+                                    <span style={{ color: '#dc2626', fontWeight: 700, fontSize: '0.65625em' }}>{displayedDiscountPct}%</span>
                                   ) : (
                                     <span style={{ color: '#94a3b8' }}>—</span>
                                   )}
                                 </td>
                               )}
                               {!hidePrice && (
-                                <td style={{ padding: '3px 8px 7px 8px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>
+                                <td style={{ padding: '3px 8px 7px 8px', textAlign: 'right', fontSize: '0.6875em', color: '#334155', whiteSpace: 'nowrap' }}>
                                   {formatINR(displayedPrice)}
                                 </td>
                               )}
                               {!hideTax && (
-                                <td style={{ padding: '3px 8px 7px 8px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>
+                                <td style={{ padding: '3px 8px 7px 8px', textAlign: 'right', fontSize: '0.6875em', color: '#334155', whiteSpace: 'nowrap' }}>
                                   {formatINR(lineTaxable)}
                                 </td>
                               )}
                               {!hideTax && (
-                                <td style={{ padding: '3px 6px 7px 6px', textAlign: 'right', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
+                                <td style={{ padding: '3px 6px 7px 6px', textAlign: 'right', fontSize: '0.625em', color: '#64748b', whiteSpace: 'nowrap' }}>
                                   {lineCgstRate}%
-                                  <span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: 9.5 }}>{formatINR(lineCgstAmount)}</span>
+                                  <span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: '0.59375em' }}>{formatINR(lineCgstAmount)}</span>
                                 </td>
                               )}
                               {!hideTax && (
-                                <td style={{ padding: '3px 6px 7px 6px', textAlign: 'right', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
+                                <td style={{ padding: '3px 6px 7px 6px', textAlign: 'right', fontSize: '0.625em', color: '#64748b', whiteSpace: 'nowrap' }}>
                                   {lineSgstRate}%
-                                  <span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: 9.5 }}>{formatINR(lineSgstAmount)}</span>
+                                  <span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: '0.59375em' }}>{formatINR(lineSgstAmount)}</span>
                                 </td>
                               )}
-                              <td style={{ padding: '3px 8px 7px 8px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>
+                              <td style={{ padding: '3px 8px 7px 8px', textAlign: 'right', fontSize: '0.6875em', fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>
                                 {formatINR(lineTotal)}
                               </td>
                             </tr>
@@ -558,10 +558,10 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                   // Standard single line for compact item names
                   return (
                     <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: rowBg, breakInside: 'avoid' }}>
-                      <td style={{ padding: '7px 4px', textAlign: 'center', fontSize: 11, color: '#64748b' }}>{i + 1}</td>
+                      <td style={{ padding: '7px 4px', textAlign: 'center', fontSize: '0.6875em', color: '#64748b' }}>{i + 1}</td>
                       <td style={{
                         padding: '7px 6px',
-                        fontSize: 10,
+                        fontSize: '0.625em',
                         fontFamily: 'monospace',
                         color: '#334155',
                         fontWeight: 600,
@@ -571,7 +571,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                       </td>
                       <td style={{
                         padding: '7px 8px',
-                        fontSize: 11,
+                        fontSize: '0.6875em',
                         fontWeight: 600,
                         color: '#0f172a',
                         wordBreak: 'break-word',
@@ -581,16 +581,16 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                       }}>
                         <div>{item.product_name}</div>
                         {!!item.mrp && (
-                          <div style={{ fontSize: 9.5, color: '#64748b', fontWeight: 500, marginTop: 2 }}>
+                          <div style={{ fontSize: '0.59375em', color: '#64748b', fontWeight: 500, marginTop: 2 }}>
                             MRP {item.mrp}
                           </div>
                         )}
                       </td>
                       {showHsn && (
-                        <td style={{ padding: '7px 6px', fontSize: 10, color: '#475569', whiteSpace: 'nowrap' }}>{item.hsn_sac || '—'}</td>
+                        <td style={{ padding: '7px 6px', fontSize: '0.625em', color: '#475569', whiteSpace: 'nowrap' }}>{item.hsn_sac || '—'}</td>
                       )}
-                      <td style={{ padding: '7px 4px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>{item.quantity}</td>
-                      <td style={{ padding: '7px 4px', textAlign: 'center', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>{item.unit || 'PCS'}</td>
+                      <td style={{ padding: '7px 4px', textAlign: 'center', fontSize: '0.6875em', fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>{item.quantity}</td>
+                      <td style={{ padding: '7px 4px', textAlign: 'center', fontSize: '0.625em', color: '#64748b', whiteSpace: 'nowrap' }}>{item.unit || 'PCS'}</td>
                       {(() => {
                         const origPrice = parseFloat(item.unit_price) || 0
                         const displayedPrice = origPrice * (1 - pctDiscountRate)
@@ -609,39 +609,39 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
                         return (
                           <>
                             {!hideDiscount && (
-                              <td style={{ padding: '7px 6px', textAlign: 'center', fontSize: 11, whiteSpace: 'nowrap' }}>
+                              <td style={{ padding: '7px 6px', textAlign: 'center', fontSize: '0.6875em', whiteSpace: 'nowrap' }}>
                                 {mrp > displayedPrice && mrp > 0 ? (
-                                  <span style={{ color: '#dc2626', fontWeight: 700, fontSize: 10.5 }}>
+                                  <span style={{ color: '#dc2626', fontWeight: 700, fontSize: '0.65625em' }}>
                                     {Math.round(((mrp - displayedPrice) / mrp) * 100)}%
                                   </span>
                                 ) : displayedDiscountPct > 0 ? (
-                                  <span style={{ color: '#dc2626', fontWeight: 700, fontSize: 10.5 }}>{displayedDiscountPct}%</span>
+                                  <span style={{ color: '#dc2626', fontWeight: 700, fontSize: '0.65625em' }}>{displayedDiscountPct}%</span>
                                 ) : (
                                   <span style={{ color: '#94a3b8' }}>—</span>
                                 )}
                               </td>
                             )}
                             {!hidePrice && (
-                              <td style={{ padding: '7px 8px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>
+                              <td style={{ padding: '7px 8px', textAlign: 'right', fontSize: '0.6875em', color: '#334155', whiteSpace: 'nowrap' }}>
                                 {formatINR(displayedPrice)}
                               </td>
                             )}
                             {!hideTax && (
-                              <td style={{ padding: '7px 8px', textAlign: 'right', fontSize: 11, color: '#334155', whiteSpace: 'nowrap' }}>
+                              <td style={{ padding: '7px 8px', textAlign: 'right', fontSize: '0.6875em', color: '#334155', whiteSpace: 'nowrap' }}>
                                 {formatINR(lineTaxable)}
                               </td>
                             )}
                             {!hideTax && (
-                              <td style={{ padding: '7px 6px', textAlign: 'right', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
-                                {lineCgstRate}%<span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: 9.5 }}>{formatINR(lineCgstAmount)}</span>
+                              <td style={{ padding: '7px 6px', textAlign: 'right', fontSize: '0.625em', color: '#64748b', whiteSpace: 'nowrap' }}>
+                                {lineCgstRate}%<span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: '0.59375em' }}>{formatINR(lineCgstAmount)}</span>
                               </td>
                             )}
                             {!hideTax && (
-                              <td style={{ padding: '7px 6px', textAlign: 'right', fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
-                                {lineSgstRate}%<span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: 9.5 }}>{formatINR(lineSgstAmount)}</span>
+                              <td style={{ padding: '7px 6px', textAlign: 'right', fontSize: '0.625em', color: '#64748b', whiteSpace: 'nowrap' }}>
+                                {lineSgstRate}%<span style={{ display: 'block', color: '#334155', fontWeight: 500, fontSize: '0.59375em' }}>{formatINR(lineSgstAmount)}</span>
                               </td>
                             )}
-                            <td style={{ padding: '7px 8px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>
+                            <td style={{ padding: '7px 8px', textAlign: 'right', fontSize: '0.6875em', fontWeight: 700, color: accentColor, whiteSpace: 'nowrap' }}>
                                 {formatINR(lineTotal)}
                               </td>
                           </>
@@ -662,10 +662,10 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
         {/* Left Column: Words & Bank details */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ padding: '10px 14px', borderRadius: 10, background: '#f1f5f9', borderLeft: `4px solid ${accentColor}` }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Amount in Words:</span>
-            <p style={{ margin: '2px 0 0 0', fontSize: 11, fontWeight: 600, color: '#1e293b' }}>{amountInWords(doc.grand_total)}</p>
+            <span style={{ fontSize: '0.625em', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Amount in Words:</span>
+            <p style={{ margin: '2px 0 0 0', fontSize: '0.6875em', fontWeight: 600, color: '#1e293b' }}>{amountInWords(doc.grand_total)}</p>
             {totalSavings >= 0.5 && (
-              <p style={{ margin: '4px 0 0 0', fontSize: 10, fontStyle: 'italic', color: '#166534' }}>
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.625em', fontStyle: 'italic', color: '#166534' }}>
                 {isQuotation ? 'You could save ' : 'You saved '}
                 <strong style={{ fontWeight: 700 }}>{amountInWords(totalSavings)} ({formatINR(totalSavings)})</strong>
               </p>
@@ -674,8 +674,8 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
 
           {seller.bank_name && (
             <div style={{ padding: '12px 14px', border: '1px solid #e2e8f0', borderRadius: 10, background: '#ffffff' }}>
-              <p style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', margin: '0 0 4px 0', letterSpacing: '0.04em' }}>Bank Account Details:</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11, color: '#334155' }}>
+              <p style={{ fontSize: '0.625em', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', margin: '0 0 4px 0', letterSpacing: '0.04em' }}>Bank Account Details:</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: '0.6875em', color: '#334155' }}>
                 <div><span style={{ color: '#94a3b8' }}>Bank:</span> <strong>{seller.bank_name}</strong></div>
                 <div><span style={{ color: '#94a3b8' }}>A/c No:</span> <strong style={{ fontFamily: 'monospace' }}>{seller.bank_account_no}</strong></div>
                 <div><span style={{ color: '#94a3b8' }}>IFSC:</span> <strong style={{ fontFamily: 'monospace' }}>{seller.bank_ifsc}</strong></div>
@@ -698,32 +698,32 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
               (!isCredit && isPartial) ? ['Amount Paid', formatINR(doc.paid_amount || 0)] : null,
               (!isCredit && isPartial) ? ['Balance Due', formatINR(balanceDue)] : null,
             ].filter(Boolean).map(([label, value]: any, idx) => (
-              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', fontSize: 11, borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
+              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', fontSize: '0.6875em', borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
                 <span style={{ color: label === 'Balance Due' ? '#dc2626' : (label === 'Amount Paid' ? '#16a34a' : '#64748b'), fontWeight: isPartial && (label === 'Balance Due' || label === 'Amount Paid') ? 700 : 400 }}>{label}</span>
                 <span style={{ fontWeight: 600, color: label === 'Balance Due' ? '#dc2626' : (label === 'Amount Paid' ? '#16a34a' : '#334155') }}>{value}</span>
               </div>
             ))}
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: headerBg, color: 'white' }}>
-              <span style={{ fontSize: 13, fontWeight: 700 }}>Grand Total</span>
-              <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.01em' }}>{formatINR(doc.grand_total)}</span>
+              <span style={{ fontSize: '0.8125em', fontWeight: 700 }}>Grand Total</span>
+              <span style={{ fontSize: '1em', fontWeight: 800, letterSpacing: '-0.01em' }}>{formatINR(doc.grand_total)}</span>
             </div>
 
             {/* Requirement 3: In case of Credit partial & full payments, show all partial payments history with date above Total amount paid, and Total amount paid before Balance due */}
             {isCredit && (
               <div style={{ borderTop: '1px solid #e2e8f0', background: '#ffffff' }}>
                 {paymentHistory.map((p, idx) => (
-                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', fontSize: 10.5, borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#ffffff' : '#fcfcfd' }}>
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', fontSize: '0.65625em', borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#ffffff' : '#fcfcfd' }}>
                     <span style={{ color: '#475569', fontWeight: 500 }}>
                       Amount paid: {formatPaymentDate(p.date)}{p.mode ? ` ${p.mode}` : ''}
                     </span>
                     <span style={{ fontWeight: 600, color: '#0f172a' }}>{formatINR(p.amount)}</span>
                   </div>
                 ))}
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', fontSize: 11, borderBottom: '1px solid #e2e8f0', background: '#f0fdf4' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', fontSize: '0.6875em', borderBottom: '1px solid #e2e8f0', background: '#f0fdf4' }}>
                   <span style={{ color: '#16a34a', fontWeight: 700 }}>Total amount paid</span>
                   <span style={{ fontWeight: 700, color: '#16a34a' }}>{formatINR(doc.paid_amount || 0)}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', fontSize: 11, background: balanceDue > 0 ? '#fef2f2' : '#f8fafc' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', fontSize: '0.6875em', background: balanceDue > 0 ? '#fef2f2' : '#f8fafc' }}>
                   <span style={{ color: balanceDue > 0 ? '#dc2626' : '#64748b', fontWeight: 700 }}>Balance due</span>
                   <span style={{ fontWeight: 700, color: balanceDue > 0 ? '#dc2626' : '#64748b' }}>{formatINR(balanceDue)}</span>
                 </div>
@@ -734,13 +734,13 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
           {/* UPI Scan to Pay Card (Invoices only) */}
           {(((seller?.enable_scan_to_pay ?? profile?.enable_scan_to_pay) !== 0 && (seller?.enable_scan_to_pay ?? profile?.enable_scan_to_pay) !== false) || (qrMode === 'balance' && balanceDue > 0)) && !isQuotation && upiLink && (
             <div style={{ textAlign: 'center', marginTop: 14, padding: 12, border: '1px dashed #cbd5e1', borderRadius: 10, background: '#f8fafc' }}>
-              <p style={{ fontSize: 10, fontWeight: 800, color: accentColor, margin: '0 0 6px 0', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              <p style={{ fontSize: '0.625em', fontWeight: 800, color: accentColor, margin: '0 0 6px 0', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 {qrHeader}
               </p>
               <div style={{ display: 'flex', justifyContent: 'center', padding: 6, background: 'white', borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', width: 'fit-content', margin: '4px auto' }}>
                 <QRCodeSVG value={upiLink} size={105} />
               </div>
-              <p style={{ fontSize: 9, color: '#64748b', margin: '6px 0 0 0' }}>GPay · PhonePe · Paytm · BHIM</p>
+              <p style={{ fontSize: '0.5625em', color: '#64748b', margin: '6px 0 0 0' }}>GPay · PhonePe · Paytm · BHIM</p>
             </div>
           )}
         </div>
@@ -748,8 +748,8 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
 
       {/* Terms & Conditions Section */}
       {termsList.length > 0 && (
-        <div className="avoid-break" style={{ marginTop: 14, padding: '10px 14px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 10, color: '#334155', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
-          <div style={{ fontWeight: 800, color: accentColor, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: 10 }}>
+        <div className="avoid-break" style={{ marginTop: 14, padding: '10px 14px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '0.625em', color: '#334155', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+          <div style={{ fontWeight: 800, color: accentColor, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.625em' }}>
             Terms & Conditions:
           </div>
           <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.5 }}>
@@ -762,7 +762,7 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
 
       {/* Remarks & Footer Notes */}
       {doc.notes && (
-        <div className="avoid-break" style={{ marginTop: 12, padding: '8px 12px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 11, color: '#475569', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+        <div className="avoid-break" style={{ marginTop: 12, padding: '8px 12px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '0.6875em', color: '#475569', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
           <strong>Notes / Remarks:</strong> {doc.notes}
         </div>
       )}
@@ -770,12 +770,12 @@ export default function A4InvoiceTemplate({ doc, profile, qrMode = 'default' }: 
 
       {/* Brand Greeting & Printable Footer */}
       <div className="avoid-break" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
-        <p style={{ marginTop: 12, textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#64748b' }}>
+        <p style={{ marginTop: 12, textAlign: 'center', fontSize: '0.6875em', fontWeight: 500, color: '#64748b' }}>
           {isQuotation ? 'Looking forward to doing business!' : 'Thank you for your business!'}
         </p>
 
         {/* Printable Page Footer */}
-        <div style={{ marginTop: 10, paddingTop: 6, borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#94a3b8' }}>
+        <div style={{ marginTop: 10, paddingTop: 6, borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', fontSize: '0.5625em', color: '#94a3b8' }}>
           <span>{isQuotation ? `Quotation Ref: ${doc.doc_number}` : `Tax Invoice Ref: ${doc.doc_number}`}</span>
           <span>Generated by ApexBill</span>
         </div>

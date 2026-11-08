@@ -10,6 +10,7 @@ import { formatINR, formatDate } from '../../utils/upiHelper'
 import { useBillingStore } from '../../store/useBillingStore'
 import { useDialogStore } from '../../store/useDialogStore'
 import A4InvoiceTemplate from '../print/A4InvoiceTemplate'
+import InvoicePreviewModal from '../print/InvoicePreviewModal'
 import { WhatsAppIcon, shareInvoiceViaWhatsApp } from '../../utils/whatsappHelper'
 
 interface Props {
@@ -778,39 +779,41 @@ export default function CustomerAnalyticsTab({ initialPhone, onEdit }: Props) {
 
       {/* ── View Document Modal (Exact A4 Preview Parity) ── */}
       {viewDoc && (
-        <div className="modal-backdrop" onClick={() => setViewDoc(null)}>
-          <div className="w-full max-w-3xl max-h-[95vh] overflow-y-auto bg-white rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="no-print flex items-center justify-between p-4 border-b bg-gray-900 text-white rounded-t-2xl">
-              <div>
-                <span className="font-semibold text-lg">{viewDoc.doc_number}</span>
-                <span className="ml-2 text-xs text-gray-400">({viewDoc.doc_type})</span>
-              </div>
-              <div className="flex items-center gap-2">
+        <InvoicePreviewModal
+          doc={viewDoc}
+          profile={profile}
+          title={viewDoc.doc_number}
+          titleBadge={
+            <span className="text-[10px] text-gray-500">({viewDoc.doc_type})</span>
+          }
+          actions={
+            <>
+              <button
+                onClick={() => handleWhatsAppShare(viewDoc)}
+                className="btn-primary text-xs py-1.5 bg-emerald-600 hover:bg-emerald-500 border-0 flex items-center gap-1.5 shadow-sm shadow-emerald-900/40"
+                title="Share via WhatsApp"
+              >
+                <WhatsAppIcon size={13} className="text-white" /> WhatsApp
+              </button>
+              {viewDoc.doc_type === 'QUOTATION' && viewDoc.payment_status !== 'CANCELLED' && (
                 <button
-                  onClick={() => handleWhatsAppShare(viewDoc)}
-                  className="btn-primary text-xs py-1.5 bg-emerald-600 hover:bg-emerald-500 border-0 flex items-center gap-1.5 shadow-sm shadow-emerald-600/30"
-                  title="Share generated PDF via WhatsApp"
+                  onClick={() => handleConvert(viewDoc)}
+                  className="btn-primary text-xs py-1.5 bg-emerald-600 hover:bg-emerald-500 border-0 flex items-center gap-1.5"
                 >
-                  <WhatsAppIcon size={14} className="text-white" /> WhatsApp
+                  <FileCheck size={13} /> Convert
                 </button>
-                {viewDoc.doc_type === 'QUOTATION' && viewDoc.payment_status !== 'CANCELLED' && (
-                  <button onClick={() => handleConvert(viewDoc)} className="btn-primary text-xs py-1.5 bg-emerald-600 hover:bg-emerald-500 border-0">
-                    <FileCheck size={14} /> Convert to Invoice
-                  </button>
-                )}
-                <button onClick={() => window.print()} className="btn-primary text-xs py-1.5">
-                  <Printer size={14} /> Print
-                </button>
-                <button onClick={() => setViewDoc(null)} className="btn-ghost text-gray-400 hover:text-white p-1">
-                  <X size={18} />
-                </button>
-              </div>
-            </div>
-            <div ref={viewModalPdfRef}>
-              <A4InvoiceTemplate doc={viewDoc} profile={profile} />
-            </div>
-          </div>
-        </div>
+              )}
+              <button
+                onClick={() => window.print()}
+                className="btn-primary text-xs py-1.5 flex items-center gap-1.5"
+              >
+                <Printer size={13} /> Print
+              </button>
+            </>
+          }
+          onClose={() => setViewDoc(null)}
+          templateRef={viewModalPdfRef}
+        />
       )}
 
       {/* ── Hidden target for generating PDF when sharing directly from table row ── */}
