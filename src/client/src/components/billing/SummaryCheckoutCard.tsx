@@ -171,8 +171,8 @@ export default function SummaryCheckoutCard({ onSuccess, sellerProfile, showPric
         let quotTerms: string[] = []
         try {
           const invParsed = typeof sellerProfile?.invoice_terms === 'string' ? JSON.parse(sellerProfile.invoice_terms) : sellerProfile?.invoice_terms
-          invTerms = Array.isArray(invParsed) && invParsed.length ? invParsed : ["Goods once sold can't be returned", "Goods can be exchanged with valid bill within 7 days of purchase"]
-        } catch { invTerms = ["Goods once sold can't be returned", "Goods can be exchanged with valid bill within 7 days of purchase"] }
+          invTerms = Array.isArray(invParsed) && invParsed.length ? invParsed : ["Goods once sold can't be returned", "Goods can be exchanged with valid bill within 7 days of purchase", "All disputes are subjected to Nalgonda jurisdiction only"]
+        } catch { invTerms = ["Goods once sold can't be returned", "Goods can be exchanged with valid bill within 7 days of purchase", "All disputes are subjected to Nalgonda jurisdiction only"] }
         try {
           const quotParsed = typeof sellerProfile?.quotation_terms === 'string' ? JSON.parse(sellerProfile.quotation_terms) : sellerProfile?.quotation_terms
           quotTerms = Array.isArray(quotParsed) && quotParsed.length ? quotParsed : ["Quotation valid for 3 days only"]

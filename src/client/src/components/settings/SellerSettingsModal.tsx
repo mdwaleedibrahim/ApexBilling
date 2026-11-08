@@ -1212,7 +1212,7 @@ export default function SellerSettingsModal({ onClose }: { onClose: () => void }
                     const lines = e.target.value.split('\n')
                     setStoreSettings((s: any) => ({ ...s, invoice_terms: JSON.stringify(lines) }))
                   }}
-                  placeholder={"Goods once sold can't be returned\nGoods can be exchanged with valid bill within 7 days of purchase"}
+                  placeholder={"Goods once sold can't be returned\nGoods can be exchanged with valid bill within 7 days of purchase\nAll disputes are subjected to Nalgonda jurisdiction only"}
                 />
               </div>
 

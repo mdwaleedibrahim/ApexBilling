@@ -57,8 +57,22 @@ export function getDb(): DatabaseSync {
     try { _db.exec('ALTER TABLE seller_profile ADD COLUMN show_profit_in_records INTEGER DEFAULT 1') } catch {}
     try { _db.exec('ALTER TABLE seller_profile ADD COLUMN restrict_sales_to_stock_qty INTEGER DEFAULT 0') } catch {}
     try {
-      _db.exec('ALTER TABLE seller_profile ADD COLUMN invoice_terms TEXT DEFAULT \'["Goods once sold can\'\'t be returned", "Goods can be exchanged with valid bill within 7 days of purchase"]\'')
-      _db.exec('UPDATE seller_profile SET invoice_terms = \'["Goods once sold can\'\'t be returned", "Goods can be exchanged with valid bill within 7 days of purchase"]\' WHERE invoice_terms IS NULL')
+      _db.exec('ALTER TABLE seller_profile ADD COLUMN invoice_terms TEXT DEFAULT \'["Goods once sold can\'\'t be returned", "Goods can be exchanged with valid bill within 7 days of purchase", "All disputes are subjected to Nalgonda jurisdiction only"]\'')
+      _db.exec('UPDATE seller_profile SET invoice_terms = \'["Goods once sold can\'\'t be returned", "Goods can be exchanged with valid bill within 7 days of purchase", "All disputes are subjected to Nalgonda jurisdiction only"]\' WHERE invoice_terms IS NULL')
+    } catch {}
+    try {
+      const rows = _db.prepare('SELECT id, invoice_terms FROM seller_profile').all() as any[]
+      for (const row of rows) {
+        if (row.invoice_terms) {
+          try {
+            const parsed = JSON.parse(row.invoice_terms)
+            if (Array.isArray(parsed) && !parsed.includes('All disputes are subjected to Nalgonda jurisdiction only')) {
+              parsed.push('All disputes are subjected to Nalgonda jurisdiction only')
+              _db.prepare('UPDATE seller_profile SET invoice_terms = ? WHERE id = ?').run(JSON.stringify(parsed), row.id)
+            }
+          } catch {}
+        }
+      }
     } catch {}
     try {
       _db.exec('ALTER TABLE seller_profile ADD COLUMN quotation_terms TEXT DEFAULT \'["Quotation valid for 3 days only"]\'')

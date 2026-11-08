@@ -11,7 +11,8 @@ interface Props {
 
 const DEFAULT_INVOICE_TERMS = [
   "Goods once sold can't be returned",
-  "Goods can be exchanged with valid bill within 7 days of purchase"
+  "Goods can be exchanged with valid bill within 7 days of purchase",
+  "All disputes are subjected to Nalgonda jurisdiction only"
 ]
 
 const DEFAULT_QUOTATION_TERMS = [

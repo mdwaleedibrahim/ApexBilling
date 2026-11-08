@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-v2.19.0-blue.svg" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-v2.22.0-blue.svg" alt="Version" />
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Web-purple.svg" alt="Platform" />
   <img src="https://img.shields.io/badge/Storage-SQLite%20(WAL%20Mode)-success.svg" alt="SQLite" />
   <img src="https://img.shields.io/badge/GST-Compliant%20Engine-emerald.svg" alt="GST Compliant" />
@@ -57,6 +57,13 @@
 - **CSV Sales Report Export**: 1-click export of financial reports for accounting and audit compliance.
 
 ### 🧾 4. Executive Invoice & Thermal Receipt Layouts
+- **Universal A4 Preview Modal (`InvoicePreviewModal`)**: Reusable high-speed modal deployed across POS pre-save draft preview, post-save confirmation, records history viewing, and customer analytics document viewer.
+- **Dynamic 1-Click Font Scaling (`AA-` / `AA+`)**: Adjust typography scale on the fly from `0.5×` to `1.5×` in precision `0.05` increments (`AA-` to decrease, `AA+` to increase, with a 3-value centered sliding window). Settings are persisted to `localStorage` across sessions and carried cleanly into paper and PDF outputs.
+- **Minimalist & Compact Editorial Layout**: Swiss-inspired design replacing heavy card containers with clean architectural hairline dividers (`#e2e8f0`), ink-friendly light table headers (`#f8fafc`), and ink-saving typography.
+- **Content-Driven Column Auto-Alignment**: Items table automatically balances column widths based on content without fixed percentage stretching. All numerical and metadata columns (`#`, `SKU`, `HSN`, `Qty`, `Unit`, `Disc`, `Price`, `Taxable`, `CGST`, `SGST`, `Total`) fit snugly with `nowrap` tabular alignment, while `Item Description` automatically absorbs all remaining horizontal width and is the sole column permitted to word-wrap.
+- **Dynamically Resizing Customer & Payment Panels**: "Billed To" and "Payment Information" panels align flush to the left and right margins of the items table and dynamically hug their content instead of spanning rigid 50% blocks.
+- **Space-Saving Unified Remittance Row**: Bank account details and the NPCI UPI QR code are positioned side-by-side in a single clean box, cutting ~140px vertical space to comfortably fit 10–15 items on a single A4 page.
+- **Default Legal Jurisdiction Terms**: Automated inclusion of *"All disputes are subjected to Nalgonda jurisdiction only"* across invoice templates, store settings, and database profiles.
 - **Immutable Seller Snapshot**: Invoices and quotations freeze the active seller's business name, GSTIN, address, bank, and UPI details at creation time, guaranteeing audit immutability.
 - **Zero-Blank-Page A4 GST Tax Invoice**: Clean typography, structured seller/buyer info, itemized HSN table, CGST/SGST split, bank details, authorized signatory, dynamic UPI QR code, and zero extra trailing blank pages.
 - **Dedicated Discount Column & Price/Total Hiding**: Standalone "Disc." column placed before price displaying merged % savings off MRP. When "Hide price" is toggled, Price and Row Total columns are seamlessly omitted and the Item Description auto-expands across 100% table width while overall summary totals remain intact.

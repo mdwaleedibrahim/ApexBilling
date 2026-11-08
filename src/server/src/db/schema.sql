@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS seller_profile (
     show_profit_in_records INTEGER DEFAULT 1,
     restrict_sales_to_stock_qty INTEGER DEFAULT 0,
     show_hsn_column INTEGER DEFAULT 1,
-    invoice_terms TEXT DEFAULT '["Goods once sold can''t be returned", "Goods can be exchanged with valid bill within 7 days of purchase"]',
+    invoice_terms TEXT DEFAULT '["Goods once sold can''t be returned", "Goods can be exchanged with valid bill within 7 days of purchase", "All disputes are subjected to Nalgonda jurisdiction only"]',
     quotation_terms TEXT DEFAULT '["Quotation valid for 3 days only"]',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
